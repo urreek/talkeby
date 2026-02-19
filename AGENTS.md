@@ -109,9 +109,9 @@ Build and maintain Talkeby as a secure, local-first, mobile-control coding syste
 3. Include risk assessment in PR descriptions.
 4. Require green tests and lint before merge.
 5. Use Git as the only supported sync and deployment path between machines.
-- Develop on laptop -> commit -> push -> pull on home PC.
+- Develop -> commit -> push -> pull on deployment target.
 - Do not manually copy source files between machines.
-6. Never edit production/home-PC code without committing and pushing from source branch first.
+6. Never edit deployed target code without committing and pushing from source branch first.
 7. Prefer deploying reviewed commits from `main` (or an agreed release branch/tag).
 8. Commit lockfiles when dependencies change to keep environments reproducible.
 9. Never commit `.env`, local database files, logs, or other machine-specific runtime artifacts.
@@ -122,7 +122,7 @@ Build and maintain Talkeby as a secure, local-first, mobile-control coding syste
 - Implement changes with tests and docs.
 - Commit small, readable units.
 - Push branch to remote.
-2. Home PC deployment workflow:
+2. Deployment target workflow:
 - `git fetch --all --prune`
 - `git checkout <deploy-branch-or-tag>`
 - `git pull --ff-only`

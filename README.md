@@ -1,7 +1,7 @@
 # Talkeby
 
 Talk to Codex from your phone.  
-Talkeby runs on your home machine, accepts tasks from Telegram and the mobile web app, and executes them with Codex in your local projects.
+Talkeby runs on your machine, accepts tasks from Telegram and the mobile web app, and executes them with Codex in your local projects.
 
 ## What You Get
 
@@ -109,11 +109,11 @@ If you do not yet know your chat id:
 
 Slash versions also work (`/do`, `/mode`, `/approve`, `/deny`, `/status`, `/project`, `/help`, `/id`).
 
-## Git-First Laptop -> Home PC Workflow
+## Git-First Workflow
 
 Use Git as the source of truth. Do not manually copy files between machines.
 
-On laptop:
+On your development environment:
 
 ```bash
 git add -A
@@ -121,7 +121,7 @@ git commit -m "your message"
 git push origin <branch>
 ```
 
-On home PC:
+On your deployment target:
 
 ```bash
 git fetch --all --prune
