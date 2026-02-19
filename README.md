@@ -1,173 +1,141 @@
-# Talkeby: Telegram + Mobile UI -> Codex (Home Always-On)
+# Talkeby
 
-Send a Telegram message from your phone (or keyboard dictation), and this worker runs `codex exec` on your home machine.  
-When Codex finishes, the bot replies in the same chat.
+Talk to Codex from your phone.  
+Talkeby runs on your home machine, accepts tasks from Telegram and the mobile web app, and executes them with Codex in your local projects.
 
-The bot now posts live status transitions:
+## What You Get
 
-- queued
-- started
-- periodic still-running updates
-- completed or failed
+- Telegram bot control (`do`, `approve`, `deny`, `mode`, `project`, `status`)
+- Mobile web app (PWA) for jobs, approvals, timeline, and settings
+- `auto` and `interactive` execution modes
+- Real-time updates via SSE
+- Local-first storage with SQLite
+- Multi-project routing
 
-There is also a mobile web app (`web/`) with:
+## Tech Stack
 
-- create job
-- approve/deny pending jobs
-- set mode/project
-- live timeline via SSE
+- Backend: Fastify + SQLite + Drizzle ORM
+- Worker: Codex CLI (`codex exec`)
+- Frontend: Vite + React + TypeScript + TanStack Router/Query
+- UI: Tailwind CSS + shadcn/ui
+- Realtime: Server-Sent Events (SSE)
 
-## 1) Prerequisites
+## Prerequisites
 
-- Node.js `>=20.19` (or `>=22.12`)
-- Codex CLI installed and authenticated
+- Node.js `>=20.19` (recommended: Node 22 LTS)
+- Codex CLI installed and authenticated on the machine that runs Talkeby
 - Telegram account
 
-Run once on your computer:
+Authenticate Codex once:
 
 ```bash
 codex login
 ```
 
-## 2) Create Your Telegram Bot
+## Quickstart
 
-1. Open Telegram and chat with `@BotFather`.
-2. Run `/newbot`.
-3. Pick a bot name and username.
-4. Copy the bot token (looks like `123456789:ABC...`).
-5. Optional: run `/setcommands` and paste:
+1. Clone and install
 
-```text
-do - Run a coding task
-mode - Show or switch execution mode
-approve - Approve a pending interactive job
-deny - Deny a pending interactive job
-status - Show latest job status
-project - Show or switch active project
-id - Show current chat id
-help - Show command help
+```bash
+git clone <your-repo-url>
+cd talkeby
+npm install
+npm run web:install
 ```
 
-## 3) Configure Local `.env`
-
-From this project directory:
+2. Configure environment
 
 ```bash
 cp .env.example .env
 ```
 
-Edit `.env` and set:
+Required values in `.env`:
 
-- `TELEGRAM_BOT_TOKEN` = token from BotFather
-- `CODEX_WORKDIR` = default repo path Codex should work in
-- `CODEX_BINARY` = absolute path from `which codex` (recommended)
-- `DATA_DIR` + `DATABASE_FILE` = local persistence location for jobs/events/settings
-- `TELEGRAM_DEFAULT_EXECUTION_MODE` = `auto` or `interactive`
-- Optional progress tuning:
-  - `TELEGRAM_PROGRESS_UPDATES=true|false`
-  - `TELEGRAM_PROGRESS_UPDATE_SECONDS=60`
+- `TELEGRAM_BOT_TOKEN`
+- `TELEGRAM_ALLOWED_CHAT_IDS` (your Telegram chat id)
+- `CODEX_WORKDIR` (default project path)
+- `CODEX_BINARY` (absolute path from `which codex`)
 
-Optional multi-project setup:
+Optional useful values:
 
-- `CODEX_PROJECTS` = comma-separated `name=/absolute/path` entries
-  - Example: `CODEX_PROJECTS=web=/Users/me/dev/web,api=/Users/me/dev/api`
-- `CODEX_DEFAULT_PROJECT` = one project name from `CODEX_PROJECTS`
+- `TELEGRAM_DEFAULT_EXECUTION_MODE=auto|interactive`
+- `CODEX_PROJECTS=name=/abs/path,name2=/abs/path2`
+- `CODEX_DEFAULT_PROJECT=<name>`
+- `CODEX_MODEL=<model>`
 
-Example helper command:
-
-```bash
-which codex
-```
-
-Install dependencies:
-
-```bash
-npm install
-npm --prefix web install
-```
-
-## 4) Get Your Chat ID
-
-1. In `.env`, temporarily set:
-   - `ALLOW_UNVERIFIED_CHATS=true`
-2. Start the worker:
+3. Start backend + Telegram worker
 
 ```bash
 npm start
 ```
 
-3. Message your bot from your phone: `id`
-4. Bot replies with `Chat ID: <number>`
-5. Stop the worker (`Ctrl+C`)
-6. Put that number in `.env`:
-   - `TELEGRAM_ALLOWED_CHAT_IDS=<number>`
-7. Set back:
-   - `ALLOW_UNVERIFIED_CHATS=false`
-
-## 5) Run And Test
-
-Start worker again:
-
-```bash
-npm start
-```
-
-From your phone, send:
-
-```text
-do create a TODO app in the current repo
-```
-
-You can also use:
-
-- `mode`
-- `mode auto`
-- `mode interactive`
-- `approve` (latest pending job)
-- `approve <job_id>`
-- `deny` (latest pending job)
-- `deny <job_id>`
-- `status`
-- `status <job_id>`
-- `project`
-- `project <name>`
-- `help`
-- `/do ...`, `/mode ...`, `/approve ...`, `/deny ...`, `/status`, `/project`, `/id`, `/help`
-
-Plain text without `do` is treated as a coding task.
-
-If `COMMAND_PIN` is set, prefix commands, for example:
-
-```text
-2468 do add tests for auth service
-```
-
-## 6) Run Mobile PWA UI
-
-Start backend and Telegram worker:
-
-```bash
-npm start
-```
-
-In another terminal, start mobile web app:
+4. Start mobile web app (second terminal)
 
 ```bash
 npm run web:dev
 ```
 
-Open from your phone on the same network:
+5. Open UI
 
-```text
-http://<your-computer-ip>:5173
+- Local machine: `http://localhost:5173`
+- Same network phone: `http://<your-computer-ip>:5173`
+
+## Telegram Setup
+
+1. Open `@BotFather`
+2. Run `/newbot`
+3. Copy token into `TELEGRAM_BOT_TOKEN`
+4. Send your bot message `id` to get chat id
+5. Put that id into `TELEGRAM_ALLOWED_CHAT_IDS`
+
+If you do not yet know your chat id:
+
+1. Temporarily set `ALLOW_UNVERIFIED_CHATS=true`
+2. Start Talkeby and send `id`
+3. Save the returned id into `TELEGRAM_ALLOWED_CHAT_IDS`
+4. Set `ALLOW_UNVERIFIED_CHATS=false`
+
+## Command Reference
+
+- `do <task>`: create job
+- `mode`: show mode
+- `mode auto|interactive`: switch mode
+- `approve [job_id]`: approve pending job
+- `deny [job_id]`: deny pending job
+- `status [job_id]`: show status
+- `project [name]`: show/switch active project
+- `help`: show help
+- `id`: show current chat id
+
+Slash versions also work (`/do`, `/mode`, `/approve`, `/deny`, `/status`, `/project`, `/help`, `/id`).
+
+## Git-First Laptop -> Home PC Workflow
+
+Use Git as the source of truth. Do not manually copy files between machines.
+
+On laptop:
+
+```bash
+git add -A
+git commit -m "your message"
+git push origin <branch>
 ```
 
-In the UI, set your Telegram chat ID once (Settings or first screen).  
-The UI then controls the same chat-scoped mode/project/jobs as Telegram.
+On home PC:
 
-## 7) Make It Always-On (launchd)
+```bash
+git fetch --all --prune
+git checkout <branch>
+git pull --ff-only
+npm ci
+npm run web:install
+```
 
-Install the launch agent:
+Then restart services.
+
+## Always-On (macOS launchd)
+
+Install:
 
 ```bash
 npm run launchd:install
@@ -185,25 +153,30 @@ Tail logs:
 tail -f logs/worker.out.log logs/worker.err.log
 ```
 
-Uninstall later:
+Uninstall:
 
 ```bash
 npm run launchd:uninstall
 ```
 
-## Security Notes
+## Security Checklist
 
 - Keep `ALLOW_UNVERIFIED_CHATS=false`
-- Keep `TELEGRAM_ALLOWED_CHAT_IDS` set to only your own chat IDs
+- Restrict `TELEGRAM_ALLOWED_CHAT_IDS` to your own ids
+- Keep `.env` out of Git
+- Prefer absolute `CODEX_BINARY`
 - Use `COMMAND_PIN` if you want an extra guardrail
-- Prefer absolute `CODEX_BINARY` in `.env` so `launchd` can always find Codex
 
-## Local Debug Endpoints
+## Troubleshooting
 
-Most `/api/*` endpoints require `chatId` and enforce `TELEGRAM_ALLOWED_CHAT_IDS`.
+- Port in use (`EADDRINUSE`): change `PORT` in `.env`
+- Telegram `getMe 404 Not Found`: invalid bot token (regenerate in BotFather)
+- `vite: command not found`: run `npm run web:install`
+- Node version error for Vite: upgrade to Node `20.19+` or `22.12+`
+
+## API Endpoints
 
 - `GET /health`
-- `GET /jobs`
 - `GET /api/health`
 - `GET /api/jobs`
 - `POST /api/jobs`
@@ -215,6 +188,10 @@ Most `/api/*` endpoints require `chatId` and enforce `TELEGRAM_ALLOWED_CHAT_IDS`
 - `POST /api/mode`
 - `GET /api/projects`
 - `POST /api/projects/select`
-- `GET /api/events` (SSE stream)
+- `GET /api/events` (SSE)
 
-Architecture notes: `docs/architecture.md`
+## Docs
+
+- Architecture notes: `docs/architecture.md`
+- Product requirements: `PRD.md`
+- Engineering rules: `AGENTS.md`
