@@ -102,6 +102,9 @@ Developers want to code while away from their computer (travel, outdoors, commut
 - Local Codex runner process using `codex exec`
 4. Optional channel:
 - Telegram bot integration retained as fallback/control channel
+5. Source control and distribution:
+- Git repository as the single source of truth
+- Remote Git host for sync between developer laptop and home PC
 
 ## Data Model (v1)
 1. `users`
@@ -152,6 +155,24 @@ Developers want to code while away from their computer (travel, outdoors, commut
 2. One-command local start script.
 3. Background-run instructions for macOS (`launchd`) and Linux (`systemd`) documented.
 4. Environment validation command (`doctor`) for common failures.
+5. Git-first deployment flow documented and supported.
+- Develop on laptop, commit, and push to remote.
+- Pull the same branch or tag on home PC before restart.
+- Do not rely on manual file copy between machines.
+6. Branch and release guidance documented for contributors.
+- Feature branches for active work.
+- `main` (or designated release branch) as stable deployment target.
+
+## Git Workflow Requirements
+1. Canonical workflow:
+- Work is authored on development machine, committed, and pushed to remote Git.
+- Home PC deployment is done via `git pull` of an explicit branch or tag.
+2. Reproducibility:
+- Dependency lockfiles must be committed.
+- Runtime secrets and local DB/state files must not be committed.
+3. Release safety:
+- Deployment should target reviewed commits only.
+- Rollback path is `git checkout <previous-tag-or-commit>` plus service restart.
 
 ## Success Metrics
 1. Time-to-first-successful-job < 10 minutes for a new setup.

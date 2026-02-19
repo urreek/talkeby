@@ -108,6 +108,30 @@ Build and maintain Talkeby as a secure, local-first, mobile-control coding syste
 2. Do not mix refactors with unrelated feature changes.
 3. Include risk assessment in PR descriptions.
 4. Require green tests and lint before merge.
+5. Use Git as the only supported sync and deployment path between machines.
+- Develop on laptop -> commit -> push -> pull on home PC.
+- Do not manually copy source files between machines.
+6. Never edit production/home-PC code without committing and pushing from source branch first.
+7. Prefer deploying reviewed commits from `main` (or an agreed release branch/tag).
+8. Commit lockfiles when dependencies change to keep environments reproducible.
+9. Never commit `.env`, local database files, logs, or other machine-specific runtime artifacts.
+
+## Deployment Workflow (Git-First)
+1. Development machine workflow:
+- Create/update branch.
+- Implement changes with tests and docs.
+- Commit small, readable units.
+- Push branch to remote.
+2. Home PC deployment workflow:
+- `git fetch --all --prune`
+- `git checkout <deploy-branch-or-tag>`
+- `git pull --ff-only`
+- `npm ci && npm run web:install`
+- Restart worker/web services.
+3. Rollback workflow:
+- `git checkout <previous-stable-tag-or-commit>`
+- Reinstall dependencies only if lockfile changed.
+- Restart services and verify health.
 
 ## Definition of Done
 1. Implementation matches PRD requirements for the targeted milestone.
