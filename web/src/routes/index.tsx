@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { useQuery } from "@tanstack/react-query";
 import { createRoute } from "@tanstack/react-router";
 
 import { CreateJobForm } from "@/components/jobs/create-job-form";
@@ -17,8 +18,15 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
+import { fetchProvider } from "@/lib/api";
 import { getStoredChatId, setStoredChatId } from "@/lib/storage";
 import { rootRoute } from "@/routes/__root";
+
+const PROVIDER_LABELS: Record<string, string> = {
+  codex: "OpenAI Codex",
+  claude: "Claude Code",
+  gemini: "Gemini CLI",
+};
 
 export const jobsRoute = createRoute({
   getParentRoute: () => rootRoute,
@@ -92,6 +100,8 @@ function JobsScreen() {
           onChangeProject={(name) => selectProjectMutation.mutate(name)}
         />
       </div>
+
+      <ActiveProviderBadge />
 
       {!hasActiveProject && (
         <Card className="theme-surface animate-in fade-in slide-in-from-bottom-4 duration-500 fill-mode-both">
@@ -169,6 +179,37 @@ function JobsScreen() {
           </div>
         </>
       )}
+    </div>
+  );
+}
+
+function ActiveProviderBadge() {
+  const providerQuery = useQuery({
+    queryKey: ["provider"],
+    queryFn: fetchProvider,
+  });
+
+  const data = providerQuery.data;
+  if (!data) {
+    return null;
+  }
+
+  const label = PROVIDER_LABELS[data.provider] ?? data.provider;
+  const parts = [label];
+  if (data.model) {
+    parts.push(data.model);
+  }
+  if (data.reasoningEffort) {
+    parts.push(data.reasoningEffort);
+  }
+  if (data.planMode) {
+    parts.push("plan");
+  }
+
+  return (
+    <div className="flex items-center gap-2 text-xs text-muted-foreground animate-in fade-in duration-300">
+      <span className="inline-block h-2 w-2 rounded-full bg-primary/60" />
+      <span>{parts.join(" · ")}</span>
     </div>
   );
 }

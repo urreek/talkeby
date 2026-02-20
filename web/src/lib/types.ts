@@ -69,3 +69,19 @@ export interface ProviderResponse {
   planMode: boolean;
   supported: AIProvider[];
 }
+
+export interface ProviderHealthCheck {
+  provider: AIProvider;
+  active: boolean;
+  binary: string;
+  binaryInstalled: boolean;
+  envKey: string;
+  apiKeySet: boolean;
+  ready: boolean;
+}
+
+export interface DoctorResponse {
+  ok: boolean;
+  activeProvider: AIProvider;
+  providers: ProviderHealthCheck[];
+}

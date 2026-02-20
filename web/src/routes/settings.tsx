@@ -2,6 +2,7 @@ import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { createRoute } from "@tanstack/react-router";
 
+import { ProviderHealth } from "@/components/settings/provider-health";
 import { SettingsPanel } from "@/components/settings/settings-panel";
 import { Card, CardContent } from "@/components/ui/card";
 import {
@@ -111,6 +112,8 @@ function SettingsScreen() {
           </CardContent>
         </Card>
       ) : null}
+
+      <ProviderHealth />
 
       <SettingsPanel
         initialChatId={chatId}

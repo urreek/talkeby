@@ -1,4 +1,5 @@
 import type {
+  DoctorResponse,
   ExecutionMode,
   Job,
   JobEvent,
@@ -124,6 +125,10 @@ export async function setProvider(input: { chatId: string; provider?: string; mo
     method: "POST",
     body: JSON.stringify(input)
   });
+}
+
+export async function fetchDoctor() {
+  return requestJson<DoctorResponse>("/api/doctor");
 }
 
 export async function addProject(input: {

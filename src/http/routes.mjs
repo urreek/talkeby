@@ -1,10 +1,29 @@
+import { execFile } from "node:child_process";
 import fs from "node:fs";
 import path from "node:path";
+import { promisify } from "node:util";
 
 import { resolveExecutionMode } from "../services/command-parser.mjs";
 import { registerEventRoute } from "./events-route.mjs";
 import { registerJobRoutes } from "./jobs-routes.mjs";
 import { isAuthorizedChat, textValue } from "./shared.mjs";
+
+const execFileAsync = promisify(execFile);
+
+const PROVIDER_ENV_KEYS = {
+  codex: "OPENAI_API_KEY",
+  claude: "ANTHROPIC_API_KEY",
+  gemini: "GOOGLE_API_KEY",
+};
+
+async function checkBinary(name) {
+  try {
+    await execFileAsync("which", [name], { timeout: 5000 });
+    return true;
+  } catch {
+    return false;
+  }
+}
 
 function parseBoolean(value, fallback = true) {
   if (value === undefined || value === null) {
@@ -52,6 +71,36 @@ export function registerRoutes({
     databaseFile: config.storage.databaseFile,
   }));
 
+  app.get("/api/doctor", async () => {
+    const activeProvider = state.getProvider();
+    const binaries = config.runner?.binaries || {};
+
+    const checks = await Promise.all(
+      ["codex", "claude", "gemini"].map(async (provider) => {
+        const binaryName = binaries[provider] || provider;
+        const envKey = PROVIDER_ENV_KEYS[provider];
+        const binaryInstalled = await checkBinary(binaryName);
+        const apiKeySet = Boolean(process.env[envKey]);
+
+        return {
+          provider,
+          active: provider === activeProvider,
+          binary: binaryName,
+          binaryInstalled,
+          envKey,
+          apiKeySet,
+          ready: binaryInstalled && apiKeySet,
+        };
+      }),
+    );
+
+    const active = checks.find((c) => c.active);
+    return {
+      ok: active?.ready ?? false,
+      activeProvider,
+      providers: checks,
+    };
+  });
   app.get("/api/mode", async (request) => {
     const chatId = textValue(request.query?.chatId || "");
     if (!chatId) {
