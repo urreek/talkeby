@@ -148,43 +148,22 @@ export function CreateJobForm({
             className="min-h-[100px] resize-none bg-background/50 font-medium placeholder:text-muted-foreground/50 focus-visible:ring-primary focus-visible:ring-offset-2"
             onChange={(event) => setTask(event.target.value)}
           />
-          <div className="grid grid-cols-2 gap-3">
-            <Select value={resolvedProjectValue} onValueChange={setProjectName}>
-              <SelectTrigger className="h-10 bg-background/50 text-sm font-medium text-foreground transition-colors hover:bg-background/80 focus:ring-primary focus:ring-offset-2">
-                <SelectValue
-                  className="text-foreground"
-                  placeholder="Project"
-                />
-              </SelectTrigger>
-              <SelectContent className="border-white/10 bg-popover/95 text-popover-foreground backdrop-blur-xl">
-                {projects.map((project) => (
-                  <SelectItem
-                    className="cursor-pointer transition-colors focus:bg-primary/20 focus:text-primary"
-                    key={project.name}
-                    value={project.name}
-                  >
-                    {project.name}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-            <Select value={currentModelValue} onValueChange={handleModelChange}>
-              <SelectTrigger className="h-10 bg-background/50 text-sm font-medium text-foreground transition-colors hover:bg-background/80 focus:ring-primary focus:ring-offset-2">
-                <SelectValue className="text-foreground" placeholder="Model" />
-              </SelectTrigger>
-              <SelectContent className="border-white/10 bg-popover/95 text-popover-foreground backdrop-blur-xl">
-                {models.map((m) => (
-                  <SelectItem
-                    className="cursor-pointer transition-colors focus:bg-primary/20 focus:text-primary"
-                    key={m.value}
-                    value={m.value}
-                  >
-                    {m.label}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
+          <Select value={currentModelValue} onValueChange={handleModelChange}>
+            <SelectTrigger className="h-10 bg-background/50 text-sm font-medium text-foreground transition-colors hover:bg-background/80 focus:ring-primary focus:ring-offset-2">
+              <SelectValue className="text-foreground" placeholder="Model" />
+            </SelectTrigger>
+            <SelectContent className="border-white/10 bg-popover/95 text-popover-foreground backdrop-blur-xl">
+              {models.map((m) => (
+                <SelectItem
+                  className="cursor-pointer transition-colors focus:bg-primary/20 focus:text-primary"
+                  key={m.value}
+                  value={m.value}
+                >
+                  {m.label}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
           <Button
             type="submit"
             className="w-full h-12 rounded-xl text-base font-bold shadow-lg shadow-primary/20 transition-all active:scale-95"
