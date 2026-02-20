@@ -110,7 +110,12 @@ export function registerRoutes({
       return { threads: [] };
     }
     const threads = repository.listThreadsByProject(projectName);
-    return { threads };
+    const enriched = threads.map((t) => {
+      const jobs = repository.listJobsByThread(t.id, 1);
+      const latestJob = jobs.length > 0 ? jobs[jobs.length - 1] : null;
+      return { ...t, latestJobStatus: latestJob?.status ?? null };
+    });
+    return { threads: enriched };
   });
 
   app.post("/api/threads", async (request, reply) => {
@@ -173,6 +178,22 @@ export function registerRoutes({
     }
     repository.deleteProject(name);
     return { ok: true };
+  });
+
+  app.patch("/api/threads/:threadId", async (request, reply) => {
+    const chatId = textValue(request.body?.chatId || "");
+    if (!chatId || !isAuthorizedChat(config, chatId)) {
+      reply.code(403);
+      return { error: "Not authorized." };
+    }
+    const threadId = textValue(request.params?.threadId || "");
+    const title = textValue(request.body?.title || "");
+    if (!threadId || !title) {
+      reply.code(400);
+      return { error: "threadId and title are required." };
+    }
+    const thread = repository.updateThread(threadId, { title });
+    return { thread };
   });
 
   app.get("/api/mode", async (request) => {

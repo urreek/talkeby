@@ -13,6 +13,7 @@ export interface Thread {
   projectName: string;
   title: string;
   status: string;
+  latestJobStatus: string | null;
   createdAt: string;
   updatedAt: string;
 }

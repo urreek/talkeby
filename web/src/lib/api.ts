@@ -203,6 +203,13 @@ export async function deleteThread(threadId: string, chatId: string) {
   });
 }
 
+export async function renameThread(threadId: string, chatId: string, title: string) {
+  return requestJson<{ thread: Thread }>(`/api/threads/${encodeURIComponent(threadId)}`, {
+    method: "PATCH",
+    body: JSON.stringify({ chatId, title }),
+  });
+}
+
 export async function deleteProject(name: string, chatId: string) {
   return requestJson<{ ok: true }>(`/api/projects/${encodeURIComponent(name)}?chatId=${encodeURIComponent(chatId)}`, {
     method: "DELETE",

@@ -22,6 +22,7 @@ import {
   fetchProjects,
   fetchThreadJobs,
   fetchThreads,
+  renameThread,
 } from "@/lib/api";
 import { getStoredChatId, setStoredChatId } from "@/lib/storage";
 import type { Thread } from "@/lib/types";
@@ -125,6 +126,12 @@ function JobsScreen() {
     },
   });
 
+  const renameThreadMutation = useMutation({
+    mutationFn: (input: { threadId: string; title: string }) =>
+      renameThread(input.threadId, chatId, input.title),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["threads"] }),
+  });
+
   if (!chatId) {
     return (
       <Card className="theme-surface">
@@ -219,9 +226,15 @@ function JobsScreen() {
           <Card className="theme-surface relative overflow-hidden border-border/50 shadow-md">
             <div className="absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-primary/30 to-transparent" />
             <CardHeader className="pb-2">
-              <CardTitle className="text-base font-bold">
-                {activeThread.title}
-              </CardTitle>
+              <EditableTitle
+                title={activeThread.title}
+                onSave={(title) =>
+                  renameThreadMutation.mutate({
+                    threadId: activeThread.id,
+                    title,
+                  })
+                }
+              />
               <CardDescription className="text-xs text-muted-foreground">
                 {activeProject} · {threadJobs.length} message
                 {threadJobs.length !== 1 ? "s" : ""}
@@ -283,23 +296,39 @@ function ThreadPill({
   onClick: () => void;
   onDelete: () => void;
 }) {
+  const dotClass = (() => {
+    switch (thread.latestJobStatus) {
+      case "pending_approval":
+        return "bg-amber-500 animate-pulse";
+      case "running":
+        return "bg-violet-500 shadow-[0_0_6px_rgba(139,92,246,0.5)]";
+      case "failed":
+        return "bg-red-500";
+      case "completed":
+        return "bg-emerald-500";
+      default:
+        return "bg-muted-foreground/40";
+    }
+  })();
+
+  const highlight =
+    thread.latestJobStatus === "pending_approval"
+      ? "ring-1 ring-amber-500/40"
+      : thread.latestJobStatus === "running"
+        ? "ring-1 ring-violet-500/30"
+        : "";
+
   return (
     <button
       type="button"
       onClick={onClick}
-      className={`group flex items-center gap-2 shrink-0 rounded-full px-4 py-1.5 text-xs font-medium transition-all ${
+      className={`group flex items-center gap-2 shrink-0 rounded-full px-4 py-1.5 text-xs font-medium transition-all ${highlight} ${
         isActive
           ? "bg-primary/15 text-primary border border-primary/30 shadow-sm"
           : "bg-muted/30 text-muted-foreground hover:bg-muted/60 hover:text-foreground border border-transparent"
       }`}
     >
-      <span
-        className={`inline-block h-1.5 w-1.5 rounded-full ${
-          thread.status === "active"
-            ? "bg-emerald-500"
-            : "bg-muted-foreground/40"
-        }`}
-      />
+      <span className={`inline-block h-1.5 w-1.5 rounded-full ${dotClass}`} />
       <span>{truncate(thread.title, 25)}</span>
       <span
         role="button"
@@ -319,5 +348,57 @@ function ThreadPill({
         ×
       </span>
     </button>
+  );
+}
+
+function EditableTitle({
+  title,
+  onSave,
+}: {
+  title: string;
+  onSave: (title: string) => void;
+}) {
+  const [editing, setEditing] = useState(false);
+  const [draft, setDraft] = useState(title);
+
+  if (!editing) {
+    return (
+      <h3
+        className="text-base font-bold cursor-pointer hover:text-primary transition-colors"
+        title="Click to rename"
+        onClick={() => {
+          setDraft(title);
+          setEditing(true);
+        }}
+      >
+        {title}
+      </h3>
+    );
+  }
+
+  return (
+    <input
+      type="text"
+      autoFocus
+      className="text-base font-bold bg-transparent border-b border-primary outline-none w-full"
+      value={draft}
+      onChange={(e) => setDraft(e.target.value)}
+      onBlur={() => {
+        const trimmed = draft.trim();
+        if (trimmed && trimmed !== title) {
+          onSave(trimmed);
+        }
+        setEditing(false);
+      }}
+      onKeyDown={(e) => {
+        if (e.key === "Enter") {
+          (e.target as HTMLInputElement).blur();
+        }
+        if (e.key === "Escape") {
+          setDraft(title);
+          setEditing(false);
+        }
+      }}
+    />
   );
 }
