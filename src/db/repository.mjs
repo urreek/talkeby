@@ -5,6 +5,7 @@ import {
   jobEventsTable,
   jobsTable,
   projectsTable,
+  threadsTable,
 } from "./schema.mjs";
 
 function nowIso() {
@@ -59,6 +60,7 @@ export class TalkebyRepository {
     const row = {
       id: job.id,
       chatId: String(job.chatId),
+      threadId: job.threadId || null,
       request: String(job.request),
       projectName: String(job.projectName),
       workdir: String(job.workdir),
@@ -274,5 +276,64 @@ export class TalkebyRepository {
       ...row,
       payload: parseEventPayload(row.payloadJson),
     }));
+  }
+
+  // ── Threads ──
+
+  listThreadsByProject(projectName) {
+    return this.db
+      .select()
+      .from(threadsTable)
+      .where(eq(threadsTable.projectName, String(projectName)))
+      .orderBy(desc(threadsTable.updatedAt))
+      .all();
+  }
+
+  getThread(threadId) {
+    if (!threadId) return null;
+    return this.db
+      .select()
+      .from(threadsTable)
+      .where(eq(threadsTable.id, String(threadId)))
+      .limit(1)
+      .get();
+  }
+
+  createThread({ id, projectName, title }) {
+    const now = nowIso();
+    const row = {
+      id: String(id),
+      projectName: String(projectName),
+      title: String(title),
+      status: "active",
+      createdAt: now,
+      updatedAt: now,
+    };
+    this.db.insert(threadsTable).values(row).run();
+    return this.getThread(id);
+  }
+
+  updateThread(threadId, patch) {
+    if (!threadId) return null;
+    const update = { updatedAt: nowIso() };
+    if ("title" in patch) update.title = patch.title;
+    if ("status" in patch) update.status = patch.status;
+    this.db
+      .update(threadsTable)
+      .set(update)
+      .where(eq(threadsTable.id, String(threadId)))
+      .run();
+    return this.getThread(threadId);
+  }
+
+  listJobsByThread(threadId, limit = 100) {
+    if (!threadId) return [];
+    return this.db
+      .select()
+      .from(jobsTable)
+      .where(eq(jobsTable.threadId, String(threadId)))
+      .orderBy(asc(jobsTable.createdAt))
+      .limit(limit)
+      .all();
   }
 }

@@ -101,6 +101,50 @@ export function registerRoutes({
       providers: checks,
     };
   });
+
+  // ── Thread routes ──
+
+  app.get("/api/threads", async (request) => {
+    const projectName = textValue(request.query?.project || "");
+    if (!projectName) {
+      return { threads: [] };
+    }
+    const threads = repository.listThreadsByProject(projectName);
+    return { threads };
+  });
+
+  app.post("/api/threads", async (request, reply) => {
+    const chatId = textValue(request.body?.chatId || "");
+    const projectName = textValue(request.body?.projectName || "");
+    const title = textValue(request.body?.title || "");
+
+    if (!chatId || !projectName) {
+      reply.code(400);
+      return { error: "chatId and projectName are required." };
+    }
+    if (!isAuthorizedChat(config, chatId)) {
+      reply.code(403);
+      return { error: "Chat is not authorized." };
+    }
+
+    const id = `thr_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+    const thread = repository.createThread({
+      id,
+      projectName,
+      title: title || "New thread",
+    });
+    return { thread };
+  });
+
+  app.get("/api/threads/:threadId/jobs", async (request) => {
+    const threadId = textValue(request.params?.threadId || "");
+    if (!threadId) {
+      return { jobs: [] };
+    }
+    const jobs = repository.listJobsByThread(threadId);
+    return { jobs };
+  });
+
   app.get("/api/mode", async (request) => {
     const chatId = textValue(request.query?.chatId || "");
     if (!chatId) {

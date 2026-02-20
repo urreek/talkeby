@@ -1,12 +1,25 @@
 export type ExecutionMode = "auto" | "interactive";
 
 export type JobStatus =
-  | "pending_approval"
   | "queued"
+  | "pending_approval"
   | "running"
   | "completed"
-  | "failed"
-  | "denied";
+  | "denied"
+  | "failed";
+
+export interface Thread {
+  id: string;
+  projectName: string;
+  title: string;
+  status: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface ThreadsResponse {
+  threads: Thread[];
+}
 
 export interface Job {
   id: string;

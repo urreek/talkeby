@@ -38,6 +38,7 @@ export function createJobFromTask({
   chatId,
   task,
   projectName = "",
+  threadId,
 }) {
   const normalizedTask = String(task || "").trim();
   if (!normalizedTask) {
@@ -60,6 +61,7 @@ export function createJobFromTask({
   const job = state.createJob({
     id: crypto.randomUUID().slice(0, 8),
     chatId,
+    threadId: threadId || null,
     request: normalizedTask,
     projectName: activeProject.name,
     workdir: activeProject.workdir,

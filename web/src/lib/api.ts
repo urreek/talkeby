@@ -6,6 +6,8 @@ import type {
   ModeResponse,
   ProjectsResponse,
   ProviderResponse,
+  Thread,
+  ThreadsResponse,
 } from "@/lib/types";
 
 async function requestJson<T>(path: string, init?: RequestInit): Promise<T> {
@@ -57,6 +59,7 @@ export async function createJob(input: {
   chatId: string;
   task: string;
   projectName?: string;
+  threadId?: string;
 }) {
   return requestJson<{
     ok: true;
@@ -167,4 +170,19 @@ export async function addProject(input: {
     method: "POST",
     body: JSON.stringify(payload)
   });
+}
+
+export async function fetchThreads(projectName: string) {
+  return requestJson<ThreadsResponse>(`/api/threads?project=${encodeURIComponent(projectName)}`);
+}
+
+export async function createThread(input: { chatId: string; projectName: string; title?: string }) {
+  return requestJson<{ thread: Thread }>("/api/threads", {
+    method: "POST",
+    body: JSON.stringify(input),
+  });
+}
+
+export async function fetchThreadJobs(threadId: string) {
+  return requestJson<{ jobs: Job[] }>(`/api/threads/${encodeURIComponent(threadId)}/jobs`);
 }

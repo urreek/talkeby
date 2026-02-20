@@ -64,6 +64,7 @@ export function registerJobRoutes({
     const chatId = textValue(request.body?.chatId || "");
     const task = textValue(request.body?.task || request.body?.request || "");
     const projectName = textValue(request.body?.projectName || "");
+    const threadId = textValue(request.body?.threadId || "");
 
     if (!chatId || !task) {
       reply.code(400);
@@ -86,6 +87,7 @@ export function registerJobRoutes({
       chatId,
       task,
       projectName,
+      threadId: threadId || undefined,
     });
 
     if (created.error) {

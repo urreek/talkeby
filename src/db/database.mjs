@@ -13,9 +13,19 @@ function ensureParentDirectory(filePath) {
 
 export function bootstrapDatabase(sqlite) {
   sqlite.exec(`
+    CREATE TABLE IF NOT EXISTS threads (
+      id TEXT PRIMARY KEY,
+      project_name TEXT NOT NULL,
+      title TEXT NOT NULL,
+      status TEXT NOT NULL DEFAULT 'active',
+      created_at TEXT NOT NULL,
+      updated_at TEXT NOT NULL
+    );
+
     CREATE TABLE IF NOT EXISTS jobs (
       id TEXT PRIMARY KEY,
       chat_id TEXT NOT NULL,
+      thread_id TEXT,
       request TEXT NOT NULL,
       project_name TEXT NOT NULL,
       workdir TEXT NOT NULL,
@@ -59,10 +69,19 @@ export function bootstrapDatabase(sqlite) {
     CREATE INDEX IF NOT EXISTS idx_jobs_chat_id ON jobs (chat_id);
     CREATE INDEX IF NOT EXISTS idx_jobs_status ON jobs (status);
     CREATE INDEX IF NOT EXISTS idx_jobs_created_at ON jobs (created_at);
+    CREATE INDEX IF NOT EXISTS idx_jobs_thread_id ON jobs (thread_id);
+    CREATE INDEX IF NOT EXISTS idx_threads_project ON threads (project_name);
     CREATE INDEX IF NOT EXISTS idx_projects_name ON projects (name);
     CREATE INDEX IF NOT EXISTS idx_job_events_job_id ON job_events (job_id);
     CREATE INDEX IF NOT EXISTS idx_job_events_created_at ON job_events (created_at);
   `);
+
+  // Migration: add thread_id column to existing jobs table
+  try {
+    sqlite.exec(`ALTER TABLE jobs ADD COLUMN thread_id TEXT`);
+  } catch {
+    // Column already exists
+  }
 }
 
 export function createDatabase({ filePath }) {
