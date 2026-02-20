@@ -61,7 +61,7 @@ function TimelineScreen() {
   return (
     <div className="space-y-4">
       {!chatId ? (
-        <Card>
+        <Card className="theme-surface">
           <CardHeader>
             <CardTitle>Missing Chat ID</CardTitle>
             <CardDescription>Set your chat ID in Settings before using timeline.</CardDescription>
@@ -69,13 +69,13 @@ function TimelineScreen() {
         </Card>
       ) : null}
 
-      <Card>
+      <Card className="theme-surface">
         <CardHeader>
           <CardTitle className="font-mono text-sm">{jobId}</CardTitle>
           <CardDescription>{jobQuery.data?.projectName ?? "Project"}</CardDescription>
         </CardHeader>
         <CardContent>
-          <p className="text-sm text-foreground/90">{jobQuery.data?.request ?? "Loading..."}</p>
+          <p className="text-sm text-foreground">{jobQuery.data?.request ?? "Loading..."}</p>
           <Link to="/" className="mt-3 inline-flex text-sm font-semibold text-primary">
             Back to Jobs
           </Link>

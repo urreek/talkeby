@@ -1,7 +1,24 @@
+import fs from "node:fs";
+import path from "node:path";
+
 import { resolveExecutionMode } from "../services/command-parser.mjs";
 import { registerEventRoute } from "./events-route.mjs";
 import { registerJobRoutes } from "./jobs-routes.mjs";
 import { isAuthorizedChat, textValue } from "./shared.mjs";
+
+function parseBoolean(value, fallback = true) {
+  if (value === undefined || value === null) {
+    return fallback;
+  }
+  const normalized = String(value).trim().toLowerCase();
+  if (["1", "true", "yes", "on"].includes(normalized)) {
+    return true;
+  }
+  if (["0", "false", "no", "off"].includes(normalized)) {
+    return false;
+  }
+  return fallback;
+}
 
 export function registerRoutes({
   app,
@@ -18,6 +35,7 @@ export function registerRoutes({
     defaultExecutionMode: config.telegram.defaultExecutionMode,
     defaultProject: config.codex.defaultProjectName,
     projects: Object.fromEntries(config.codex.projects),
+    projectsBaseDir: config.codex.projectsBaseDir,
     workdir: config.codex.workdir,
     databaseFile: config.storage.databaseFile,
   }));
@@ -29,6 +47,7 @@ export function registerRoutes({
     defaultExecutionMode: config.telegram.defaultExecutionMode,
     defaultProject: config.codex.defaultProjectName,
     projects: Object.fromEntries(config.codex.projects),
+    projectsBaseDir: config.codex.projectsBaseDir,
     workdir: config.codex.workdir,
     databaseFile: config.storage.databaseFile,
   }));
@@ -86,10 +105,8 @@ export function registerRoutes({
     const activeProject = state.getProjectForChat(chatId).name;
     return {
       activeProject,
-      projects: state.availableProjectNames().map((name) => ({
-        name,
-        path: config.codex.projects.get(name),
-      })),
+      basePath: config.codex.projectsBaseDir,
+      projects: state.listProjects(),
     };
   });
 
@@ -114,6 +131,71 @@ export function registerRoutes({
       chatId,
       projectName,
       path: config.codex.projects.get(projectName),
+    };
+  });
+
+  app.post("/api/projects", async (request, reply) => {
+    const chatId = textValue(request.body?.chatId || "");
+    const projectName = textValue(request.body?.projectName || request.body?.name || "");
+    const requestedPath = textValue(request.body?.path || "");
+    const setActive = parseBoolean(request.body?.setActive, true);
+
+    if (!chatId || !projectName) {
+      reply.code(400);
+      return {
+        error: "chatId and projectName are required.",
+      };
+    }
+    if (!isAuthorizedChat(config, chatId)) {
+      reply.code(403);
+      return { error: "Chat is not authorized." };
+    }
+
+    const candidatePath = requestedPath || projectName;
+    const resolvedPath = path.isAbsolute(candidatePath)
+      ? path.resolve(candidatePath)
+      : path.resolve(config.codex.projectsBaseDir, candidatePath);
+    try {
+      fs.mkdirSync(resolvedPath, { recursive: true });
+    } catch (error) {
+      reply.code(400);
+      return { error: `Could not create project path: ${error.message}` };
+    }
+
+    let stat;
+    try {
+      stat = fs.statSync(resolvedPath);
+    } catch {
+      reply.code(400);
+      return { error: "Project path is not accessible." };
+    }
+    if (!stat.isDirectory()) {
+      reply.code(400);
+      return { error: "Project path must be a directory." };
+    }
+
+    const created = state.addProject({
+      projectName,
+      projectPath: resolvedPath,
+      createdByChatId: chatId,
+    });
+    if (created.error) {
+      reply.code(400);
+      return { error: created.error };
+    }
+
+    if (setActive) {
+      state.setProjectForChat(chatId, created.project.name);
+    }
+
+    return {
+      ok: true,
+      chatId,
+      projectName: created.project.name,
+      path: created.project.path,
+      basePath: config.codex.projectsBaseDir,
+      activeProject: setActive ? created.project.name : state.getProjectForChat(chatId).name,
+      projects: state.listProjects(),
     };
   });
 

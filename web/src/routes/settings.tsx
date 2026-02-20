@@ -4,7 +4,14 @@ import { createRoute } from "@tanstack/react-router";
 
 import { SettingsPanel } from "@/components/settings/settings-panel";
 import { Card, CardContent } from "@/components/ui/card";
-import { fetchMode, fetchProjects, selectProject, setMode } from "@/lib/api";
+import {
+  addProject,
+  fetchMode,
+  fetchProjects,
+  selectProject,
+  setMode,
+} from "@/lib/api";
+import { useTheme } from "@/lib/theme";
 import { getStoredChatId, setStoredChatId } from "@/lib/storage";
 import type { ExecutionMode } from "@/lib/types";
 import { rootRoute } from "@/routes/__root";
@@ -12,11 +19,12 @@ import { rootRoute } from "@/routes/__root";
 export const settingsRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: "/settings",
-  component: SettingsScreen
+  component: SettingsScreen,
 });
 
 function SettingsScreen() {
   const queryClient = useQueryClient();
+  const { theme, setTheme } = useTheme();
   const [chatId, setChatId] = useState(() => getStoredChatId());
 
   const hasChatId = chatId.length > 0;
@@ -24,13 +32,13 @@ function SettingsScreen() {
   const modeQuery = useQuery({
     queryKey: ["mode", chatId],
     queryFn: () => fetchMode(chatId),
-    enabled: hasChatId
+    enabled: hasChatId,
   });
 
   const projectsQuery = useQuery({
     queryKey: ["projects", chatId],
     queryFn: () => fetchProjects(chatId),
-    enabled: hasChatId
+    enabled: hasChatId,
   });
 
   const modeMutation = useMutation({
@@ -38,7 +46,7 @@ function SettingsScreen() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["mode", chatId] });
       queryClient.invalidateQueries({ queryKey: ["jobs", chatId] });
-    }
+    },
   });
 
   const projectMutation = useMutation({
@@ -46,21 +54,44 @@ function SettingsScreen() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["projects", chatId] });
       queryClient.invalidateQueries({ queryKey: ["jobs", chatId] });
-    }
+    },
+  });
+
+  const addProjectMutation = useMutation({
+    mutationFn: (input: { projectName: string; path?: string }) =>
+      addProject({
+        chatId,
+        projectName: input.projectName,
+        path: input.path,
+        setActive: true,
+      }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["projects", chatId] });
+      queryClient.invalidateQueries({ queryKey: ["jobs", chatId] });
+    },
   });
 
   const errorMessage =
     getErrorMessage(modeMutation.error) ||
     getErrorMessage(projectMutation.error) ||
+    getErrorMessage(addProjectMutation.error) ||
     getErrorMessage(projectsQuery.error) ||
     getErrorMessage(modeQuery.error) ||
     "";
+  const projects = projectsQuery.data?.projects ?? [];
+  const projectsBasePath = projectsQuery.data?.basePath ?? "";
+  const fetchedActiveProject = projectsQuery.data?.activeProject;
+  const activeProject = projects.some(
+    (project) => project.name === fetchedActiveProject,
+  )
+    ? String(fetchedActiveProject)
+    : "";
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500 fill-mode-both">
       {errorMessage ? (
         <Card className="border-destructive/40 bg-destructive/10">
-          <CardContent>
+          <CardContent className="p-4">
             <p className="text-sm text-destructive">{errorMessage}</p>
           </CardContent>
         </Card>
@@ -69,8 +100,10 @@ function SettingsScreen() {
       <SettingsPanel
         initialChatId={chatId}
         mode={modeQuery.data?.executionMode ?? "auto"}
-        activeProject={projectsQuery.data?.activeProject ?? "default"}
-        projects={projectsQuery.data?.projects ?? []}
+        activeProject={activeProject}
+        projects={projects}
+        projectsBasePath={projectsBasePath}
+        theme={theme}
         onSaveChatId={(nextChatId) => {
           const normalized = nextChatId.trim();
           if (!normalized) {
@@ -80,10 +113,15 @@ function SettingsScreen() {
           setChatId(normalized);
           queryClient.invalidateQueries({ queryKey: ["jobs"] });
         }}
+        onChangeTheme={setTheme}
         onChangeMode={(mode) => modeMutation.mutate(mode)}
         onChangeProject={(projectName) => projectMutation.mutate(projectName)}
+        onAddProject={async (input) => {
+          await addProjectMutation.mutateAsync(input);
+        }}
         isUpdatingMode={modeMutation.isPending}
         isUpdatingProject={projectMutation.isPending}
+        isAddingProject={addProjectMutation.isPending}
       />
     </div>
   );

@@ -113,3 +113,41 @@ export async function selectProject(input: { chatId: string; projectName: string
     }
   );
 }
+
+export async function addProject(input: {
+  chatId: string;
+  projectName: string;
+  path?: string;
+  setActive?: boolean;
+}) {
+  const payload: {
+    chatId: string;
+    projectName: string;
+    path?: string;
+    setActive?: boolean;
+  } = {
+    chatId: input.chatId,
+    projectName: input.projectName,
+  };
+
+  const normalizedPath = input.path?.trim() || "";
+  if (normalizedPath) {
+    payload.path = normalizedPath;
+  }
+  if (typeof input.setActive === "boolean") {
+    payload.setActive = input.setActive;
+  }
+
+  return requestJson<{
+    ok: true;
+    chatId: string;
+    projectName: string;
+    path: string;
+    basePath: string;
+    activeProject: string;
+    projects: ProjectsResponse["projects"];
+  }>("/api/projects", {
+    method: "POST",
+    body: JSON.stringify(payload)
+  });
+}

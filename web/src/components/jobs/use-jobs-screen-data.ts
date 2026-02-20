@@ -7,7 +7,8 @@ import {
   denyJob,
   fetchJobs,
   fetchMode,
-  fetchProjects
+  fetchProjects,
+  selectProject
 } from "@/lib/api";
 import { subscribeJobEvents } from "@/lib/events";
 
@@ -68,30 +69,55 @@ export function useJobsScreenData(chatId: string) {
     }
   });
 
+  const selectProjectMutation = useMutation({
+    mutationFn: (projectName: string) => selectProject({ chatId, projectName }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["projects", chatId] });
+      queryClient.invalidateQueries({ queryKey: ["jobs", chatId] });
+    }
+  });
+
   const jobs = jobsQuery.data ?? [];
+  const projects = projectsQuery.data?.projects ?? [];
+  const activeProject = projectsQuery.data?.activeProject;
+  const normalizedActiveProject = projects.some((project) => project.name === activeProject)
+    ? String(activeProject)
+    : "";
+
+  const projectJobs = useMemo(
+    () =>
+      normalizedActiveProject
+        ? jobs.filter((job) => job.projectName === normalizedActiveProject)
+        : jobs,
+    [jobs, normalizedActiveProject]
+  );
+
   const pendingJobs = useMemo(
-    () => jobs.filter((job) => job.status === "pending_approval"),
-    [jobs]
+    () => projectJobs.filter((job) => job.status === "pending_approval"),
+    [projectJobs]
   );
 
   const errorMessage =
     getErrorMessage(createMutation.error) ||
     getErrorMessage(approveMutation.error) ||
     getErrorMessage(denyMutation.error) ||
+    getErrorMessage(selectProjectMutation.error) ||
     getErrorMessage(jobsQuery.error) ||
     getErrorMessage(projectsQuery.error) ||
     getErrorMessage(modeQuery.error) ||
     "";
 
   return {
-    jobs,
+    jobs: projectJobs,
+    latestJob: jobs[0],
     pendingJobs,
     currentMode: modeQuery.data?.executionMode ?? "auto",
-    activeProject: projectsQuery.data?.activeProject ?? "default",
-    availableProjects: projectsQuery.data?.projects ?? [],
+    activeProject: normalizedActiveProject,
+    availableProjects: projects,
     createMutation,
     approveMutation,
     denyMutation,
+    selectProjectMutation,
     errorMessage
   };
 }

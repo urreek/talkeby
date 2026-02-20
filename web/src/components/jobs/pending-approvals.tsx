@@ -23,7 +23,7 @@ export function PendingApprovals({
   }
 
   return (
-    <Card>
+    <Card className="theme-surface">
       <CardHeader>
         <CardTitle>Pending Approval</CardTitle>
         <CardDescription>Interactive mode jobs wait here until you approve.</CardDescription>
@@ -35,7 +35,7 @@ export function PendingApprovals({
               <div className="space-y-1">
                 <p className="text-sm font-semibold">{job.id}</p>
                 <p className="text-xs text-muted-foreground">Action: Run this Codex task on your home machine</p>
-                <p className="text-sm text-foreground/85">{job.request}</p>
+                <p className="text-sm text-foreground">{job.request}</p>
                 <p className="text-xs text-muted-foreground">{job.projectName} · {job.workdir}</p>
               </div>
               <div className="grid grid-cols-2 gap-2">
@@ -59,6 +59,7 @@ export function PendingApprovals({
                 </Button>
                 <Button
                   variant="outline"
+                  className="bg-background hover:bg-secondary"
                   onClick={() => {
                     const ok = window.confirm(
                       [

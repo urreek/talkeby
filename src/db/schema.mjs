@@ -25,6 +25,14 @@ export const chatSettingsTable = sqliteTable("chat_settings", {
   updatedAt: text("updated_at").notNull(),
 });
 
+export const projectsTable = sqliteTable("projects", {
+  name: text("name").primaryKey(),
+  path: text("path").notNull(),
+  createdByChatId: text("created_by_chat_id"),
+  createdAt: text("created_at").notNull(),
+  updatedAt: text("updated_at").notNull(),
+});
+
 export const jobEventsTable = sqliteTable("job_events", {
   id: integer("id").primaryKey({ autoIncrement: true }),
   jobId: text("job_id").notNull(),

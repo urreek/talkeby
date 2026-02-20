@@ -77,14 +77,14 @@ function parseProjectMap(value, fallbackWorkdir) {
     projects.set(name, path.resolve(projectPath));
   }
 
-  if (projects.size === 0) {
-    projects.set("default", fallbackWorkdir);
-  }
-
   return projects;
 }
 
 function resolveDefaultProjectName(projects, configuredDefault) {
+  if (projects.size === 0) {
+    return "";
+  }
+
   const requested = String(configuredDefault ?? "").trim();
   if (!requested) {
     return projects.keys().next().value;
@@ -105,6 +105,9 @@ export function loadConfig() {
   const port = parseInteger(process.env.PORT, 3000);
   const codexTimeoutMs = parseInteger(process.env.CODEX_TIMEOUT_MS, 15 * 60 * 1000);
   const fallbackWorkdir = path.resolve(process.env.CODEX_WORKDIR?.trim() || process.cwd());
+  const projectsBaseDir = path.resolve(
+    process.env.CODEX_PROJECTS_BASE_DIR?.trim() || path.dirname(fallbackWorkdir),
+  );
   const dataDir = path.resolve(
     process.env.DATA_DIR?.trim() || path.join(process.cwd(), "data"),
   );
@@ -138,7 +141,8 @@ export function loadConfig() {
 
   const codex = {
     binary: process.env.CODEX_BINARY?.trim() || "codex",
-    workdir: projects.get(defaultProjectName),
+    workdir: defaultProjectName ? projects.get(defaultProjectName) : fallbackWorkdir,
+    projectsBaseDir,
     projects,
     defaultProjectName,
     timeoutMs: codexTimeoutMs,

@@ -15,6 +15,10 @@ function safeList(items) {
   return items.join(", ");
 }
 
+function isValidProjectName(name) {
+  return /^[a-zA-Z0-9][a-zA-Z0-9._-]{0,63}$/.test(name);
+}
+
 export class RuntimeState {
   constructor({ config, repository }) {
     this.config = config;
@@ -28,6 +32,19 @@ export class RuntimeState {
   }
 
   hydrate() {
+    const persistedProjects = this.repository.listProjects();
+    for (const row of persistedProjects) {
+      const name = textValue(row.name);
+      const path = textValue(row.path);
+      if (!name || !path) {
+        continue;
+      }
+      if (this.resolveProjectName(name)) {
+        continue;
+      }
+      this.config.codex.projects.set(name, path);
+    }
+
     const chatSettings = this.repository.listChatSettings();
     for (const row of chatSettings) {
       if (row.projectName) {
@@ -54,7 +71,24 @@ export class RuntimeState {
   }
 
   availableProjectNames() {
-    return Array.from(this.config.codex.projects.keys());
+    return this.listProjects().map((project) => project.name);
+  }
+
+  listProjects() {
+    return Array.from(this.config.codex.projects.entries())
+      .map(([name, path]) => ({
+        name,
+        path: String(path),
+      }))
+      .sort((a, b) => a.name.localeCompare(b.name));
+  }
+
+  normalizeProjectName(inputName) {
+    const requested = textValue(inputName);
+    if (!requested || !isValidProjectName(requested)) {
+      return "";
+    }
+    return requested;
   }
 
   resolveProjectName(inputName) {
@@ -73,14 +107,21 @@ export class RuntimeState {
 
   getProjectNameForChat(chatId) {
     const selected = this.projectNameByChat.get(String(chatId)) || "";
-    return this.resolveProjectName(selected) || this.config.codex.defaultProjectName;
+    const resolved = this.resolveProjectName(selected);
+    if (resolved) {
+      return resolved;
+    }
+    return this.config.codex.defaultProjectName || "";
   }
 
   getProjectForChat(chatId) {
     const name = this.getProjectNameForChat(chatId);
+    if (!name) {
+      return { name: "", workdir: "" };
+    }
     return {
       name,
-      workdir: this.config.codex.projects.get(name),
+      workdir: this.config.codex.projects.get(name) || "",
     };
   }
 
@@ -92,6 +133,37 @@ export class RuntimeState {
       executionMode: this.getExecutionModeForChat(id),
       projectName,
     });
+  }
+
+  addProject({ projectName, projectPath, createdByChatId = "" }) {
+    const normalizedName = this.normalizeProjectName(projectName);
+    const normalizedPath = textValue(projectPath);
+
+    if (!normalizedName) {
+      return {
+        error: "Invalid project name. Use letters, numbers, dots, underscores, or dashes.",
+      };
+    }
+    if (!normalizedPath) {
+      return { error: "Project path is required." };
+    }
+    if (this.resolveProjectName(normalizedName)) {
+      return { error: `Project ${normalizedName} already exists.` };
+    }
+
+    this.config.codex.projects.set(normalizedName, normalizedPath);
+    this.repository.upsertProject({
+      name: normalizedName,
+      path: normalizedPath,
+      createdByChatId,
+    });
+
+    return {
+      project: {
+        name: normalizedName,
+        path: normalizedPath,
+      },
+    };
   }
 
   getExecutionModeForChat(chatId) {

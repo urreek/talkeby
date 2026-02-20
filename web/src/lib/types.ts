@@ -48,6 +48,7 @@ export interface ProjectInfo {
 
 export interface ProjectsResponse {
   activeProject: string;
+  basePath: string;
   projects: ProjectInfo[];
 }
 

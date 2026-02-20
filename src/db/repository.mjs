@@ -1,6 +1,11 @@
 import { asc, desc, eq, gt } from "drizzle-orm";
 
-import { chatSettingsTable, jobEventsTable, jobsTable } from "./schema.mjs";
+import {
+  chatSettingsTable,
+  jobEventsTable,
+  jobsTable,
+  projectsTable,
+} from "./schema.mjs";
 
 function nowIso() {
   return new Date().toISOString();
@@ -147,6 +152,51 @@ export class TalkebyRepository {
       .from(chatSettingsTable)
       .orderBy(asc(chatSettingsTable.chatId))
       .all();
+  }
+
+  listProjects() {
+    return this.db
+      .select()
+      .from(projectsTable)
+      .orderBy(asc(projectsTable.name))
+      .all();
+  }
+
+  upsertProject({ name, path, createdByChatId = "" }) {
+    const existing = this.db
+      .select()
+      .from(projectsTable)
+      .where(eq(projectsTable.name, String(name)))
+      .limit(1)
+      .get();
+
+    const row = {
+      name: String(name),
+      path: String(path),
+      createdByChatId: createdByChatId ? String(createdByChatId) : null,
+      createdAt: existing?.createdAt || nowIso(),
+      updatedAt: nowIso(),
+    };
+
+    this.db
+      .insert(projectsTable)
+      .values(row)
+      .onConflictDoUpdate({
+        target: projectsTable.name,
+        set: {
+          path: row.path,
+          createdByChatId: row.createdByChatId,
+          updatedAt: row.updatedAt,
+        },
+      })
+      .run();
+
+    return this.db
+      .select()
+      .from(projectsTable)
+      .where(eq(projectsTable.name, row.name))
+      .limit(1)
+      .get();
   }
 
   addJobEvent({ jobId, chatId, eventType, message, payload }) {

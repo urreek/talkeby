@@ -38,6 +38,14 @@ export function bootstrapDatabase(sqlite) {
       updated_at TEXT NOT NULL
     );
 
+    CREATE TABLE IF NOT EXISTS projects (
+      name TEXT PRIMARY KEY,
+      path TEXT NOT NULL,
+      created_by_chat_id TEXT,
+      created_at TEXT NOT NULL,
+      updated_at TEXT NOT NULL
+    );
+
     CREATE TABLE IF NOT EXISTS job_events (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       job_id TEXT NOT NULL,
@@ -51,6 +59,7 @@ export function bootstrapDatabase(sqlite) {
     CREATE INDEX IF NOT EXISTS idx_jobs_chat_id ON jobs (chat_id);
     CREATE INDEX IF NOT EXISTS idx_jobs_status ON jobs (status);
     CREATE INDEX IF NOT EXISTS idx_jobs_created_at ON jobs (created_at);
+    CREATE INDEX IF NOT EXISTS idx_projects_name ON projects (name);
     CREATE INDEX IF NOT EXISTS idx_job_events_job_id ON job_events (job_id);
     CREATE INDEX IF NOT EXISTS idx_job_events_created_at ON job_events (created_at);
   `);
