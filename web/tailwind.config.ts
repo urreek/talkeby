@@ -1,4 +1,5 @@
 import type { Config } from "tailwindcss";
+import tailwindcssAnimate from "tailwindcss-animate";
 
 const config: Config = {
   darkMode: ["class"],
@@ -6,34 +7,38 @@ const config: Config = {
   theme: {
     extend: {
       colors: {
-        border: "hsl(215 16% 82%)",
-        input: "hsl(215 16% 82%)",
-        ring: "hsl(212 84% 36%)",
-        background: "hsl(210 40% 98%)",
-        foreground: "hsl(222 47% 11%)",
+        border: "hsl(var(--border))",
+        input: "hsl(var(--input))",
+        ring: "hsl(var(--ring))",
+        background: "hsl(var(--background))",
+        foreground: "hsl(var(--foreground))",
         primary: {
-          DEFAULT: "hsl(212 84% 36%)",
-          foreground: "hsl(210 40% 98%)"
+          DEFAULT: "hsl(var(--primary))",
+          foreground: "hsl(var(--primary-foreground))"
         },
         secondary: {
-          DEFAULT: "hsl(210 36% 92%)",
-          foreground: "hsl(222 47% 11%)"
+          DEFAULT: "hsl(var(--secondary))",
+          foreground: "hsl(var(--secondary-foreground))"
         },
         muted: {
-          DEFAULT: "hsl(210 36% 92%)",
-          foreground: "hsl(215 16% 38%)"
+          DEFAULT: "hsl(var(--muted))",
+          foreground: "hsl(var(--muted-foreground))"
         },
         accent: {
-          DEFAULT: "hsl(174 72% 41%)",
-          foreground: "hsl(210 40% 98%)"
+          DEFAULT: "hsl(var(--accent))",
+          foreground: "hsl(var(--accent-foreground))"
         },
         destructive: {
-          DEFAULT: "hsl(0 84% 52%)",
-          foreground: "hsl(210 40% 98%)"
+          DEFAULT: "hsl(var(--destructive))",
+          foreground: "hsl(var(--destructive-foreground))"
         },
         card: {
-          DEFAULT: "hsl(210 40% 98%)",
-          foreground: "hsl(222 47% 11%)"
+          DEFAULT: "hsl(var(--card))",
+          foreground: "hsl(var(--card-foreground))"
+        },
+        popover: {
+          DEFAULT: "hsl(var(--popover))",
+          foreground: "hsl(var(--popover-foreground))"
         }
       },
       borderRadius: {
@@ -46,7 +51,7 @@ const config: Config = {
       }
     }
   },
-  plugins: []
+  plugins: [tailwindcssAnimate]
 };
 
 export default config;

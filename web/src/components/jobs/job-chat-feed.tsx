@@ -1,3 +1,5 @@
+import { useEffect, useRef } from "react";
+
 import type { Job } from "@/lib/types";
 
 function formatTimestamp(value: string) {
@@ -28,10 +30,20 @@ function assistantMessage(job: Job) {
 }
 
 export function JobChatFeed({ jobs }: { jobs: Job[] }) {
+  const scrollRef = useRef<HTMLElement | null>(null);
+
+  useEffect(() => {
+    const node = scrollRef.current;
+    if (!node) {
+      return;
+    }
+    node.scrollTop = node.scrollHeight;
+  }, [jobs]);
+
   if (jobs.length === 0) {
     return (
-      <p className="text-sm text-muted-foreground">
-        No messages yet. Send a task and Talkeby will respond here.
+      <p className="chat-message-meta text-sm text-muted-foreground">
+        No messages yet. Send a task and Agent will respond here.
       </p>
     );
   }
@@ -39,16 +51,27 @@ export function JobChatFeed({ jobs }: { jobs: Job[] }) {
   const ordered = jobs.slice(0, 20).reverse();
 
   return (
-    <section className="space-y-3">
+    <section
+      ref={scrollRef}
+      className="max-h-[52vh] min-h-[220px] space-y-4 overflow-y-auto overscroll-contain pr-2"
+    >
       {ordered.map((job) => (
-        <div key={job.id} className="space-y-2">
-          <div className="ml-8 rounded-2xl bg-white p-3 shadow-soft">
-            <p className="text-xs text-muted-foreground">You · {formatTimestamp(job.createdAt)}</p>
-            <p className="mt-1 text-sm text-foreground">{job.request}</p>
+        <div key={job.id} className="space-y-3">
+          <div className="theme-muted-surface ml-8 rounded-2xl p-4 shadow-sm border border-white/5 transition-all hover:bg-muted/60">
+            <p className="chat-message-meta text-xs font-medium text-muted-foreground">
+              You · {formatTimestamp(job.createdAt)}
+            </p>
+            <p className="chat-message-body mt-1.5 text-sm text-foreground leading-relaxed">
+              {job.request}
+            </p>
           </div>
-          <div className="mr-8 rounded-2xl bg-primary/10 p-3">
-            <p className="text-xs text-muted-foreground">Talkeby · {job.projectName}</p>
-            <p className="mt-1 whitespace-pre-wrap text-sm text-foreground">{assistantMessage(job)}</p>
+          <div className="theme-surface mr-8 rounded-2xl border border-primary/20 bg-gradient-to-br from-card to-primary/5 p-4 shadow-md backdrop-blur-md">
+            <p className="chat-message-meta text-xs font-semibold text-primary/80">
+              Agent · {job.projectName}
+            </p>
+            <p className="chat-message-body mt-1.5 whitespace-pre-wrap text-sm text-foreground/90 leading-relaxed">
+              {assistantMessage(job)}
+            </p>
           </div>
         </div>
       ))}

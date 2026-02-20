@@ -12,7 +12,7 @@ function formatEventTimestamp(value: string) {
 export function JobTimeline({ events }: { events: JobEvent[] }) {
   if (events.length === 0) {
     return (
-      <Card>
+      <Card className="theme-surface">
         <CardHeader>
           <CardTitle>Timeline</CardTitle>
           <CardDescription>No events yet for this job.</CardDescription>
@@ -22,7 +22,7 @@ export function JobTimeline({ events }: { events: JobEvent[] }) {
   }
 
   return (
-    <Card>
+    <Card className="theme-surface">
       <CardHeader>
         <CardTitle>Timeline</CardTitle>
         <CardDescription>Live stream from backend event bus.</CardDescription>
@@ -30,12 +30,12 @@ export function JobTimeline({ events }: { events: JobEvent[] }) {
       <CardContent>
         <ol className="space-y-3">
           {events.map((event) => (
-            <li key={event.id} className="rounded-xl border border-border bg-white p-3">
+            <li key={event.id} className="theme-surface rounded-xl border border-border p-3">
               <div className="flex items-center justify-between gap-2">
                 <p className="text-sm font-semibold">{event.eventType}</p>
                 <p className="text-xs text-muted-foreground">{formatEventTimestamp(event.createdAt)}</p>
               </div>
-              <p className="mt-1 text-sm text-foreground/85">{event.message}</p>
+              <p className="mt-1 text-sm text-foreground">{event.message}</p>
             </li>
           ))}
         </ol>

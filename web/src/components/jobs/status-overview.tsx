@@ -11,25 +11,48 @@ type StatusOverviewProps = {
 
 export function StatusOverview({ mode, job }: StatusOverviewProps) {
   return (
-    <Card className="overflow-hidden border-none bg-gradient-to-br from-slate-900 via-blue-900 to-cyan-700 text-white">
-      <CardHeader>
-        <CardTitle className="flex items-center gap-2 text-white">
-          <Sparkles className="size-4" />
-          Home Runner
+    <Card className="theme-surface relative overflow-hidden border-primary/20 bg-gradient-to-br from-card via-card/80 to-primary/5 shadow-lg shadow-primary/5">
+      <div className="absolute -right-20 -top-20 z-0 h-40 w-40 rounded-full bg-primary/10 blur-3xl" />
+      <CardHeader className="relative z-10 pb-4">
+        <CardTitle className="flex items-center gap-2 text-lg font-bold">
+          <div className="relative flex items-center justify-center rounded-lg bg-primary/20 p-1.5 text-primary">
+            <Sparkles className="size-4" />
+            <div className="absolute inset-0 animate-pulse rounded-lg bg-primary/20 blur-sm" />
+          </div>
+          <span className="bg-gradient-to-br from-foreground to-foreground/70 bg-clip-text text-transparent">
+            Home Runner
+          </span>
         </CardTitle>
       </CardHeader>
-      <CardContent className="space-y-3 text-sm">
-        <div className="flex items-center justify-between rounded-xl bg-white/10 px-3 py-2">
-          <span className="inline-flex items-center gap-2"><ShieldCheck className="size-4" />Mode</span>
-          <span className="font-semibold capitalize">{mode}</span>
+      <CardContent className="relative z-10 space-y-3 text-sm">
+        <div className="theme-muted-surface flex items-center justify-between rounded-xl border border-white/5 bg-background/50 px-4 py-2.5 transition-colors hover:bg-background/80">
+          <span className="inline-flex items-center gap-2 font-medium text-muted-foreground">
+            <ShieldCheck className="size-4 text-cyan-700 dark:text-cyan-400" />
+            Mode
+          </span>
+          <div className="min-w-[80px] flex items-center justify-end">
+            <span className="font-bold capitalize tracking-tight">{mode}</span>
+          </div>
         </div>
-        <div className="flex items-center justify-between rounded-xl bg-white/10 px-3 py-2">
-          <span className="inline-flex items-center gap-2"><Activity className="size-4" />Latest Job</span>
-          {job ? <StatusBadge status={job.status} /> : <span className="text-xs text-white/80">none</span>}
+        <div className="theme-muted-surface flex items-center justify-between rounded-xl border border-white/5 bg-background/50 px-4 py-2.5 transition-colors hover:bg-background/80">
+          <span className="inline-flex items-center gap-2 font-medium text-muted-foreground">
+            <Activity className="size-4 text-primary" />
+            Latest Job
+          </span>
+          <span className="font-bold capitalize tracking-tight">
+            {job ? job.status.replace(/_/g, " ") : "none"}
+          </span>
         </div>
-        <div className="flex items-center justify-between rounded-xl bg-white/10 px-3 py-2">
-          <span className="inline-flex items-center gap-2"><Clock3 className="size-4" />Job ID</span>
-          <span className="font-mono text-xs">{job?.id ?? "-"}</span>
+        <div className="theme-muted-surface flex items-center justify-between rounded-xl border border-white/5 bg-background/50 px-4 py-2.5 transition-colors hover:bg-background/80">
+          <span className="inline-flex items-center gap-2 font-medium text-muted-foreground">
+            <Clock3 className="size-4 text-amber-600 dark:text-amber-500" />
+            Job ID
+          </span>
+          <div className="min-w-[80px] flex items-center justify-end">
+            <span className="font-mono text-xs font-semibold">
+              {job?.id ?? "-"}
+            </span>
+          </div>
         </div>
       </CardContent>
     </Card>

@@ -2,51 +2,170 @@
 @tailwind components;
 @tailwind utilities;
 
-:root {
-  --background: 210 40% 98%;
-  --foreground: 222 47% 11%;
+@layer base {
+  :root {
+    --background: 210 40% 98%;
+    --foreground: 220 30% 10%;
+    --card: 0 0% 100%;
+    --card-foreground: 220 30% 10%;
+    --popover: 0 0% 100%;
+    --popover-foreground: 220 30% 10%;
+    --primary: 215 100% 35%;
+    --primary-foreground: 0 0% 100%;
+    --secondary: 214 20% 92%;
+    --secondary-foreground: 220 30% 10%;
+    --muted: 214 20% 94%;
+    --muted-foreground: 220 15% 45%;
+    --accent: 214 20% 92%;
+    --accent-foreground: 220 30% 10%;
+    --destructive: 0 84.2% 60.2%;
+    --destructive-foreground: 0 0% 100%;
+    --border: 214 20% 88%;
+    --input: 214 20% 88%;
+    --ring: 215 100% 35%;
+    --card-shadow: 0 20px 40px -15px hsla(220, 30%, 10%, 0.1);
+    --card-opacity: 0.8;
+  }
 
-  font-family: "Avenir Next", "Trebuchet MS", "Segoe UI", sans-serif;
-  line-height: 1.4;
-  font-weight: 400;
+  .dark,
+  :root[data-theme="dark"],
+  body[data-theme="dark"] {
+    --background: 0 0% 5%;
+    --foreground: 0 0% 96%;
+    --card: 270 5% 10%;
+    --card-foreground: 0 0% 96%;
+    --popover: 270 5% 10%;
+    --popover-foreground: 0 0% 96%;
+    --primary: 268 76% 55%;
+    --primary-foreground: 0 0% 100%;
+    --secondary: 270 4% 16%;
+    --secondary-foreground: 0 0% 96%;
+    --muted: 270 4% 16%;
+    --muted-foreground: 0 0% 60%;
+    --accent: 270 4% 16%;
+    --accent-foreground: 0 0% 96%;
+    --destructive: 0 72% 51%;
+    --destructive-foreground: 0 0% 100%;
+    --border: 270 4% 20%;
+    --input: 270 4% 20%;
+    --ring: 268 76% 55%;
+    --card-shadow: 0 10px 40px -10px hsla(0, 0%, 0%, 0.4);
+    --card-opacity: 0.4;
+  }
 
+  * {
+    @apply border-border;
+  }
+
+  body {
+    background-color: hsl(0 0% 5%);
+    color: hsl(var(--foreground));
+    margin: 0;
+    min-width: 320px;
+    min-height: 100vh;
+    font-family: "Inter", "SF Pro Text", "Segoe UI", sans-serif;
+    line-height: 1.4;
+    font-weight: 400;
+    font-synthesis: none;
+    text-rendering: optimizeLegibility;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    transition: background-color 0.3s ease, color 0.3s ease;
+  }
+
+  body[data-theme="dark"], .dark body {
+    background-color: hsl(0 0% 5%);
+  }
+
+  #root {
+    min-height: 100vh;
+    background-color: transparent;
+  }
+}
+
+/* Scoped compatibility overrides: keep shadcn source untouched while enforcing app theme */
+.talkeby-app {
+  background-color: transparent;
   color: hsl(var(--foreground));
+}
+
+.talkeby-app .theme-surface {
+  background-color: hsl(var(--card) / var(--card-opacity));
+  color: hsl(var(--card-foreground));
+  border: 1px solid hsla(var(--border) / 0.2);
+  backdrop-filter: blur(28px) saturate(200%);
+  -webkit-backdrop-filter: blur(28px) saturate(200%);
+  box-shadow: 
+    inset 0 1px 0 0 hsla(0, 0%, 100%, 0.1),
+    inset 0 -1px 0 0 hsla(0, 0%, 100%, 0.02),
+    var(--card-shadow);
+}
+
+.talkeby-app .theme-header {
+  background-color: hsla(220, 30%, 10%, 0.4);
+  backdrop-filter: blur(24px) saturate(200%);
+  -webkit-backdrop-filter: blur(24px) saturate(200%);
+  border-bottom: 1px solid hsla(0, 0%, 100%, 0.05);
+}
+
+.talkeby-app .theme-muted-surface {
+  background-color: hsl(var(--muted) / 0.5);
+  color: hsl(var(--foreground));
+  backdrop-filter: blur(4px);
+}
+
+.talkeby-app .text-foreground {
+  color: hsl(var(--foreground)) !important;
+}
+
+.talkeby-app .text-muted-foreground {
+  color: hsl(var(--muted-foreground)) !important;
+}
+
+.talkeby-app .chat-message-body {
+  color: hsl(var(--foreground));
+}
+
+.talkeby-app .chat-message-meta {
+  color: hsl(var(--muted-foreground));
+}
+
+.talkeby-app :is(input, textarea, select) {
+  background-color: hsl(var(--background) / 0.5);
+  color: hsl(var(--foreground));
+  border-color: hsl(var(--input));
+  transition: all 0.2s ease;
+}
+
+.talkeby-app :is(input, textarea, select):focus {
   background-color: hsl(var(--background));
-  font-synthesis: none;
-  text-rendering: optimizeLegibility;
-  -webkit-font-smoothing: antialiased;
-  -moz-osx-font-smoothing: grayscale;
+  box-shadow: 0 0 0 2px hsl(var(--ring) / 0.2);
 }
 
-* {
-  @apply border-border;
+.talkeby-app button.border.border-border {
+  background-color: hsl(var(--card) / 0.8);
+  color: hsl(var(--foreground));
+  backdrop-filter: blur(4px);
+  transition: all 0.2s ease;
 }
 
-body {
-  margin: 0;
-  min-width: 320px;
-  min-height: 100vh;
-  background:
-    radial-gradient(circle at 15% 20%, rgba(6, 182, 212, 0.18), transparent 38%),
-    radial-gradient(circle at 80% 80%, rgba(14, 116, 144, 0.16), transparent 42%),
-    linear-gradient(180deg, #f8fafc 0%, #e2e8f0 100%);
+.talkeby-app button.border.border-border:hover {
+  background-color: hsl(var(--card));
+  transform: translateY(-1px);
 }
 
-#root {
-  min-height: 100vh;
+.dark .talkeby-app .text-amber-700 {
+  color: hsl(39 96% 72%);
 }
 
-@keyframes enter-up {
-  from {
-    opacity: 0;
-    transform: translateY(12px);
-  }
-  to {
-    opacity: 1;
-    transform: translateY(0);
-  }
+.dark .talkeby-app .text-emerald-700 {
+  color: hsl(142 69% 70%);
 }
 
-main > * {
-  animation: enter-up 280ms ease-out both;
+.dark .talkeby-app .bg-amber-500\/15 {
+  background-color: hsl(39 96% 40% / 0.25);
+}
+
+.dark .talkeby-app .bg-emerald-500\/15 {
+  background-color: hsl(142 69% 40% / 0.25);
 }
