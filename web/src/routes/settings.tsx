@@ -8,12 +8,14 @@ import {
   addProject,
   fetchMode,
   fetchProjects,
+  fetchProvider,
   selectProject,
   setMode,
+  setProvider,
 } from "@/lib/api";
 import { useTheme } from "@/lib/theme";
 import { getStoredChatId, setStoredChatId } from "@/lib/storage";
-import type { ExecutionMode } from "@/lib/types";
+import type { AIProvider, ExecutionMode } from "@/lib/types";
 import { rootRoute } from "@/routes/__root";
 
 export const settingsRoute = createRoute({
@@ -41,11 +43,23 @@ function SettingsScreen() {
     enabled: hasChatId,
   });
 
+  const providerQuery = useQuery({
+    queryKey: ["provider"],
+    queryFn: () => fetchProvider(),
+  });
+
   const modeMutation = useMutation({
     mutationFn: (mode: ExecutionMode) => setMode({ chatId, mode }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["mode", chatId] });
       queryClient.invalidateQueries({ queryKey: ["jobs", chatId] });
+    },
+  });
+
+  const providerMutation = useMutation({
+    mutationFn: (provider: AIProvider) => setProvider({ chatId, provider }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["provider"] });
     },
   });
 
@@ -73,6 +87,7 @@ function SettingsScreen() {
 
   const errorMessage =
     getErrorMessage(modeMutation.error) ||
+    getErrorMessage(providerMutation.error) ||
     getErrorMessage(projectMutation.error) ||
     getErrorMessage(addProjectMutation.error) ||
     getErrorMessage(projectsQuery.error) ||
@@ -100,6 +115,7 @@ function SettingsScreen() {
       <SettingsPanel
         initialChatId={chatId}
         mode={modeQuery.data?.executionMode ?? "auto"}
+        provider={providerQuery.data?.provider ?? "codex"}
         activeProject={activeProject}
         projects={projects}
         projectsBasePath={projectsBasePath}
@@ -115,11 +131,13 @@ function SettingsScreen() {
         }}
         onChangeTheme={setTheme}
         onChangeMode={(mode) => modeMutation.mutate(mode)}
+        onChangeProvider={(provider) => providerMutation.mutate(provider)}
         onChangeProject={(projectName) => projectMutation.mutate(projectName)}
         onAddProject={async (input) => {
           await addProjectMutation.mutateAsync(input);
         }}
         isUpdatingMode={modeMutation.isPending}
+        isUpdatingProvider={providerMutation.isPending}
         isUpdatingProject={projectMutation.isPending}
         isAddingProject={addProjectMutation.isPending}
       />

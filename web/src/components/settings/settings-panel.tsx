@@ -17,11 +17,12 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import type { ThemePreference } from "@/lib/storage";
-import type { ExecutionMode, ProjectInfo } from "@/lib/types";
+import type { AIProvider, ExecutionMode, ProjectInfo } from "@/lib/types";
 
 type SettingsPanelProps = {
   initialChatId: string;
   mode: ExecutionMode;
+  provider: AIProvider;
   activeProject: string;
   projects: ProjectInfo[];
   projectsBasePath: string;
@@ -29,12 +30,14 @@ type SettingsPanelProps = {
   onSaveChatId: (chatId: string) => void;
   onChangeTheme: (theme: ThemePreference) => void;
   onChangeMode: (mode: ExecutionMode) => void;
+  onChangeProvider: (provider: AIProvider) => void;
   onChangeProject: (projectName: string) => void;
   onAddProject: (input: {
     projectName: string;
     path?: string;
   }) => Promise<void>;
   isUpdatingMode: boolean;
+  isUpdatingProvider: boolean;
   isUpdatingProject: boolean;
   isAddingProject: boolean;
 };
@@ -42,6 +45,7 @@ type SettingsPanelProps = {
 export function SettingsPanel({
   initialChatId,
   mode,
+  provider,
   activeProject,
   projects,
   projectsBasePath,
@@ -49,9 +53,11 @@ export function SettingsPanel({
   onSaveChatId,
   onChangeTheme,
   onChangeMode,
+  onChangeProvider,
   onChangeProject,
   onAddProject,
   isUpdatingMode,
+  isUpdatingProvider,
   isUpdatingProject,
   isAddingProject,
 }: SettingsPanelProps) {
@@ -153,9 +159,43 @@ export function SettingsPanel({
 
       <Card className="theme-surface">
         <CardHeader>
+          <CardTitle>AI Provider</CardTitle>
+          <CardDescription>
+            Choose which AI coding agent to use for running tasks.
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <Select
+            value={provider}
+            disabled={isUpdatingProvider}
+            onValueChange={(value) => onChangeProvider(value as AIProvider)}
+          >
+            <SelectTrigger className="bg-background text-foreground">
+              <SelectValue
+                className="text-foreground"
+                placeholder="Choose provider"
+              />
+            </SelectTrigger>
+            <SelectContent className="bg-popover text-popover-foreground">
+              <SelectItem className="text-popover-foreground" value="codex">
+                OpenAI Codex
+              </SelectItem>
+              <SelectItem className="text-popover-foreground" value="claude">
+                Claude Code
+              </SelectItem>
+              <SelectItem className="text-popover-foreground" value="gemini">
+                Gemini
+              </SelectItem>
+            </SelectContent>
+          </Select>
+        </CardContent>
+      </Card>
+
+      <Card className="theme-surface">
+        <CardHeader>
           <CardTitle>Project</CardTitle>
           <CardDescription>
-            Choose where `codex exec` should run.
+            Choose where the AI agent should run.
           </CardDescription>
         </CardHeader>
         <CardContent>

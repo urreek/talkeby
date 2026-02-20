@@ -29,6 +29,7 @@ export class RuntimeState {
     this.lastPendingJobByChat = new Map();
     this.projectNameByChat = new Map();
     this.executionModeByChat = new Map();
+    this.provider = config.runner?.provider || "codex";
   }
 
   hydrate() {
@@ -68,6 +69,20 @@ export class RuntimeState {
 
   safeAllowedChats() {
     return safeList(Array.from(this.config.telegram.allowedChatIds));
+  }
+
+  getProvider() {
+    return this.provider;
+  }
+
+  setProvider(providerName) {
+    const normalized = String(providerName || "").trim().toLowerCase();
+    const valid = ["codex", "claude", "gemini"];
+    if (!valid.includes(normalized)) {
+      return "";
+    }
+    this.provider = normalized;
+    return normalized;
   }
 
   availableProjectNames() {

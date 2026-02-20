@@ -1,4 +1,4 @@
-import { runCodex } from "../codex.mjs";
+import { getRunner } from "../runners/index.mjs";
 
 function truncate(input, max) {
   const value = String(input ?? "").trim();
@@ -101,12 +101,16 @@ export class JobRunner {
         }
 
         try {
-          const result = await runCodex({
-            transcript: job.request,
-            codexConfig: {
-              ...this.config.codex,
-              workdir: job.workdir,
-            },
+          const provider = this.state.getProvider();
+          const providerConfig = this.config.runner;
+          const runner = getRunner(provider);
+
+          const result = await runner({
+            task: job.request,
+            workdir: job.workdir,
+            model: providerConfig.model,
+            timeoutMs: providerConfig.timeoutMs,
+            binary: providerConfig.binaries[provider] || provider,
           });
 
           const completedAt = new Date().toISOString();

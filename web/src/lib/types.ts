@@ -57,3 +57,10 @@ export interface ModeResponse {
   defaultExecutionMode?: ExecutionMode;
   executionMode?: ExecutionMode;
 }
+
+export type AIProvider = "codex" | "claude" | "gemini";
+
+export interface ProviderResponse {
+  provider: AIProvider;
+  supported: AIProvider[];
+}

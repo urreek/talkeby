@@ -8,7 +8,7 @@ const execFileAsync = promisify(execFile);
 
 function buildPrompt(transcript) {
   return [
-    "You are Codex running from a Telegram phone bridge.",
+    "You are Codex running from a mobile phone bridge.",
     "Treat the quoted text as the user's coding request and execute it in this workspace.",
     "",
     `User request: """${transcript}"""`,
@@ -54,69 +54,66 @@ async function runCodexCommand({ binary, args, workdir, timeoutMs, outputPath })
   };
 }
 
-async function runResumeOrThrow({ transcript, codexConfig, outputPath }) {
-  const prompt = buildPrompt(transcript);
+async function runResumeOrThrow({ task, config, outputPath }) {
+  const prompt = buildPrompt(task);
   const args = ["exec", "--output-last-message", outputPath, "resume", "--last"];
 
-  if (codexConfig.model) {
-    args.push("--model", codexConfig.model);
+  if (config.model) {
+    args.push("--model", config.model);
   }
   args.push("--full-auto", "--skip-git-repo-check", prompt);
 
   return runCodexCommand({
-    binary: codexConfig.binary,
+    binary: config.binary,
     args,
-    workdir: codexConfig.workdir,
-    timeoutMs: codexConfig.timeoutMs,
+    workdir: config.workdir,
+    timeoutMs: config.timeoutMs,
     outputPath,
   });
 }
 
-async function runFreshSessionOrThrow({ transcript, codexConfig, outputPath }) {
-  const prompt = buildPrompt(transcript);
+async function runFreshSessionOrThrow({ task, config, outputPath }) {
+  const prompt = buildPrompt(task);
   const args = [
     "exec",
     "--full-auto",
     "--skip-git-repo-check",
     "--cd",
-    codexConfig.workdir,
+    config.workdir,
     "--output-last-message",
     outputPath,
   ];
 
-  if (codexConfig.model) {
-    args.push("--model", codexConfig.model);
+  if (config.model) {
+    args.push("--model", config.model);
   }
   args.push(prompt);
 
   return runCodexCommand({
-    binary: codexConfig.binary,
+    binary: config.binary,
     args,
-    workdir: codexConfig.workdir,
-    timeoutMs: codexConfig.timeoutMs,
+    workdir: config.workdir,
+    timeoutMs: config.timeoutMs,
     outputPath,
   });
 }
 
-export async function runCodex({ transcript, codexConfig }) {
+/**
+ * Run a task using the OpenAI Codex CLI.
+ * @param {{ task: string, workdir: string, model: string, timeoutMs: number, binary: string }} config
+ * @returns {Promise<{ message: string }>}
+ */
+export async function run(config) {
   const outputPath = createOutputFilePath();
 
   try {
     try {
-      return await runResumeOrThrow({
-        transcript,
-        codexConfig,
-        outputPath,
-      });
+      return await runResumeOrThrow({ task: config.task, config, outputPath });
     } catch {
       await fs.rm(outputPath, { force: true });
     }
 
-    return await runFreshSessionOrThrow({
-      transcript,
-      codexConfig,
-      outputPath,
-    });
+    return await runFreshSessionOrThrow({ task: config.task, config, outputPath });
   } catch (error) {
     const stderr = String(error.stderr || "").trim();
     const stdout = String(error.stdout || "").trim();

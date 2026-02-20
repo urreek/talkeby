@@ -4,6 +4,7 @@ import type {
   JobEvent,
   ModeResponse,
   ProjectsResponse,
+  ProviderResponse,
 } from "@/lib/types";
 
 async function requestJson<T>(path: string, init?: RequestInit): Promise<T> {
@@ -112,6 +113,17 @@ export async function selectProject(input: { chatId: string; projectName: string
       body: JSON.stringify(input)
     }
   );
+}
+
+export async function fetchProvider() {
+  return requestJson<ProviderResponse>("/api/provider");
+}
+
+export async function setProvider(input: { chatId: string; provider: string }) {
+  return requestJson<{ provider: string }>("/api/provider", {
+    method: "POST",
+    body: JSON.stringify(input)
+  });
 }
 
 export async function addProject(input: {

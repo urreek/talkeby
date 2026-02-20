@@ -139,6 +139,14 @@ export function loadConfig() {
     ),
   };
 
+  const provider = (process.env.AI_PROVIDER?.trim() || "codex").toLowerCase();
+  const validProviders = ["codex", "claude", "gemini"];
+  if (!validProviders.includes(provider)) {
+    throw new Error(
+      `Invalid AI_PROVIDER "${provider}". Supported: ${validProviders.join(", ")}`,
+    );
+  }
+
   const codex = {
     binary: process.env.CODEX_BINARY?.trim() || "codex",
     workdir: defaultProjectName ? projects.get(defaultProjectName) : fallbackWorkdir,
@@ -149,6 +157,20 @@ export function loadConfig() {
     model: process.env.CODEX_MODEL?.trim() || "",
   };
 
+  const runner = {
+    provider,
+    model:
+      process.env.AI_MODEL?.trim() ||
+      process.env.CODEX_MODEL?.trim() ||
+      "",
+    timeoutMs: codexTimeoutMs,
+    binaries: {
+      codex: process.env.CODEX_BINARY?.trim() || "codex",
+      claude: process.env.CLAUDE_BINARY?.trim() || "claude",
+      gemini: process.env.GEMINI_BINARY?.trim() || "gemini",
+    },
+  };
+
   return {
     port,
     storage: {
@@ -157,5 +179,6 @@ export function loadConfig() {
     },
     telegram,
     codex,
+    runner,
   };
 }

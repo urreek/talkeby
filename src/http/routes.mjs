@@ -87,6 +87,39 @@ export function registerRoutes({
     };
   });
 
+  app.get("/api/provider", async () => {
+    return {
+      provider: state.getProvider(),
+      supported: ["codex", "claude", "gemini"],
+    };
+  });
+
+  app.post("/api/provider", async (request, reply) => {
+    const chatId = textValue(request.body?.chatId || "");
+    const providerName = textValue(request.body?.provider || "");
+
+    if (!chatId || !providerName) {
+      reply.code(400);
+      return { error: "chatId and provider are required." };
+    }
+    if (!isAuthorizedChat(config, chatId)) {
+      reply.code(403);
+      return { error: "Chat is not authorized." };
+    }
+
+    const resolved = state.setProvider(providerName);
+    if (!resolved) {
+      reply.code(400);
+      return {
+        error: `Unknown provider "${providerName}". Supported: codex, claude, gemini.`,
+      };
+    }
+
+    return {
+      provider: resolved,
+    };
+  });
+
   app.get("/api/projects", async (request, reply) => {
     const chatId = textValue(request.query?.chatId || "");
     if (!chatId) {
