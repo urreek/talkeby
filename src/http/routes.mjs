@@ -91,6 +91,8 @@ export function registerRoutes({
     return {
       provider: state.getProvider(),
       model: state.getModel(),
+      reasoningEffort: state.getReasoningEffort(),
+      planMode: state.getPlanMode(),
       supported: ["codex", "claude", "gemini"],
     };
   });
@@ -99,6 +101,8 @@ export function registerRoutes({
     const chatId = textValue(request.body?.chatId || "");
     const providerName = request.body?.provider;
     const modelName = request.body?.model;
+    const reasoningEffort = request.body?.reasoningEffort;
+    const planMode = request.body?.planMode;
 
     if (!chatId) {
       reply.code(400);
@@ -125,9 +129,21 @@ export function registerRoutes({
       state.setModel(textValue(modelName));
     }
 
+    // Update reasoning effort if provided
+    if (reasoningEffort !== undefined) {
+      state.setReasoningEffort(textValue(reasoningEffort));
+    }
+
+    // Update plan mode if provided
+    if (planMode !== undefined) {
+      state.setPlanMode(planMode);
+    }
+
     return {
       provider: state.getProvider(),
       model: state.getModel(),
+      reasoningEffort: state.getReasoningEffort(),
+      planMode: state.getPlanMode(),
     };
   });
 

@@ -36,6 +36,12 @@ export async function run(config) {
   if (config.model) {
     args.push("--model", config.model);
   }
+  if (config.reasoningEffort) {
+    args.push("--effort", config.reasoningEffort);
+  }
+  if (config.planMode) {
+    args.push("--plan");
+  }
 
   args.push(prompt);
 

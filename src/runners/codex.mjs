@@ -61,6 +61,12 @@ async function runResumeOrThrow({ task, config, outputPath }) {
   if (config.model) {
     args.push("--model", config.model);
   }
+  if (config.reasoningEffort) {
+    args.push("--reasoning-effort", config.reasoningEffort);
+  }
+  if (config.planMode) {
+    args.push("--plan");
+  }
   args.push("--full-auto", "--skip-git-repo-check", prompt);
 
   return runCodexCommand({
@@ -86,6 +92,12 @@ async function runFreshSessionOrThrow({ task, config, outputPath }) {
 
   if (config.model) {
     args.push("--model", config.model);
+  }
+  if (config.reasoningEffort) {
+    args.push("--reasoning-effort", config.reasoningEffort);
+  }
+  if (config.planMode) {
+    args.push("--plan");
   }
   args.push(prompt);
 

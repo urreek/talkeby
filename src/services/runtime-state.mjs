@@ -31,6 +31,8 @@ export class RuntimeState {
     this.executionModeByChat = new Map();
     this.provider = config.runner?.provider || "codex";
     this.model = config.runner?.model || "";
+    this.reasoningEffort = "";
+    this.planMode = false;
   }
 
   hydrate() {
@@ -93,6 +95,29 @@ export class RuntimeState {
   setModel(modelName) {
     this.model = String(modelName || "").trim();
     return this.model;
+  }
+
+  getReasoningEffort() {
+    return this.reasoningEffort;
+  }
+
+  setReasoningEffort(effort) {
+    const normalized = String(effort || "").trim().toLowerCase();
+    const valid = ["", "low", "medium", "high"];
+    if (!valid.includes(normalized)) {
+      return this.reasoningEffort;
+    }
+    this.reasoningEffort = normalized;
+    return normalized;
+  }
+
+  getPlanMode() {
+    return this.planMode;
+  }
+
+  setPlanMode(enabled) {
+    this.planMode = Boolean(enabled);
+    return this.planMode;
   }
 
   availableProjectNames() {

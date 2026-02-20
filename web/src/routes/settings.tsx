@@ -117,6 +117,8 @@ function SettingsScreen() {
         mode={modeQuery.data?.executionMode ?? "auto"}
         provider={providerQuery.data?.provider ?? "codex"}
         model={providerQuery.data?.model ?? ""}
+        reasoningEffort={providerQuery.data?.reasoningEffort ?? ""}
+        planMode={providerQuery.data?.planMode ?? false}
         activeProject={activeProject}
         projects={projects}
         projectsBasePath={projectsBasePath}
@@ -134,7 +136,20 @@ function SettingsScreen() {
         onChangeMode={(mode) => modeMutation.mutate(mode)}
         onChangeProvider={(provider) => providerMutation.mutate(provider)}
         onChangeModel={(model) =>
-          setProvider({ chatId, model }).then(() =>
+          setProvider({
+            chatId,
+            model: model === "__default__" ? "" : model,
+          }).then(() =>
+            queryClient.invalidateQueries({ queryKey: ["provider"] }),
+          )
+        }
+        onChangeReasoningEffort={(effort) =>
+          setProvider({ chatId, reasoningEffort: effort }).then(() =>
+            queryClient.invalidateQueries({ queryKey: ["provider"] }),
+          )
+        }
+        onChangePlanMode={(enabled) =>
+          setProvider({ chatId, planMode: enabled }).then(() =>
             queryClient.invalidateQueries({ queryKey: ["provider"] }),
           )
         }

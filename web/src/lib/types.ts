@@ -60,8 +60,12 @@ export interface ModeResponse {
 
 export type AIProvider = "codex" | "claude" | "gemini";
 
+export type ReasoningEffort = "" | "low" | "medium" | "high";
+
 export interface ProviderResponse {
   provider: AIProvider;
   model: string;
+  reasoningEffort: ReasoningEffort;
+  planMode: boolean;
   supported: AIProvider[];
 }

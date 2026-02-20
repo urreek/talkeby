@@ -105,11 +105,15 @@ export class JobRunner {
           const providerConfig = this.config.runner;
           const runner = getRunner(provider);
           const model = this.state.getModel() || providerConfig.model;
+          const reasoningEffort = this.state.getReasoningEffort();
+          const planMode = this.state.getPlanMode();
 
           const result = await runner({
             task: job.request,
             workdir: job.workdir,
             model,
+            reasoningEffort,
+            planMode,
             timeoutMs: providerConfig.timeoutMs,
             binary: providerConfig.binaries[provider] || provider,
           });

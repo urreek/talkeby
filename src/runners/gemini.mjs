@@ -33,14 +33,24 @@ export async function run(config) {
   if (config.model) {
     args.push("--model", config.model);
   }
+  if (config.planMode) {
+    args.push("--plan");
+  }
 
   args.push(prompt);
+
+  // Gemini uses thinkingLevel via environment/settings, not a CLI flag
+  const env = { ...process.env };
+  if (config.reasoningEffort) {
+    env.GEMINI_THINKING_LEVEL = config.reasoningEffort;
+  }
 
   try {
     const { stdout, stderr } = await execFileAsync(binary, args, {
       cwd: config.workdir,
       timeout: config.timeoutMs,
       maxBuffer: 10 * 1024 * 1024,
+      env,
     });
 
     const message = stdout.trim() || "Gemini completed but returned no summary.";
