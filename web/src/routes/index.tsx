@@ -228,12 +228,17 @@ function JobsScreen() {
             </CardContent>
           </Card>
         ) : (
-          <Card className="theme-surface">
+          <Card
+            className="theme-surface cursor-pointer transition-all hover:border-primary/30 hover:shadow-md"
+            onClick={() => {
+              if (activeProject) createThreadMutation.mutate();
+            }}
+          >
             <CardContent className="py-12 text-center">
               <p className="text-sm text-muted-foreground">
                 {!activeProject
                   ? "Select a project or add one in Settings."
-                  : 'No threads yet. Click "+ New Thread" to start.'}
+                  : "No threads yet. Click here to start one."}
               </p>
             </CardContent>
           </Card>

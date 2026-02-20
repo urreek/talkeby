@@ -186,3 +186,13 @@ export async function createThread(input: { chatId: string; projectName: string;
 export async function fetchThreadJobs(threadId: string) {
   return requestJson<{ jobs: Job[] }>(`/api/threads/${encodeURIComponent(threadId)}/jobs`);
 }
+
+export interface DiscoveredProject {
+  name: string;
+  path: string;
+  alreadyAdded: boolean;
+}
+
+export async function discoverProjects() {
+  return requestJson<{ basePath: string; discovered: DiscoveredProject[] }>("/api/projects/discover");
+}

@@ -263,6 +263,28 @@ export function registerRoutes({
     };
   });
 
+  app.get("/api/projects/discover", async () => {
+    const baseDir = config.codex.projectsBaseDir;
+    const existing = new Set(state.listProjects().map((p) => p.name));
+
+    let entries = [];
+    try {
+      entries = fs.readdirSync(baseDir, { withFileTypes: true });
+    } catch {
+      return { basePath: baseDir, discovered: [] };
+    }
+
+    const discovered = entries
+      .filter((e) => e.isDirectory() && !e.name.startsWith("."))
+      .map((e) => ({
+        name: e.name,
+        path: path.join(baseDir, e.name),
+        alreadyAdded: existing.has(e.name),
+      }));
+
+    return { basePath: baseDir, discovered };
+  });
+
   app.post("/api/projects/select", async (request, reply) => {
     const chatId = textValue(request.body?.chatId || "");
     const requestedName = textValue(request.body?.projectName || "");
