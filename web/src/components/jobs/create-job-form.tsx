@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 
 import { Button } from "@/components/ui/button";
 import {
@@ -17,13 +17,35 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
-import { fetchProvider } from "@/lib/api";
-import type { ProjectInfo } from "@/lib/types";
+import { fetchProvider, setProvider } from "@/lib/api";
+import { getStoredChatId } from "@/lib/storage";
+import type { AIProvider, ProjectInfo } from "@/lib/types";
 
 const PROVIDER_LABELS: Record<string, string> = {
   codex: "OpenAI Codex",
   claude: "Claude Code",
   gemini: "Gemini CLI",
+};
+
+const MODELS_BY_PROVIDER: Record<
+  AIProvider,
+  { value: string; label: string }[]
+> = {
+  codex: [
+    { value: "__default__", label: "Default" },
+    { value: "gpt-5.3-codex", label: "GPT-5.3 Codex" },
+    { value: "gpt-5.2-codex", label: "GPT-5.2 Codex" },
+  ],
+  claude: [
+    { value: "__default__", label: "Default" },
+    { value: "opus-4.6", label: "Opus 4.6" },
+    { value: "sonnet-4.6", label: "Sonnet 4.6" },
+  ],
+  gemini: [
+    { value: "__default__", label: "Default" },
+    { value: "opus-4.6", label: "Opus 4.6" },
+    { value: "gemini-pro-3.1", label: "Gemini Pro 3.1" },
+  ],
 };
 
 type CreateJobFormProps = {
@@ -39,6 +61,7 @@ export function CreateJobForm({
   isSubmitting,
   onSubmit,
 }: CreateJobFormProps) {
+  const queryClient = useQueryClient();
   const [task, setTask] = useState("");
   const [projectName, setProjectName] = useState(activeProject);
   const resolvedProjectValue = projects.some(
@@ -53,9 +76,10 @@ export function CreateJobForm({
   });
 
   const providerData = providerQuery.data;
-  const providerLabel = providerData
-    ? (PROVIDER_LABELS[providerData.provider] ?? providerData.provider)
-    : null;
+  const provider = providerData?.provider ?? "codex";
+  const providerLabel = PROVIDER_LABELS[provider] ?? provider;
+  const currentModelValue = providerData?.model || "__default__";
+  const models = MODELS_BY_PROVIDER[provider] ?? MODELS_BY_PROVIDER.codex;
 
   useEffect(() => {
     if (projects.some((project) => project.name === activeProject)) {
@@ -66,6 +90,15 @@ export function CreateJobForm({
       setProjectName(projects[0].name);
     }
   }, [activeProject, projects]);
+
+  const handleModelChange = (value: string) => {
+    const chatId = getStoredChatId();
+    if (!chatId) return;
+    const model = value === "__default__" ? "" : value;
+    setProvider({ chatId, model }).then(() =>
+      queryClient.invalidateQueries({ queryKey: ["provider"] }),
+    );
+  };
 
   return (
     <Card className="theme-surface relative overflow-hidden transition-all duration-300 hover:shadow-lg hover:shadow-primary/5 hover:border-primary/20">
@@ -78,15 +111,14 @@ export function CreateJobForm({
         <CardDescription className="text-muted-foreground/80">
           Speak to text on your phone, paste here, run remotely.
         </CardDescription>
-        {providerLabel && (
+        {providerData && (
           <div className="flex items-center gap-1.5 pt-1">
             <span className="inline-block h-1.5 w-1.5 rounded-full bg-primary/60" />
             <span className="text-xs text-muted-foreground">
               {[
                 providerLabel,
-                providerData?.model,
-                providerData?.reasoningEffort,
-                providerData?.planMode ? "plan" : null,
+                providerData.reasoningEffort,
+                providerData.planMode ? "plan" : null,
               ]
                 .filter(Boolean)
                 .join(" · ")}
@@ -116,25 +148,43 @@ export function CreateJobForm({
             className="min-h-[100px] resize-none bg-background/50 font-medium placeholder:text-muted-foreground/50 focus-visible:ring-primary focus-visible:ring-offset-2"
             onChange={(event) => setTask(event.target.value)}
           />
-          <Select value={resolvedProjectValue} onValueChange={setProjectName}>
-            <SelectTrigger className="h-12 bg-background/50 font-medium text-foreground transition-colors hover:bg-background/80 focus:ring-primary focus:ring-offset-2">
-              <SelectValue
-                className="text-foreground"
-                placeholder="Choose project"
-              />
-            </SelectTrigger>
-            <SelectContent className="border-white/10 bg-popover/95 text-popover-foreground backdrop-blur-xl">
-              {projects.map((project) => (
-                <SelectItem
-                  className="cursor-pointer transition-colors focus:bg-primary/20 focus:text-primary"
-                  key={project.name}
-                  value={project.name}
-                >
-                  {project.name}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
+          <div className="grid grid-cols-2 gap-3">
+            <Select value={resolvedProjectValue} onValueChange={setProjectName}>
+              <SelectTrigger className="h-10 bg-background/50 text-sm font-medium text-foreground transition-colors hover:bg-background/80 focus:ring-primary focus:ring-offset-2">
+                <SelectValue
+                  className="text-foreground"
+                  placeholder="Project"
+                />
+              </SelectTrigger>
+              <SelectContent className="border-white/10 bg-popover/95 text-popover-foreground backdrop-blur-xl">
+                {projects.map((project) => (
+                  <SelectItem
+                    className="cursor-pointer transition-colors focus:bg-primary/20 focus:text-primary"
+                    key={project.name}
+                    value={project.name}
+                  >
+                    {project.name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <Select value={currentModelValue} onValueChange={handleModelChange}>
+              <SelectTrigger className="h-10 bg-background/50 text-sm font-medium text-foreground transition-colors hover:bg-background/80 focus:ring-primary focus:ring-offset-2">
+                <SelectValue className="text-foreground" placeholder="Model" />
+              </SelectTrigger>
+              <SelectContent className="border-white/10 bg-popover/95 text-popover-foreground backdrop-blur-xl">
+                {models.map((m) => (
+                  <SelectItem
+                    className="cursor-pointer transition-colors focus:bg-primary/20 focus:text-primary"
+                    key={m.value}
+                    value={m.value}
+                  >
+                    {m.label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
           <Button
             type="submit"
             className="w-full h-12 rounded-xl text-base font-bold shadow-lg shadow-primary/20 transition-all active:scale-95"
