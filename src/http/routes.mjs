@@ -90,33 +90,44 @@ export function registerRoutes({
   app.get("/api/provider", async () => {
     return {
       provider: state.getProvider(),
+      model: state.getModel(),
       supported: ["codex", "claude", "gemini"],
     };
   });
 
   app.post("/api/provider", async (request, reply) => {
     const chatId = textValue(request.body?.chatId || "");
-    const providerName = textValue(request.body?.provider || "");
+    const providerName = request.body?.provider;
+    const modelName = request.body?.model;
 
-    if (!chatId || !providerName) {
+    if (!chatId) {
       reply.code(400);
-      return { error: "chatId and provider are required." };
+      return { error: "chatId is required." };
     }
     if (!isAuthorizedChat(config, chatId)) {
       reply.code(403);
       return { error: "Chat is not authorized." };
     }
 
-    const resolved = state.setProvider(providerName);
-    if (!resolved) {
-      reply.code(400);
-      return {
-        error: `Unknown provider "${providerName}". Supported: codex, claude, gemini.`,
-      };
+    // Update provider if provided
+    if (providerName !== undefined) {
+      const resolved = state.setProvider(textValue(providerName));
+      if (!resolved) {
+        reply.code(400);
+        return {
+          error: `Unknown provider "${providerName}". Supported: codex, claude, gemini.`,
+        };
+      }
+    }
+
+    // Update model if provided
+    if (modelName !== undefined) {
+      state.setModel(textValue(modelName));
     }
 
     return {
-      provider: resolved,
+      provider: state.getProvider(),
+      model: state.getModel(),
     };
   });
 

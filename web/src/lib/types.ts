@@ -62,5 +62,6 @@ export type AIProvider = "codex" | "claude" | "gemini";
 
 export interface ProviderResponse {
   provider: AIProvider;
+  model: string;
   supported: AIProvider[];
 }

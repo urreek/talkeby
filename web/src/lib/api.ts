@@ -119,8 +119,8 @@ export async function fetchProvider() {
   return requestJson<ProviderResponse>("/api/provider");
 }
 
-export async function setProvider(input: { chatId: string; provider: string }) {
-  return requestJson<{ provider: string }>("/api/provider", {
+export async function setProvider(input: { chatId: string; provider?: string; model?: string }) {
+  return requestJson<ProviderResponse>("/api/provider", {
     method: "POST",
     body: JSON.stringify(input)
   });

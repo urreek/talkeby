@@ -104,11 +104,12 @@ export class JobRunner {
           const provider = this.state.getProvider();
           const providerConfig = this.config.runner;
           const runner = getRunner(provider);
+          const model = this.state.getModel() || providerConfig.model;
 
           const result = await runner({
             task: job.request,
             workdir: job.workdir,
-            model: providerConfig.model,
+            model,
             timeoutMs: providerConfig.timeoutMs,
             binary: providerConfig.binaries[provider] || provider,
           });

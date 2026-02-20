@@ -116,6 +116,7 @@ function SettingsScreen() {
         initialChatId={chatId}
         mode={modeQuery.data?.executionMode ?? "auto"}
         provider={providerQuery.data?.provider ?? "codex"}
+        model={providerQuery.data?.model ?? ""}
         activeProject={activeProject}
         projects={projects}
         projectsBasePath={projectsBasePath}
@@ -132,6 +133,11 @@ function SettingsScreen() {
         onChangeTheme={setTheme}
         onChangeMode={(mode) => modeMutation.mutate(mode)}
         onChangeProvider={(provider) => providerMutation.mutate(provider)}
+        onChangeModel={(model) =>
+          setProvider({ chatId, model }).then(() =>
+            queryClient.invalidateQueries({ queryKey: ["provider"] }),
+          )
+        }
         onChangeProject={(projectName) => projectMutation.mutate(projectName)}
         onAddProject={async (input) => {
           await addProjectMutation.mutateAsync(input);

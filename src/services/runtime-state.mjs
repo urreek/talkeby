@@ -30,6 +30,7 @@ export class RuntimeState {
     this.projectNameByChat = new Map();
     this.executionModeByChat = new Map();
     this.provider = config.runner?.provider || "codex";
+    this.model = config.runner?.model || "";
   }
 
   hydrate() {
@@ -83,6 +84,15 @@ export class RuntimeState {
     }
     this.provider = normalized;
     return normalized;
+  }
+
+  getModel() {
+    return this.model;
+  }
+
+  setModel(modelName) {
+    this.model = String(modelName || "").trim();
+    return this.model;
   }
 
   availableProjectNames() {

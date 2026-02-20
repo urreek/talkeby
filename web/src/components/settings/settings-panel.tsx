@@ -23,6 +23,7 @@ type SettingsPanelProps = {
   initialChatId: string;
   mode: ExecutionMode;
   provider: AIProvider;
+  model: string;
   activeProject: string;
   projects: ProjectInfo[];
   projectsBasePath: string;
@@ -31,6 +32,7 @@ type SettingsPanelProps = {
   onChangeTheme: (theme: ThemePreference) => void;
   onChangeMode: (mode: ExecutionMode) => void;
   onChangeProvider: (provider: AIProvider) => void;
+  onChangeModel: (model: string) => void;
   onChangeProject: (projectName: string) => void;
   onAddProject: (input: {
     projectName: string;
@@ -46,6 +48,7 @@ export function SettingsPanel({
   initialChatId,
   mode,
   provider,
+  model,
   activeProject,
   projects,
   projectsBasePath,
@@ -54,6 +57,7 @@ export function SettingsPanel({
   onChangeTheme,
   onChangeMode,
   onChangeProvider,
+  onChangeModel,
   onChangeProject,
   onAddProject,
   isUpdatingMode,
@@ -62,6 +66,7 @@ export function SettingsPanel({
   isAddingProject,
 }: SettingsPanelProps) {
   const [chatId, setChatId] = useState(initialChatId);
+  const [draftModel, setDraftModel] = useState(model);
   const [newProjectName, setNewProjectName] = useState("");
   const [newProjectPath, setNewProjectPath] = useState("");
   const resolvedProjectValue = projects.some(
@@ -188,6 +193,32 @@ export function SettingsPanel({
               </SelectItem>
             </SelectContent>
           </Select>
+          <div className="mt-3 space-y-2">
+            <p className="text-xs text-muted-foreground">
+              Model name (leave empty for provider default)
+            </p>
+            <div className="flex gap-2">
+              <Input
+                placeholder={
+                  provider === "codex"
+                    ? "e.g. gpt-5.3-codex, gpt-5.2-codex"
+                    : provider === "claude"
+                      ? "e.g. opus-4.6, sonnet-4.6"
+                      : "e.g. opus-4.6, gemini-pro-3.1"
+                }
+                value={draftModel}
+                className="bg-background flex-1"
+                onChange={(event) => setDraftModel(event.target.value)}
+              />
+              <Button
+                variant="secondary"
+                disabled={isUpdatingProvider || draftModel === model}
+                onClick={() => onChangeModel(draftModel.trim())}
+              >
+                Save
+              </Button>
+            </div>
+          </div>
         </CardContent>
       </Card>
 
