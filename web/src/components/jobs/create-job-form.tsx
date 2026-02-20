@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { useQuery } from "@tanstack/react-query";
 
 import { Button } from "@/components/ui/button";
 import {
@@ -16,7 +17,14 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
+import { fetchProvider } from "@/lib/api";
 import type { ProjectInfo } from "@/lib/types";
+
+const PROVIDER_LABELS: Record<string, string> = {
+  codex: "OpenAI Codex",
+  claude: "Claude Code",
+  gemini: "Gemini CLI",
+};
 
 type CreateJobFormProps = {
   projects: ProjectInfo[];
@@ -39,6 +47,16 @@ export function CreateJobForm({
     ? projectName
     : (projects[0]?.name ?? "");
 
+  const providerQuery = useQuery({
+    queryKey: ["provider"],
+    queryFn: fetchProvider,
+  });
+
+  const providerData = providerQuery.data;
+  const providerLabel = providerData
+    ? (PROVIDER_LABELS[providerData.provider] ?? providerData.provider)
+    : null;
+
   useEffect(() => {
     if (projects.some((project) => project.name === activeProject)) {
       setProjectName(activeProject);
@@ -60,6 +78,21 @@ export function CreateJobForm({
         <CardDescription className="text-muted-foreground/80">
           Speak to text on your phone, paste here, run remotely.
         </CardDescription>
+        {providerLabel && (
+          <div className="flex items-center gap-1.5 pt-1">
+            <span className="inline-block h-1.5 w-1.5 rounded-full bg-primary/60" />
+            <span className="text-xs text-muted-foreground">
+              {[
+                providerLabel,
+                providerData?.model,
+                providerData?.reasoningEffort,
+                providerData?.planMode ? "plan" : null,
+              ]
+                .filter(Boolean)
+                .join(" · ")}
+            </span>
+          </div>
+        )}
       </CardHeader>
       <CardContent className="relative z-10">
         <form
