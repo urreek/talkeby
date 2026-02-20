@@ -196,3 +196,15 @@ export interface DiscoveredProject {
 export async function discoverProjects() {
   return requestJson<{ basePath: string; discovered: DiscoveredProject[] }>("/api/projects/discover");
 }
+
+export async function deleteThread(threadId: string, chatId: string) {
+  return requestJson<{ ok: true }>(`/api/threads/${encodeURIComponent(threadId)}?chatId=${encodeURIComponent(chatId)}`, {
+    method: "DELETE",
+  });
+}
+
+export async function deleteProject(name: string, chatId: string) {
+  return requestJson<{ ok: true }>(`/api/projects/${encodeURIComponent(name)}?chatId=${encodeURIComponent(chatId)}`, {
+    method: "DELETE",
+  });
+}

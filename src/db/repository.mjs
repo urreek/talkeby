@@ -336,4 +336,20 @@ export class TalkebyRepository {
       .limit(limit)
       .all();
   }
+
+  deleteThread(threadId) {
+    if (!threadId) return;
+    this.db
+      .delete(threadsTable)
+      .where(eq(threadsTable.id, String(threadId)))
+      .run();
+  }
+
+  deleteProject(name) {
+    if (!name) return;
+    this.db
+      .delete(projectsTable)
+      .where(eq(projectsTable.name, String(name)))
+      .run();
+  }
 }

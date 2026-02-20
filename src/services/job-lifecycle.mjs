@@ -70,6 +70,22 @@ export function createJobFromTask({
     queuedAt: executionMode === "interactive" ? "" : now,
   });
 
+  // Auto-title thread from first message
+  if (threadId) {
+    try {
+      const thread = state.repository.getThread(threadId);
+      if (thread && thread.title === "New thread") {
+        const title =
+          normalizedTask.length > 15
+            ? normalizedTask.slice(0, 15) + "…"
+            : normalizedTask;
+        state.repository.updateThread(threadId, { title });
+      }
+    } catch {
+      // non-critical
+    }
+  }
+
   if (executionMode === "interactive") {
     eventBus.publish({
       jobId: job.id,

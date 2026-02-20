@@ -145,6 +145,36 @@ export function registerRoutes({
     return { jobs };
   });
 
+  app.delete("/api/threads/:threadId", async (request, reply) => {
+    const chatId = textValue(request.body?.chatId || request.query?.chatId || "");
+    if (!chatId || !isAuthorizedChat(config, chatId)) {
+      reply.code(403);
+      return { error: "Not authorized." };
+    }
+    const threadId = textValue(request.params?.threadId || "");
+    if (!threadId) {
+      reply.code(400);
+      return { error: "threadId is required." };
+    }
+    repository.deleteThread(threadId);
+    return { ok: true };
+  });
+
+  app.delete("/api/projects/:name", async (request, reply) => {
+    const chatId = textValue(request.body?.chatId || request.query?.chatId || "");
+    if (!chatId || !isAuthorizedChat(config, chatId)) {
+      reply.code(403);
+      return { error: "Not authorized." };
+    }
+    const name = textValue(request.params?.name || "");
+    if (!name) {
+      reply.code(400);
+      return { error: "Project name is required." };
+    }
+    repository.deleteProject(name);
+    return { ok: true };
+  });
+
   app.get("/api/mode", async (request) => {
     const chatId = textValue(request.query?.chatId || "");
     if (!chatId) {

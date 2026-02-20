@@ -17,6 +17,7 @@ import {
   approveJob,
   createJob,
   createThread,
+  deleteThread,
   denyJob,
   fetchProjects,
   fetchThreadJobs,
@@ -116,6 +117,14 @@ function JobsScreen() {
       queryClient.invalidateQueries({ queryKey: ["threadJobs"] }),
   });
 
+  const deleteThreadMutation = useMutation({
+    mutationFn: (threadId: string) => deleteThread(threadId, chatId),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["threads"] });
+      setSelectedThreadId(null);
+    },
+  });
+
   if (!chatId) {
     return (
       <Card className="theme-surface">
@@ -189,6 +198,7 @@ function JobsScreen() {
                 thread={thread}
                 isActive={thread.id === activeThread?.id}
                 onClick={() => setSelectedThreadId(thread.id)}
+                onDelete={() => deleteThreadMutation.mutate(thread.id)}
               />
             ))}
             <button
@@ -266,16 +276,18 @@ function ThreadPill({
   thread,
   isActive,
   onClick,
+  onDelete,
 }: {
   thread: Thread;
   isActive: boolean;
   onClick: () => void;
+  onDelete: () => void;
 }) {
   return (
     <button
       type="button"
       onClick={onClick}
-      className={`flex items-center gap-2 shrink-0 rounded-full px-4 py-1.5 text-xs font-medium transition-all ${
+      className={`group flex items-center gap-2 shrink-0 rounded-full px-4 py-1.5 text-xs font-medium transition-all ${
         isActive
           ? "bg-primary/15 text-primary border border-primary/30 shadow-sm"
           : "bg-muted/30 text-muted-foreground hover:bg-muted/60 hover:text-foreground border border-transparent"
@@ -289,6 +301,23 @@ function ThreadPill({
         }`}
       />
       <span>{truncate(thread.title, 25)}</span>
+      <span
+        role="button"
+        tabIndex={0}
+        onClick={(e) => {
+          e.stopPropagation();
+          onDelete();
+        }}
+        onKeyDown={(e) => {
+          if (e.key === "Enter") {
+            e.stopPropagation();
+            onDelete();
+          }
+        }}
+        className="ml-0.5 opacity-0 group-hover:opacity-60 hover:!opacity-100 transition-opacity text-xs"
+      >
+        ×
+      </span>
     </button>
   );
 }

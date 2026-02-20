@@ -3,6 +3,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { createRoute } from "@tanstack/react-router";
 
 import { DiscoverProjects } from "@/components/settings/discover-projects";
+import { ManageProjects } from "@/components/settings/manage-projects";
 import { ProviderHealth } from "@/components/settings/provider-health";
 import { SettingsPanel } from "@/components/settings/settings-panel";
 import { Card, CardContent } from "@/components/ui/card";
@@ -117,6 +118,8 @@ function SettingsScreen() {
       <ProviderHealth />
 
       <DiscoverProjects />
+
+      <ManageProjects />
 
       <SettingsPanel
         initialChatId={chatId}
