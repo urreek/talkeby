@@ -91,6 +91,14 @@ export function CreateJobForm({
     }
   }, [activeProject, projects]);
 
+  const handleProviderChange = (value: string) => {
+    const chatId = getStoredChatId();
+    if (!chatId) return;
+    setProvider({ chatId, provider: value }).then(() =>
+      queryClient.invalidateQueries({ queryKey: ["provider"] }),
+    );
+  };
+
   const handleModelChange = (value: string) => {
     const chatId = getStoredChatId();
     if (!chatId) return;
@@ -111,20 +119,6 @@ export function CreateJobForm({
         <CardDescription className="text-muted-foreground/80">
           Speak to text on your phone, paste here, run remotely.
         </CardDescription>
-        {providerData && (
-          <div className="flex items-center gap-1.5 pt-1">
-            <span className="inline-block h-1.5 w-1.5 rounded-full bg-primary/60" />
-            <span className="text-xs text-muted-foreground">
-              {[
-                providerLabel,
-                providerData.reasoningEffort,
-                providerData.planMode ? "plan" : null,
-              ]
-                .filter(Boolean)
-                .join(" · ")}
-            </span>
-          </div>
-        )}
       </CardHeader>
       <CardContent className="relative z-10">
         <form
@@ -148,22 +142,52 @@ export function CreateJobForm({
             className="min-h-[100px] resize-none bg-background/50 font-medium placeholder:text-muted-foreground/50 focus-visible:ring-primary focus-visible:ring-offset-2"
             onChange={(event) => setTask(event.target.value)}
           />
-          <Select value={currentModelValue} onValueChange={handleModelChange}>
-            <SelectTrigger className="h-10 bg-background/50 text-sm font-medium text-foreground transition-colors hover:bg-background/80 focus:ring-primary focus:ring-offset-2">
-              <SelectValue className="text-foreground" placeholder="Model" />
-            </SelectTrigger>
-            <SelectContent className="border-white/10 bg-popover/95 text-popover-foreground backdrop-blur-xl">
-              {models.map((m) => (
+          <div className="grid grid-cols-2 gap-3">
+            <Select value={provider} onValueChange={handleProviderChange}>
+              <SelectTrigger className="h-10 bg-background/50 text-sm font-medium text-foreground transition-colors hover:bg-background/80 focus:ring-primary focus:ring-offset-2">
+                <SelectValue
+                  className="text-foreground"
+                  placeholder="Provider"
+                />
+              </SelectTrigger>
+              <SelectContent className="border-white/10 bg-popover/95 text-popover-foreground backdrop-blur-xl">
                 <SelectItem
                   className="cursor-pointer transition-colors focus:bg-primary/20 focus:text-primary"
-                  key={m.value}
-                  value={m.value}
+                  value="codex"
                 >
-                  {m.label}
+                  OpenAI Codex
                 </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
+                <SelectItem
+                  className="cursor-pointer transition-colors focus:bg-primary/20 focus:text-primary"
+                  value="claude"
+                >
+                  Claude Code
+                </SelectItem>
+                <SelectItem
+                  className="cursor-pointer transition-colors focus:bg-primary/20 focus:text-primary"
+                  value="gemini"
+                >
+                  Gemini CLI
+                </SelectItem>
+              </SelectContent>
+            </Select>
+            <Select value={currentModelValue} onValueChange={handleModelChange}>
+              <SelectTrigger className="h-10 bg-background/50 text-sm font-medium text-foreground transition-colors hover:bg-background/80 focus:ring-primary focus:ring-offset-2">
+                <SelectValue className="text-foreground" placeholder="Model" />
+              </SelectTrigger>
+              <SelectContent className="border-white/10 bg-popover/95 text-popover-foreground backdrop-blur-xl">
+                {models.map((m) => (
+                  <SelectItem
+                    className="cursor-pointer transition-colors focus:bg-primary/20 focus:text-primary"
+                    key={m.value}
+                    value={m.value}
+                  >
+                    {m.label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
           <Button
             type="submit"
             className="w-full h-12 rounded-xl text-base font-bold shadow-lg shadow-primary/20 transition-all active:scale-95"
