@@ -12,6 +12,7 @@ function ensureParentDirectory(filePath) {
 }
 
 export function bootstrapDatabase(sqlite) {
+  // Phase 1: Create tables
   sqlite.exec(`
     CREATE TABLE IF NOT EXISTS threads (
       id TEXT PRIMARY KEY,
@@ -65,7 +66,17 @@ export function bootstrapDatabase(sqlite) {
       payload_json TEXT,
       created_at TEXT NOT NULL
     );
+  `);
 
+  // Phase 2: Migrations (must run before indexes on new columns)
+  try {
+    sqlite.exec(`ALTER TABLE jobs ADD COLUMN thread_id TEXT`);
+  } catch {
+    // Column already exists
+  }
+
+  // Phase 3: Indexes (safe now that all columns exist)
+  sqlite.exec(`
     CREATE INDEX IF NOT EXISTS idx_jobs_chat_id ON jobs (chat_id);
     CREATE INDEX IF NOT EXISTS idx_jobs_status ON jobs (status);
     CREATE INDEX IF NOT EXISTS idx_jobs_created_at ON jobs (created_at);
@@ -75,13 +86,6 @@ export function bootstrapDatabase(sqlite) {
     CREATE INDEX IF NOT EXISTS idx_job_events_job_id ON job_events (job_id);
     CREATE INDEX IF NOT EXISTS idx_job_events_created_at ON job_events (created_at);
   `);
-
-  // Migration: add thread_id column to existing jobs table
-  try {
-    sqlite.exec(`ALTER TABLE jobs ADD COLUMN thread_id TEXT`);
-  } catch {
-    // Column already exists
-  }
 }
 
 export function createDatabase({ filePath }) {
