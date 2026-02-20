@@ -12,12 +12,15 @@ import type {
 
 async function requestJson<T>(path: string, init?: RequestInit): Promise<T> {
   const method = init?.method || "GET";
+  const headers: Record<string, string> = {
+    ...(init?.headers as Record<string, string> ?? {}),
+  };
+  if (init?.body) {
+    headers["Content-Type"] = "application/json";
+  }
   const response = await fetch(path, {
     ...init,
-    headers: {
-      "Content-Type": "application/json",
-      ...(init?.headers ?? {})
-    }
+    headers,
   });
 
   const body = await response.json().catch(() => ({}));
