@@ -24,6 +24,10 @@ const NOISE_PATTERNS = [
   /^RESULT:/,
   /^FILES:/,
   /^NEXT:/,
+  /^You are (Codex|Claude|Gemini)/,
+  /^Treat the quoted text/,
+  /^User request:/,
+  /^"""/,
   /^$/,
 ];
 
