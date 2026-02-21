@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react";
+import Markdown from "react-markdown";
 
 import { Button } from "@/components/ui/button";
 import type { Job } from "@/lib/types";
@@ -347,9 +348,46 @@ export function JobChatFeed({
                 {isWorking ? (
                   <TypingIndicator startedAt={job.startedAt} jobId={job.id} />
                 ) : (
-                  <p className="mt-1.5 whitespace-pre-wrap text-sm text-foreground/90 leading-relaxed">
-                    {msg}
-                  </p>
+                  <div className="mt-1.5 text-sm text-foreground/90 leading-relaxed prose prose-sm prose-invert max-w-none prose-p:my-1 prose-headings:my-2 prose-ul:my-1 prose-ol:my-1 prose-li:my-0 prose-pre:my-2 prose-pre:bg-black/30 prose-pre:border prose-pre:border-white/5 prose-pre:rounded-lg prose-code:text-violet-300 prose-code:text-xs prose-a:text-primary prose-a:no-underline hover:prose-a:underline">
+                    <Markdown
+                      components={{
+                        pre: ({ children }) => (
+                          <pre className="overflow-x-auto p-3 text-xs">
+                            {children}
+                          </pre>
+                        ),
+                        code: ({ className, children, ...props }) => {
+                          const isBlock = className?.startsWith("language-");
+                          if (isBlock) {
+                            const lang =
+                              className?.replace("language-", "") || "";
+                            return (
+                              <div>
+                                {lang && (
+                                  <span className="text-[9px] uppercase tracking-wider text-muted-foreground/50 font-mono">
+                                    {lang}
+                                  </span>
+                                )}
+                                <code className={className} {...props}>
+                                  {children}
+                                </code>
+                              </div>
+                            );
+                          }
+                          return (
+                            <code
+                              className="rounded bg-white/5 px-1.5 py-0.5 text-xs font-mono"
+                              {...props}
+                            >
+                              {children}
+                            </code>
+                          );
+                        },
+                      }}
+                    >
+                      {msg ?? ""}
+                    </Markdown>
+                  </div>
                 )}
 
                 {/* Inline approve/deny for pending jobs */}
