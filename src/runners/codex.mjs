@@ -57,19 +57,7 @@ function extractMeaningfulError(rawOutput) {
 }
 
 function buildPrompt(transcript) {
-  return [
-    "You are Codex running from a mobile phone bridge.",
-    "Treat the quoted text as the user's coding request and execute it in this workspace.",
-    "",
-    `User request: """${transcript}"""`,
-    "",
-    "At the end, return a concise summary for chat with exactly these headings:",
-    "RESULT:",
-    "FILES:",
-    "NEXT:",
-    "",
-    "Keep the full response under 120 words and plain text.",
-  ].join("\n");
+  return transcript;
 }
 
 function createOutputFilePath() {

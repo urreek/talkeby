@@ -1,19 +1,7 @@
 import { spawn } from "node:child_process";
 
 function buildPrompt(task) {
-  return [
-    "You are Gemini running from a mobile phone bridge.",
-    "Treat the quoted text as the user's coding request and execute it in this workspace.",
-    "",
-    `User request: """${task}"""`,
-    "",
-    "At the end, return a concise summary for chat with exactly these headings:",
-    "RESULT:",
-    "FILES:",
-    "NEXT:",
-    "",
-    "Keep the full response under 120 words and plain text.",
-  ].join("\n");
+  return task;
 }
 
 /**
