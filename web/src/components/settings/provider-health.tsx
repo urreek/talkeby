@@ -31,25 +31,30 @@ function StatusDot({ ok }: { ok: boolean }) {
 function ProviderRow({ check }: { check: ProviderHealthCheck }) {
   return (
     <div
-      className={`flex items-center justify-between rounded-lg border px-4 py-3 ${
+      className={`flex items-start justify-between gap-2 rounded-lg border px-4 py-3 overflow-hidden ${
         check.active
           ? "border-primary/30 bg-primary/5"
           : "border-border bg-background"
       }`}
     >
-      <div className="flex items-center gap-3">
+      <div className="flex items-start gap-3 min-w-0 flex-1">
         <StatusDot ok={check.ready} />
-        <div>
+        <div className="min-w-0 flex-1">
           <p className="text-sm font-medium">
             {DISPLAY_NAMES[check.provider] ?? check.provider}
             {check.active ? (
               <span className="ml-2 text-xs text-primary">(active)</span>
             ) : null}
           </p>
-          <div className="flex gap-3 text-xs text-muted-foreground">
-            <span>
+          <div className="flex flex-col gap-0.5 text-xs text-muted-foreground mt-1">
+            <span className="flex items-center gap-1 min-w-0">
               {check.binaryInstalled ? "✓" : "✗"}{" "}
-              <code className="rounded bg-muted px-1">{check.binary}</code>
+              <code
+                className="rounded bg-muted px-1 truncate max-w-[200px] inline-block align-middle"
+                title={check.binary}
+              >
+                {check.binary}
+              </code>
             </span>
             {check.envKey ? (
               <span>
@@ -63,7 +68,7 @@ function ProviderRow({ check }: { check: ProviderHealthCheck }) {
         </div>
       </div>
       <span
-        className={`text-xs font-medium ${
+        className={`text-xs font-medium shrink-0 ${
           check.ready ? "text-emerald-600" : "text-red-500"
         }`}
       >
