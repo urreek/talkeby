@@ -1,5 +1,6 @@
-import { execFile } from "node:child_process";
+import { execFile, execFileSync } from "node:child_process";
 import fs from "node:fs";
+import os from "node:os";
 import path from "node:path";
 import { promisify } from "node:util";
 
@@ -214,6 +215,32 @@ export function registerRoutes({
       reply.code(400);
       return { error: "threadId is required." };
     }
+
+    // Clean up Codex session file on disk
+    const thread = repository.getThread(threadId);
+    if (thread?.cliSessionId) {
+      try {
+        const sessionsDir = path.join(
+          os.homedir(),
+          ".codex",
+          "sessions",
+        );
+        // Session files are stored as: YYYY/MM/DD/rollout-...-<UUID>.jsonl
+        // We need to find the file by UUID suffix
+        const result = execFileSync("find", [sessionsDir, "-name", `*${thread.cliSessionId}.jsonl`], {
+          timeout: 5000,
+          encoding: "utf8",
+        }).trim();
+        if (result) {
+          for (const f of result.split("\n")) {
+            if (f.trim()) fs.unlinkSync(f.trim());
+          }
+        }
+      } catch {
+        // Non-critical: session file cleanup is best-effort
+      }
+    }
+
     repository.deleteThread(threadId);
     return { ok: true };
   });
