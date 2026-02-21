@@ -318,6 +318,7 @@ export class TalkebyRepository {
     const update = { updatedAt: nowIso() };
     if ("title" in patch) update.title = patch.title;
     if ("status" in patch) update.status = patch.status;
+    if ("cliSessionId" in patch) update.cliSessionId = patch.cliSessionId;
     this.db
       .update(threadsTable)
       .set(update)

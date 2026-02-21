@@ -5,6 +5,7 @@ export const threadsTable = sqliteTable("threads", {
   projectName: text("project_name").notNull(),
   title: text("title").notNull(),
   status: text("status").notNull().default("active"),
+  cliSessionId: text("cli_session_id"),
   createdAt: text("created_at").notNull(),
   updatedAt: text("updated_at").notNull(),
 });

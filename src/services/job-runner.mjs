@@ -24,11 +24,12 @@ function buildRunningUpdate(job, startedAtMs) {
 }
 
 export class JobRunner {
-  constructor({ config, state, eventBus, sendChatText }) {
+  constructor({ config, state, eventBus, sendChatText, repository }) {
     this.config = config;
     this.state = state;
     this.eventBus = eventBus;
     this.sendChatText = sendChatText;
+    this.repository = repository;
 
     this.runningJobId = "";
     this.queue = Promise.resolve();
@@ -108,6 +109,17 @@ export class JobRunner {
           const reasoningEffort = this.state.getReasoningEffort();
           const planMode = this.state.getPlanMode();
 
+          // Look up thread's CLI session ID for continuity
+          let sessionId = null;
+          if (job.threadId && this.repository) {
+            try {
+              const thread = this.repository.getThread(job.threadId);
+              sessionId = thread?.cliSessionId || null;
+            } catch {
+              // non-critical
+            }
+          }
+
           const result = await runner({
             task: job.request,
             workdir: job.workdir,
@@ -116,7 +128,19 @@ export class JobRunner {
             planMode,
             timeoutMs: providerConfig.timeoutMs,
             binary: providerConfig.binaries[provider] || provider,
+            sessionId,
           });
+
+          // Save new session ID to thread for future resumes
+          if (result.newSessionId && job.threadId && this.repository) {
+            try {
+              this.repository.updateThread(job.threadId, {
+                cliSessionId: result.newSessionId,
+              });
+            } catch {
+              // non-critical
+            }
+          }
 
           const completedAt = new Date().toISOString();
           this.state.patchJob(job.id, {

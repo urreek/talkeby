@@ -35,6 +35,7 @@ async function start() {
     state,
     eventBus,
     sendChatText,
+    repository,
   });
 
   const app = fastify({

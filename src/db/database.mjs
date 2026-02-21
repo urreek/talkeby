@@ -74,6 +74,11 @@ export function bootstrapDatabase(sqlite) {
   } catch {
     // Column already exists
   }
+  try {
+    sqlite.exec(`ALTER TABLE threads ADD COLUMN cli_session_id TEXT`);
+  } catch {
+    // Column already exists
+  }
 
   // Phase 3: Indexes (safe now that all columns exist)
   sqlite.exec(`

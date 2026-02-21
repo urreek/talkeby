@@ -6,6 +6,8 @@ import { promisify } from "node:util";
 
 const execFileAsync = promisify(execFile);
 
+const CODEX_SESSIONS_DIR = path.join(os.homedir(), ".codex", "sessions");
+
 function buildPrompt(transcript) {
   return [
     "You are Codex running from a mobile phone bridge.",
@@ -54,9 +56,60 @@ async function runCodexCommand({ binary, args, workdir, timeoutMs, outputPath })
   };
 }
 
-async function runResumeOrThrow({ task, config, outputPath }) {
+/**
+ * Find the newest session file created after `afterMs` timestamp.
+ * Returns the session UUID or null.
+ */
+async function findNewestSessionId(afterMs) {
+  try {
+    const now = new Date(afterMs);
+    const yearDir = path.join(CODEX_SESSIONS_DIR, String(now.getFullYear()));
+    const monthDir = path.join(yearDir, String(now.getMonth() + 1).padStart(2, "0"));
+
+    // Scan the month directory and today's date folder
+    const dayDir = path.join(monthDir, String(now.getDate()).padStart(2, "0"));
+    let files = [];
+    try {
+      files = await fs.readdir(dayDir);
+    } catch {
+      // day dir might not exist yet
+      return null;
+    }
+
+    // Find files created after our timestamp
+    let newest = null;
+    let newestMtime = 0;
+    for (const f of files) {
+      if (!f.endsWith(".jsonl")) continue;
+      const fPath = path.join(dayDir, f);
+      const stat = await fs.stat(fPath);
+      if (stat.mtimeMs > afterMs && stat.mtimeMs > newestMtime) {
+        newestMtime = stat.mtimeMs;
+        newest = f;
+      }
+    }
+
+    if (!newest) return null;
+
+    // Extract UUID from filename: rollout-YYYY-MM-DDTHH-MM-SS-<UUID>.jsonl
+    const match = newest.match(
+      /([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})\.jsonl$/i
+    );
+    return match ? match[1] : null;
+  } catch {
+    return null;
+  }
+}
+
+async function runResumeSession({ task, config, outputPath, sessionId }) {
   const prompt = buildPrompt(task);
-  const args = ["exec", "--output-last-message", outputPath, "resume", "--last"];
+  const args = ["exec", "--output-last-message", outputPath, "resume"];
+
+  if (sessionId) {
+    args.push(sessionId);
+  } else {
+    args.push("--last");
+  }
 
   if (config.model) {
     args.push("--model", config.model);
@@ -112,20 +165,63 @@ async function runFreshSessionOrThrow({ task, config, outputPath }) {
 
 /**
  * Run a task using the OpenAI Codex CLI.
- * @param {{ task: string, workdir: string, model: string, timeoutMs: number, binary: string }} config
- * @returns {Promise<{ message: string }>}
+ * @param {object} config
+ * @param {string} config.task
+ * @param {string} config.workdir
+ * @param {string} config.model
+ * @param {number} config.timeoutMs
+ * @param {string} config.binary
+ * @param {string} [config.sessionId] - CLI session ID to resume
+ * @returns {Promise<{ message: string, newSessionId?: string }>}
  */
 export async function run(config) {
   const outputPath = createOutputFilePath();
+  const startTime = Date.now();
 
   try {
+    // If we have a session ID, resume that specific session
+    if (config.sessionId) {
+      try {
+        const result = await runResumeSession({
+          task: config.task,
+          config,
+          outputPath,
+          sessionId: config.sessionId,
+        });
+        return result;
+      } catch {
+        await fs.rm(outputPath, { force: true });
+        // Fall through to try --last or fresh
+      }
+    }
+
+    // Try resuming the last session for this working directory
     try {
-      return await runResumeOrThrow({ task: config.task, config, outputPath });
+      const result = await runResumeSession({
+        task: config.task,
+        config,
+        outputPath,
+        sessionId: null,
+      });
+      return result;
     } catch {
       await fs.rm(outputPath, { force: true });
     }
 
-    return await runFreshSessionOrThrow({ task: config.task, config, outputPath });
+    // Fall back to a fresh session and capture the new session ID
+    const result = await runFreshSessionOrThrow({
+      task: config.task,
+      config,
+      outputPath,
+    });
+
+    // Try to find the new session ID
+    const newSessionId = await findNewestSessionId(startTime);
+    if (newSessionId) {
+      result.newSessionId = newSessionId;
+    }
+
+    return result;
   } catch (error) {
     const stderr = String(error.stderr || "").trim();
     const stdout = String(error.stdout || "").trim();
