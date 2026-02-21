@@ -5,6 +5,53 @@ import path from "node:path";
 
 const CODEX_SESSIONS_DIR = path.join(os.homedir(), ".codex", "sessions");
 
+// Lines from Codex stderr that are just startup noise, not real errors
+const NOISE_PATTERNS = [
+  /^OpenAI Codex v/,
+  /^workdir:/,
+  /^model:/,
+  /^provider:/,
+  /^approval:/,
+  /^sandbox:/,
+  /^reasoning/,
+  /^session id:/,
+  /^mcp:/,
+  /^mcp startup:/,
+  /^user /,
+  /^Warning: no last agent message/,
+  /^At the end, return/,
+  /^Keep the full response/,
+  /^RESULT:/,
+  /^FILES:/,
+  /^NEXT:/,
+  /^$/,
+];
+
+function isNoiseLine(line) {
+  const trimmed = line.trim();
+  if (!trimmed) return true;
+  return NOISE_PATTERNS.some((p) => p.test(trimmed));
+}
+
+/**
+ * Extract the meaningful error from Codex's noisy stderr output.
+ * Strips startup info, MCP logs, prompt echo, etc.
+ */
+function extractMeaningfulError(rawOutput) {
+  const lines = rawOutput.split("\n");
+  const meaningful = lines.filter((l) => !isNoiseLine(l));
+
+  if (meaningful.length > 0) {
+    return meaningful.join("\n").trim();
+  }
+
+  // If everything was filtered, look for ERROR: lines specifically
+  const errorLine = lines.find((l) => l.trim().startsWith("ERROR:"));
+  if (errorLine) return errorLine.trim();
+
+  return rawOutput.trim().slice(0, 300);
+}
+
 function buildPrompt(transcript) {
   return [
     "You are Codex running from a mobile phone bridge.",
@@ -71,7 +118,7 @@ function runCodexSpawn({ binary, args, workdir, timeoutMs, outputPath, onLine })
       if (onLine) {
         const lines = text.split("\n");
         for (const line of lines) {
-          if (line.trim()) onLine(line);
+          if (line.trim() && !isNoiseLine(line)) onLine(line);
         }
       }
     });
@@ -82,7 +129,7 @@ function runCodexSpawn({ binary, args, workdir, timeoutMs, outputPath, onLine })
       if (onLine) {
         const lines = text.split("\n");
         for (const line of lines) {
-          if (line.trim()) onLine(`[stderr] ${line}`);
+          if (line.trim() && !isNoiseLine(line)) onLine(`[stderr] ${line}`);
         }
       }
     });
@@ -253,9 +300,10 @@ export async function run(config) {
 
     return result;
   } catch (error) {
-    const stderr = String(error.stderr || "").trim();
-    const stdout = String(error.stdout || "").trim();
-    const summary = stderr || stdout || error.message || "Codex execution failed with no details.";
+    const rawStderr = String(error.stderr || "").trim();
+    const rawStdout = String(error.stdout || "").trim();
+    const raw = rawStderr || rawStdout || error.message || "";
+    const summary = extractMeaningfulError(raw) || "Codex execution failed with no details.";
     throw new Error(summary);
   } finally {
     await fs.rm(outputPath, { force: true });
