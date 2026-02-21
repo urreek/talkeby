@@ -5,6 +5,7 @@ import { createRoute } from "@tanstack/react-router";
 import { CreateJobForm } from "@/components/jobs/create-job-form";
 import { JobChatFeed } from "@/components/jobs/job-chat-feed";
 import { Button } from "@/components/ui/button";
+import { useConfirmDialog } from "@/components/ui/confirm-dialog";
 import {
   Card,
   CardContent,
@@ -45,6 +46,7 @@ function JobsScreen() {
   const [draftChatId, setDraftChatId] = useState(chatId);
   const [selectedThreadId, setSelectedThreadId] = useState<string | null>(null);
   const [selectedProject, setSelectedProject] = useState<string>("");
+  const { confirm, ConfirmDialog } = useConfirmDialog();
 
   // Fetch projects
   const projectsQuery = useQuery({
@@ -205,12 +207,15 @@ function JobsScreen() {
                 thread={thread}
                 isActive={thread.id === activeThread?.id}
                 onClick={() => setSelectedThreadId(thread.id)}
-                onDelete={() => {
-                  if (
-                    window.confirm(
-                      `Delete "${thread.title}"? This will permanently remove the thread and its CLI session from disk.`,
-                    )
-                  ) {
+                onDelete={async () => {
+                  const confirmed = await confirm({
+                    title: `Delete "${thread.title}"?`,
+                    description:
+                      "This will permanently remove the thread and its CLI session from disk. This cannot be undone.",
+                    confirmLabel: "Delete",
+                    variant: "destructive",
+                  });
+                  if (confirmed) {
                     deleteThreadMutation.mutate(thread.id);
                   }
                 }}
@@ -289,6 +294,8 @@ function JobsScreen() {
           />
         </div>
       )}
+
+      {ConfirmDialog}
     </div>
   );
 }
