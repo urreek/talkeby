@@ -340,6 +340,11 @@ export class TalkebyRepository {
 
   deleteThread(threadId) {
     if (!threadId) return;
+    // Delete associated jobs first
+    this.db
+      .delete(jobsTable)
+      .where(eq(jobsTable.threadId, String(threadId)))
+      .run();
     this.db
       .delete(threadsTable)
       .where(eq(threadsTable.id, String(threadId)))
