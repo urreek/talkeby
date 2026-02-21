@@ -205,7 +205,15 @@ function JobsScreen() {
                 thread={thread}
                 isActive={thread.id === activeThread?.id}
                 onClick={() => setSelectedThreadId(thread.id)}
-                onDelete={() => deleteThreadMutation.mutate(thread.id)}
+                onDelete={() => {
+                  if (
+                    window.confirm(
+                      `Delete "${thread.title}"? This will permanently remove the thread and its CLI session from disk.`,
+                    )
+                  ) {
+                    deleteThreadMutation.mutate(thread.id);
+                  }
+                }}
               />
             ))}
             <button
