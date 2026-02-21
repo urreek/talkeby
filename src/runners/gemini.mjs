@@ -1,11 +1,52 @@
 import { spawn } from "node:child_process";
+import { promises as fs } from "node:fs";
+import os from "node:os";
+import path from "node:path";
 
 function buildPrompt(task) {
   return task;
 }
 
 /**
- * Run a task using the Gemini CLI with streaming output.
+ * Find the newest Gemini session created after `afterMs`.
+ * Gemini stores sessions in ~/.gemini/sessions/ as JSON files.
+ */
+async function findGeminiSessionId(afterMs) {
+  try {
+    const sessionsDir = path.join(os.homedir(), ".gemini", "sessions");
+    let files;
+    try {
+      files = await fs.readdir(sessionsDir);
+    } catch {
+      return null;
+    }
+
+    let newest = null;
+    let newestMtime = 0;
+
+    for (const f of files) {
+      if (!f.endsWith(".json")) continue;
+      const fPath = path.join(sessionsDir, f);
+      try {
+        const stat = await fs.stat(fPath);
+        if (stat.mtimeMs > afterMs && stat.mtimeMs > newestMtime) {
+          newestMtime = stat.mtimeMs;
+          // Extract session ID from filename (UUID.json or similar)
+          newest = f.replace(/\.json$/, "");
+        }
+      } catch {
+        continue;
+      }
+    }
+
+    return newest;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Run a task using the Gemini CLI with streaming output and session support.
  * Requires `gemini` CLI installed and GOOGLE_API_KEY set.
  */
 export async function run(config) {
@@ -13,9 +54,16 @@ export async function run(config) {
   const binary = config.binary || "gemini";
   const args = [];
   const onLine = config.onLine || null;
+  const startTime = Date.now();
 
   if (config.model) args.push("--model", config.model);
   if (config.planMode) args.push("--plan");
+
+  // Session resume support
+  if (config.sessionId) {
+    args.push("--resume", config.sessionId);
+  }
+
   args.push(prompt);
 
   const env = { ...process.env };
@@ -23,9 +71,23 @@ export async function run(config) {
     env.GEMINI_THINKING_LEVEL = config.reasoningEffort;
   }
 
+  const result = await spawnGemini({ binary, args, workdir: config.workdir, timeoutMs: config.timeoutMs, onLine, env });
+
+  // Capture new session ID if this was a fresh run
+  if (!config.sessionId) {
+    const newSessionId = await findGeminiSessionId(startTime);
+    if (newSessionId) {
+      result.newSessionId = newSessionId;
+    }
+  }
+
+  return result;
+}
+
+function spawnGemini({ binary, args, workdir, timeoutMs, onLine, env }) {
   return new Promise((resolve, reject) => {
     const child = spawn(binary, args, {
-      cwd: config.workdir,
+      cwd: workdir,
       stdio: ["pipe", "pipe", "pipe"],
       env,
     });
@@ -38,7 +100,7 @@ export async function run(config) {
       killed = true;
       child.kill("SIGTERM");
       setTimeout(() => child.kill("SIGKILL"), 3000);
-    }, config.timeoutMs);
+    }, timeoutMs);
 
     child.stdout?.on("data", (chunk) => {
       const text = chunk.toString();
