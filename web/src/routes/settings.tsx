@@ -6,7 +6,14 @@ import { DiscoverProjects } from "@/components/settings/discover-projects";
 import { ManageProjects } from "@/components/settings/manage-projects";
 import { ProviderHealth } from "@/components/settings/provider-health";
 import { SettingsPanel } from "@/components/settings/settings-panel";
-import { Card, CardContent } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
 import {
   addProject,
   fetchMode,
@@ -17,6 +24,7 @@ import {
   setProvider,
 } from "@/lib/api";
 import { useTheme } from "@/lib/theme";
+import { isSoundsEnabled, setSoundsEnabled, playCompleted } from "@/lib/sounds";
 import { getStoredChatId, setStoredChatId } from "@/lib/storage";
 import type { AIProvider, ExecutionMode } from "@/lib/types";
 import { rootRoute } from "@/routes/__root";
@@ -121,6 +129,8 @@ function SettingsScreen() {
 
       <ManageProjects />
 
+      <SoundsToggle />
+
       <SettingsPanel
         initialChatId={chatId}
         mode={modeQuery.data?.executionMode ?? "auto"}
@@ -172,6 +182,40 @@ function SettingsScreen() {
         isAddingProject={addProjectMutation.isPending}
       />
     </div>
+  );
+}
+
+function SoundsToggle() {
+  const [enabled, setEnabled] = useState(isSoundsEnabled());
+
+  return (
+    <Card className="theme-surface">
+      <CardHeader>
+        <CardTitle>Sound Effects</CardTitle>
+        <CardDescription>
+          Play sounds when jobs complete, fail, or need approval.
+        </CardDescription>
+      </CardHeader>
+      <CardContent className="flex items-center gap-3">
+        <Button
+          size="sm"
+          variant={enabled ? "default" : "outline"}
+          onClick={() => {
+            const next = !enabled;
+            setSoundsEnabled(next);
+            setEnabled(next);
+            if (next) playCompleted();
+          }}
+        >
+          {enabled ? "🔔 Enabled" : "🔕 Disabled"}
+        </Button>
+        {enabled && (
+          <Button size="sm" variant="ghost" onClick={() => playCompleted()}>
+            Test
+          </Button>
+        )}
+      </CardContent>
+    </Card>
   );
 }
 

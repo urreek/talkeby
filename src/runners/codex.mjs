@@ -1,10 +1,7 @@
-import { execFile } from "node:child_process";
+import { spawn } from "node:child_process";
 import { promises as fs } from "node:fs";
 import os from "node:os";
 import path from "node:path";
-import { promisify } from "node:util";
-
-const execFileAsync = promisify(execFile);
 
 const CODEX_SESSIONS_DIR = path.join(os.homedir(), ".codex", "sessions");
 
@@ -36,24 +33,89 @@ async function readLastMessageOrFallback({ outputPath, stdout }) {
   } catch {
     // If codex did not emit output file, fall back to stdout.
   }
-
   return lastMessage || stdout.trim() || "Codex completed but returned no summary.";
 }
 
-async function runCodexCommand({ binary, args, workdir, timeoutMs, outputPath }) {
-  const { stdout, stderr } = await execFileAsync(binary, args, {
-    cwd: workdir,
-    timeout: timeoutMs,
-    maxBuffer: 10 * 1024 * 1024,
-  });
+/**
+ * Run a codex command using spawn (streaming output).
+ * @param {object} opts
+ * @param {string[]} opts.args
+ * @param {string} opts.binary
+ * @param {string} opts.workdir
+ * @param {number} opts.timeoutMs
+ * @param {string} opts.outputPath
+ * @param {function} [opts.onLine] - called with each stdout/stderr line
+ * @returns {Promise<{message: string, stderr: string}>}
+ */
+function runCodexSpawn({ binary, args, workdir, timeoutMs, outputPath, onLine }) {
+  return new Promise((resolve, reject) => {
+    const child = spawn(binary, args, {
+      cwd: workdir,
+      stdio: ["pipe", "pipe", "pipe"],
+      env: { ...process.env },
+    });
 
-  return {
-    message: await readLastMessageOrFallback({
-      outputPath,
-      stdout,
-    }),
-    stderr: stderr.trim(),
-  };
+    let stdout = "";
+    let stderr = "";
+    let killed = false;
+
+    const timeout = setTimeout(() => {
+      killed = true;
+      child.kill("SIGTERM");
+      setTimeout(() => child.kill("SIGKILL"), 3000);
+    }, timeoutMs);
+
+    child.stdout?.on("data", (chunk) => {
+      const text = chunk.toString();
+      stdout += text;
+      if (onLine) {
+        const lines = text.split("\n");
+        for (const line of lines) {
+          if (line.trim()) onLine(line);
+        }
+      }
+    });
+
+    child.stderr?.on("data", (chunk) => {
+      const text = chunk.toString();
+      stderr += text;
+      if (onLine) {
+        const lines = text.split("\n");
+        for (const line of lines) {
+          if (line.trim()) onLine(`[stderr] ${line}`);
+        }
+      }
+    });
+
+    child.on("close", async (code) => {
+      clearTimeout(timeout);
+      if (killed) {
+        reject(new Error("Codex execution timed out."));
+        return;
+      }
+      if (code !== 0 && code !== null) {
+        const err = new Error(stderr.trim() || `Codex exited with code ${code}`);
+        err.stderr = stderr;
+        err.stdout = stdout;
+        reject(err);
+        return;
+      }
+      try {
+        const message = await readLastMessageOrFallback({ outputPath, stdout });
+        resolve({ message, stderr: stderr.trim() });
+      } catch (e) {
+        reject(e);
+      }
+    });
+
+    child.on("error", (err) => {
+      clearTimeout(timeout);
+      reject(err);
+    });
+
+    // Close stdin immediately
+    child.stdin?.end();
+  });
 }
 
 /**
@@ -63,20 +125,20 @@ async function runCodexCommand({ binary, args, workdir, timeoutMs, outputPath })
 async function findNewestSessionId(afterMs) {
   try {
     const now = new Date(afterMs);
-    const yearDir = path.join(CODEX_SESSIONS_DIR, String(now.getFullYear()));
-    const monthDir = path.join(yearDir, String(now.getMonth() + 1).padStart(2, "0"));
+    const dayDir = path.join(
+      CODEX_SESSIONS_DIR,
+      String(now.getFullYear()),
+      String(now.getMonth() + 1).padStart(2, "0"),
+      String(now.getDate()).padStart(2, "0"),
+    );
 
-    // Scan the month directory and today's date folder
-    const dayDir = path.join(monthDir, String(now.getDate()).padStart(2, "0"));
     let files = [];
     try {
       files = await fs.readdir(dayDir);
     } catch {
-      // day dir might not exist yet
       return null;
     }
 
-    // Find files created after our timestamp
     let newest = null;
     let newestMtime = 0;
     for (const f of files) {
@@ -91,9 +153,8 @@ async function findNewestSessionId(afterMs) {
 
     if (!newest) return null;
 
-    // Extract UUID from filename: rollout-YYYY-MM-DDTHH-MM-SS-<UUID>.jsonl
     const match = newest.match(
-      /([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})\.jsonl$/i
+      /([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})\.jsonl$/i,
     );
     return match ? match[1] : null;
   } catch {
@@ -101,8 +162,7 @@ async function findNewestSessionId(afterMs) {
   }
 }
 
-async function runResumeSession({ task, config, outputPath, sessionId }) {
-  const prompt = buildPrompt(task);
+function buildResumeArgs({ config, outputPath, sessionId, prompt }) {
   const args = ["exec", "--output-last-message", outputPath, "resume"];
 
   if (sessionId) {
@@ -111,28 +171,14 @@ async function runResumeSession({ task, config, outputPath, sessionId }) {
     args.push("--last");
   }
 
-  if (config.model) {
-    args.push("--model", config.model);
-  }
-  if (config.reasoningEffort) {
-    args.push("--reasoning-effort", config.reasoningEffort);
-  }
-  if (config.planMode) {
-    args.push("--plan");
-  }
+  if (config.model) args.push("--model", config.model);
+  if (config.reasoningEffort) args.push("--reasoning-effort", config.reasoningEffort);
+  if (config.planMode) args.push("--plan");
   args.push("--full-auto", "--skip-git-repo-check", prompt);
-
-  return runCodexCommand({
-    binary: config.binary,
-    args,
-    workdir: config.workdir,
-    timeoutMs: config.timeoutMs,
-    outputPath,
-  });
+  return args;
 }
 
-async function runFreshSessionOrThrow({ task, config, outputPath }) {
-  const prompt = buildPrompt(task);
+function buildFreshArgs({ config, outputPath, prompt }) {
   const args = [
     "exec",
     "--full-auto",
@@ -143,28 +189,15 @@ async function runFreshSessionOrThrow({ task, config, outputPath }) {
     outputPath,
   ];
 
-  if (config.model) {
-    args.push("--model", config.model);
-  }
-  if (config.reasoningEffort) {
-    args.push("--reasoning-effort", config.reasoningEffort);
-  }
-  if (config.planMode) {
-    args.push("--plan");
-  }
+  if (config.model) args.push("--model", config.model);
+  if (config.reasoningEffort) args.push("--reasoning-effort", config.reasoningEffort);
+  if (config.planMode) args.push("--plan");
   args.push(prompt);
-
-  return runCodexCommand({
-    binary: config.binary,
-    args,
-    workdir: config.workdir,
-    timeoutMs: config.timeoutMs,
-    outputPath,
-  });
+  return args;
 }
 
 /**
- * Run a task using the OpenAI Codex CLI.
+ * Run a task using the OpenAI Codex CLI with streaming output.
  * @param {object} config
  * @param {string} config.task
  * @param {string} config.workdir
@@ -172,50 +205,47 @@ async function runFreshSessionOrThrow({ task, config, outputPath }) {
  * @param {number} config.timeoutMs
  * @param {string} config.binary
  * @param {string} [config.sessionId] - CLI session ID to resume
+ * @param {function} [config.onLine] - called with each output line
  * @returns {Promise<{ message: string, newSessionId?: string }>}
  */
 export async function run(config) {
   const outputPath = createOutputFilePath();
   const startTime = Date.now();
+  const prompt = buildPrompt(config.task);
+  const onLine = config.onLine || null;
 
   try {
-    // If we have a session ID, resume that specific session
+    // Try resuming specific session
     if (config.sessionId) {
       try {
-        const result = await runResumeSession({
-          task: config.task,
-          config,
-          outputPath,
-          sessionId: config.sessionId,
+        const args = buildResumeArgs({ config, outputPath, sessionId: config.sessionId, prompt });
+        return await runCodexSpawn({
+          binary: config.binary, args, workdir: config.workdir,
+          timeoutMs: config.timeoutMs, outputPath, onLine,
         });
-        return result;
       } catch {
         await fs.rm(outputPath, { force: true });
-        // Fall through to try --last or fresh
       }
     }
 
-    // Try resuming the last session for this working directory
+    // Try resuming last session
     try {
-      const result = await runResumeSession({
-        task: config.task,
-        config,
-        outputPath,
-        sessionId: null,
+      const args = buildResumeArgs({ config, outputPath, sessionId: null, prompt });
+      return await runCodexSpawn({
+        binary: config.binary, args, workdir: config.workdir,
+        timeoutMs: config.timeoutMs, outputPath, onLine,
       });
-      return result;
     } catch {
       await fs.rm(outputPath, { force: true });
     }
 
-    // Fall back to a fresh session and capture the new session ID
-    const result = await runFreshSessionOrThrow({
-      task: config.task,
-      config,
-      outputPath,
+    // Fresh session
+    const args = buildFreshArgs({ config, outputPath, prompt });
+    const result = await runCodexSpawn({
+      binary: config.binary, args, workdir: config.workdir,
+      timeoutMs: config.timeoutMs, outputPath, onLine,
     });
 
-    // Try to find the new session ID
     const newSessionId = await findNewestSessionId(startTime);
     if (newSessionId) {
       result.newSessionId = newSessionId;
@@ -225,8 +255,7 @@ export async function run(config) {
   } catch (error) {
     const stderr = String(error.stderr || "").trim();
     const stdout = String(error.stdout || "").trim();
-    const summary =
-      stderr || stdout || error.message || "Codex execution failed with no details.";
+    const summary = stderr || stdout || error.message || "Codex execution failed with no details.";
     throw new Error(summary);
   } finally {
     await fs.rm(outputPath, { force: true });

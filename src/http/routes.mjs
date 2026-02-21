@@ -4,6 +4,7 @@ import path from "node:path";
 import { promisify } from "node:util";
 
 import { resolveExecutionMode } from "../services/command-parser.mjs";
+import { getJobOutput, subscribeJobOutput } from "../services/job-output.mjs";
 import { registerEventRoute } from "./events-route.mjs";
 import { registerJobRoutes } from "./jobs-routes.mjs";
 import { isAuthorizedChat, textValue } from "./shared.mjs";
@@ -100,6 +101,54 @@ export function registerRoutes({
       activeProvider,
       providers: checks,
     };
+  });
+
+  // ── Live output streaming (SSE) ──
+
+  app.get("/api/jobs/:jobId/stream", async (request, reply) => {
+    const jobId = textValue(request.params?.jobId || "");
+    if (!jobId) {
+      reply.code(400);
+      return { error: "jobId is required." };
+    }
+
+    reply.raw.writeHead(200, {
+      "Content-Type": "text/event-stream",
+      "Cache-Control": "no-cache",
+      Connection: "keep-alive",
+      "Access-Control-Allow-Origin": "*",
+    });
+
+    // Send existing buffered lines
+    const existing = getJobOutput(jobId);
+    for (const line of existing) {
+      reply.raw.write(`data: ${JSON.stringify({ line })}\n\n`);
+    }
+
+    // Subscribe for new lines
+    const unsubscribe = subscribeJobOutput(jobId, (line) => {
+      try {
+        reply.raw.write(`data: ${JSON.stringify({ line })}\n\n`);
+      } catch {
+        unsubscribe();
+      }
+    });
+
+    // Heartbeat to keep connection alive
+    const heartbeat = setInterval(() => {
+      try {
+        reply.raw.write(": heartbeat\n\n");
+      } catch {
+        clearInterval(heartbeat);
+        unsubscribe();
+      }
+    }, 15000);
+
+    // Cleanup on close
+    request.raw.on("close", () => {
+      clearInterval(heartbeat);
+      unsubscribe();
+    });
   });
 
   // ── Thread routes ──

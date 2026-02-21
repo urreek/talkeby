@@ -1,4 +1,5 @@
 import { getRunner } from "../runners/index.mjs";
+import { appendJobOutput, clearJobOutput } from "./job-output.mjs";
 
 function truncate(input, max) {
   const value = String(input ?? "").trim();
@@ -129,6 +130,7 @@ export class JobRunner {
             timeoutMs: providerConfig.timeoutMs,
             binary: providerConfig.binaries[provider] || provider,
             sessionId,
+            onLine: (line) => appendJobOutput(job.id, line),
           });
 
           // Save new session ID to thread for future resumes
