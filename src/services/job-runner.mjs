@@ -51,6 +51,19 @@ export class JobRunner {
           status: "running",
           startedAt: startedAtIso,
         });
+
+        // Auto-title thread from first user message
+        if (job.threadId && this.repository) {
+          try {
+            const thread = this.repository.getThread(job.threadId);
+            if (thread && thread.title === "New Thread") {
+              const title = truncate(job.request, 60);
+              this.repository.updateThread(job.threadId, { title });
+            }
+          } catch {
+            // non-critical
+          }
+        }
         this.eventBus.publish({
           jobId: job.id,
           chatId: job.chatId,
@@ -177,7 +190,7 @@ export class JobRunner {
           }
         } catch (error) {
           const failedAt = new Date().toISOString();
-          const failureMessage = `Job ${job.id} failed: ${truncate(error.message, 3000)}`;
+          const failureMessage = truncate(error.message, 3000);
           this.state.patchJob(job.id, {
             status: "failed",
             completedAt: failedAt,
@@ -207,6 +220,8 @@ export class JobRunner {
           }
           this.state.markPendingConsumed(job.chatId, job.id);
           this.runningJobId = "";
+          // Free streaming output buffer
+          clearJobOutput(job.id);
         }
       })
       .catch((error) => {

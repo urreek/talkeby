@@ -267,18 +267,7 @@ export async function run(config) {
       }
     }
 
-    // Try resuming last session
-    try {
-      const args = buildResumeArgs({ config, outputPath, sessionId: null, prompt });
-      return await runCodexSpawn({
-        binary: config.binary, args, workdir: config.workdir,
-        timeoutMs: config.timeoutMs, outputPath, onLine,
-      });
-    } catch {
-      await fs.rm(outputPath, { force: true });
-    }
-
-    // Fresh session
+    // No session ID — start fresh (don't use --last, it might grab another thread's session)
     const args = buildFreshArgs({ config, outputPath, prompt });
     const result = await runCodexSpawn({
       binary: config.binary, args, workdir: config.workdir,
