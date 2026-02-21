@@ -123,19 +123,42 @@ export class JobRunner {
           const reasoningEffort = this.state.getReasoningEffort();
           const planMode = this.state.getPlanMode();
 
-          // Look up thread's CLI session ID for continuity
+          // Look up thread's CLI session ID for continuity (Codex only)
           let sessionId = null;
+          let task = job.request;
+
           if (job.threadId && this.repository) {
             try {
               const thread = this.repository.getThread(job.threadId);
               sessionId = thread?.cliSessionId || null;
+
+              // Build conversation context from previous jobs in this thread
+              // Skip if Codex has a session (it already has native context)
+              if (!sessionId) {
+                const previousJobs = this.repository.listJobsByThread(job.threadId);
+                const completed = previousJobs
+                  .filter((j) => j.status === "completed" && j.id !== job.id && j.summary)
+                  .slice(-5); // Last 5 exchanges max
+
+                if (completed.length > 0) {
+                  const history = completed
+                    .map((j) => {
+                      const req = truncate(j.request, 200);
+                      const res = truncate(j.summary, 500);
+                      return `User: ${req}\nAssistant: ${res}`;
+                    })
+                    .join("\n\n");
+
+                  task = `Here is our conversation so far in this thread:\n\n${history}\n\nNow handle this new request:\n${job.request}`;
+                }
+              }
             } catch {
               // non-critical
             }
           }
 
           const result = await runner({
-            task: job.request,
+            task,
             workdir: job.workdir,
             model,
             reasoningEffort,
