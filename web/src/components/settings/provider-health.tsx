@@ -51,10 +51,14 @@ function ProviderRow({ check }: { check: ProviderHealthCheck }) {
               {check.binaryInstalled ? "✓" : "✗"}{" "}
               <code className="rounded bg-muted px-1">{check.binary}</code>
             </span>
-            <span>
-              {check.apiKeySet ? "✓" : "✗"}{" "}
-              <code className="rounded bg-muted px-1">{check.envKey}</code>
-            </span>
+            {check.envKey ? (
+              <span>
+                {check.apiKeySet ? "✓" : "✗"}{" "}
+                <code className="rounded bg-muted px-1">{check.envKey}</code>
+              </span>
+            ) : (
+              <span className="text-emerald-500/70">✓ Built-in auth</span>
+            )}
           </div>
         </div>
       </div>

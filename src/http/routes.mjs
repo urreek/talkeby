@@ -81,16 +81,20 @@ export function registerRoutes({
         const binaryName = binaries[provider] || provider;
         const envKey = PROVIDER_ENV_KEYS[provider];
         const binaryInstalled = await checkBinary(binaryName);
-        const apiKeySet = Boolean(process.env[envKey]);
+        // Codex desktop app handles its own auth — no env key needed
+        const apiKeySet = envKey ? Boolean(process.env[envKey]) : true;
+        const ready = provider === "codex"
+          ? binaryInstalled
+          : binaryInstalled && apiKeySet;
 
         return {
           provider,
           active: provider === activeProvider,
           binary: binaryName,
           binaryInstalled,
-          envKey,
+          envKey: envKey || null,
           apiKeySet,
-          ready: binaryInstalled && apiKeySet,
+          ready,
         };
       }),
     );
