@@ -105,6 +105,16 @@ function resolveDefaultProjectName(projects, configuredDefault) {
   );
 }
 
+function normalizeExistingDirectory(value, fallbackDir) {
+  const fallback = path.resolve(String(fallbackDir || process.cwd()));
+  const raw = String(value || "").trim();
+  if (!raw) {
+    return fallback;
+  }
+  const resolved = path.resolve(raw);
+  return fs.existsSync(resolved) ? resolved : fallback;
+}
+
 function findBinaryOnPath(command) {
   const locator = process.platform === "win32" ? "where" : "which";
   const result = spawnSync(locator, [command], {
@@ -170,9 +180,13 @@ function normalizeBinarySetting(value, fallbackCommand) {
 export function loadConfig() {
   const port = parseInteger(process.env.PORT, 3000);
   const codexTimeoutMs = parseInteger(process.env.CODEX_TIMEOUT_MS, 15 * 60 * 1000);
-  const fallbackWorkdir = path.resolve(process.env.CODEX_WORKDIR?.trim() || process.cwd());
-  const projectsBaseDir = path.resolve(
-    process.env.CODEX_PROJECTS_BASE_DIR?.trim() || path.dirname(fallbackWorkdir),
+  const fallbackWorkdir = normalizeExistingDirectory(
+    process.env.CODEX_WORKDIR?.trim(),
+    process.cwd(),
+  );
+  const projectsBaseDir = normalizeExistingDirectory(
+    process.env.CODEX_PROJECTS_BASE_DIR?.trim(),
+    path.dirname(fallbackWorkdir),
   );
   const dataDir = path.resolve(
     process.env.DATA_DIR?.trim() || path.join(process.cwd(), "data"),

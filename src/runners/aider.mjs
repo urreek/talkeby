@@ -1,4 +1,4 @@
-import { spawn } from "node:child_process";
+import { spawnCompat } from "../lib/spawn-compat.mjs";
 
 function pickModel(config) {
   const model = String(config.model || "").trim();
@@ -65,7 +65,7 @@ export async function runWithAider(config) {
 
 function spawnAider({ binary, args, workdir, timeoutMs, onLine, env, signal }) {
   return new Promise((resolve, reject) => {
-    const child = spawn(binary, args, {
+    const child = spawnCompat(binary, args, {
       cwd: workdir,
       stdio: ["pipe", "pipe", "pipe"],
       env,

@@ -1,7 +1,7 @@
-import { spawn } from "node:child_process";
 import { promises as fs } from "node:fs";
 import os from "node:os";
 import path from "node:path";
+import { spawnCompat } from "../lib/spawn-compat.mjs";
 import { extractGeminiUsageFromJsonPayload } from "../services/usage-parser.mjs";
 
 function buildPrompt(task) {
@@ -105,7 +105,7 @@ function parseGeminiJsonOutput(stdout) {
 
 function spawnGemini({ binary, args, workdir, timeoutMs, onLine, env, signal }) {
   return new Promise((resolve, reject) => {
-    const child = spawn(binary, args, {
+    const child = spawnCompat(binary, args, {
       cwd: workdir,
       stdio: ["pipe", "pipe", "pipe"],
       env,

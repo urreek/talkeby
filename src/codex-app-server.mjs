@@ -1,4 +1,4 @@
-import { spawn } from "node:child_process";
+import { spawnCompat } from "./lib/spawn-compat.mjs";
 
 function buildPrompt(transcript) {
   return String(transcript || "").trim();
@@ -158,7 +158,7 @@ export async function listCodexModels({
   codexConfig,
   includeHidden = false,
 }) {
-  const child = spawn(codexConfig.binary, ["app-server", "--listen", "stdio://"], {
+  const child = spawnCompat(codexConfig.binary, ["app-server", "--listen", "stdio://"], {
     cwd: codexConfig.workdir,
     stdio: ["pipe", "pipe", "pipe"],
   });
@@ -308,7 +308,7 @@ export async function runCodexWithRuntimeApprovals({
 }) {
   const prompt = buildPrompt(transcript);
 
-  const child = spawn(codexConfig.binary, ["app-server", "--listen", "stdio://"], {
+  const child = spawnCompat(codexConfig.binary, ["app-server", "--listen", "stdio://"], {
     cwd: codexConfig.workdir,
     stdio: ["pipe", "pipe", "pipe"],
   });
