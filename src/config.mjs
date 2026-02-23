@@ -165,7 +165,7 @@ export function loadConfig() {
   const threads = {
     defaultTokenBudget: Math.max(
       0,
-      parseInteger(process.env.THREAD_DEFAULT_TOKEN_BUDGET, 12000),
+      parseInteger(process.env.THREAD_DEFAULT_TOKEN_BUDGET, 10000),
     ),
     autoTrimContextDefault: parseBoolean(process.env.THREAD_AUTO_TRIM_CONTEXT_DEFAULT, true),
   };

@@ -39,7 +39,6 @@ import {
   resumeJobFromError,
   stopJob,
   setThreadAutoTrimContext,
-  setThreadBudget,
 } from "@/lib/api";
 import { getStoredChatId } from "@/lib/storage";
 import type { Thread } from "@/lib/types";
@@ -204,12 +203,6 @@ function JobsScreen() {
       renameThread(input.threadId, chatId, input.title),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ["threads"] }),
   });
-  const threadBudgetMutation = useMutation({
-    mutationFn: (input: { threadId: string; tokenBudget: number }) =>
-      setThreadBudget(input.threadId, chatId, input.tokenBudget),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["threads"] }),
-  });
-
   const threadAutoTrimMutation = useMutation({
     mutationFn: (input: { threadId: string; autoTrimContext: boolean }) =>
       setThreadAutoTrimContext(input.threadId, chatId, input.autoTrimContext),
@@ -336,27 +329,6 @@ function JobsScreen() {
                   </div>
                 )}
                 <div className="flex flex-wrap gap-2">
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    onClick={() => {
-                      const current = Number(activeThread.tokenBudget || 0);
-                      const value = window.prompt("Set thread token budget (0 = unlimited):", String(current));
-                      if (value === null) {
-                        return;
-                      }
-                      const parsed = Number.parseInt(value, 10);
-                      if (!Number.isFinite(parsed) || parsed < 0) {
-                        return;
-                      }
-                      threadBudgetMutation.mutate({
-                        threadId: activeThread.id,
-                        tokenBudget: parsed,
-                      });
-                    }}
-                  >
-                    Set Budget
-                  </Button>
                   <div className="flex items-center gap-2">
                     <span className="text-xs text-muted-foreground">Auto-Trim</span>
                     <Select
