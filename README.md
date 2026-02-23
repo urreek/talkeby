@@ -62,7 +62,7 @@ Required values (guided setup asks for these):
 - `TELEGRAM_BOT_TOKEN`
 - `TELEGRAM_ALLOWED_CHAT_IDS` (your Telegram chat id)
 - `CODEX_WORKDIR` (default project path)
-- `CODEX_BINARY` (absolute path from `which codex`)
+- `CODEX_BINARY` (`codex` is recommended; absolute path is optional)
 
 Optional useful values:
 

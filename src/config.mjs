@@ -1,5 +1,6 @@
 import fs from "node:fs";
 import path from "node:path";
+import { spawnSync } from "node:child_process";
 
 import { isSupportedProvider, supportedProviderText } from "./providers/catalog.mjs";
 
@@ -104,25 +105,66 @@ function resolveDefaultProjectName(projects, configuredDefault) {
   );
 }
 
+function findBinaryOnPath(command) {
+  const locator = process.platform === "win32" ? "where" : "which";
+  const result = spawnSync(locator, [command], {
+    encoding: "utf8",
+  });
+  if (result.status !== 0) {
+    return "";
+  }
+
+  const firstMatch = String(result.stdout || "")
+    .split(/\r?\n/)
+    .map((line) => line.trim())
+    .find(Boolean);
+  return firstMatch || "";
+}
+
+function binaryCandidates(command) {
+  const base = String(command || "").trim();
+  if (!base) {
+    return [];
+  }
+
+  if (process.platform !== "win32") {
+    return [base];
+  }
+
+  const values = [base];
+  const lower = base.toLowerCase();
+  if (!lower.endsWith(".cmd")) values.push(`${base}.cmd`);
+  if (!lower.endsWith(".exe")) values.push(`${base}.exe`);
+  if (!lower.endsWith(".bat")) values.push(`${base}.bat`);
+  return Array.from(new Set(values));
+}
+
 function normalizeBinarySetting(value, fallbackCommand) {
   const raw = String(value || "").trim();
-  if (!raw) {
-    return fallbackCommand;
+  const configured = raw || fallbackCommand;
+  const looksLikePath = path.isAbsolute(configured)
+    || configured.includes("/")
+    || configured.includes("\\");
+
+  if (looksLikePath && fs.existsSync(configured)) {
+    return configured;
   }
 
-  const looksLikePath = path.isAbsolute(raw) || raw.includes("/") || raw.includes("\\");
-  if (!looksLikePath) {
-    return raw;
+  // If a copied config contains a foreign absolute path, reduce to basename first.
+  const commandBase = looksLikePath
+    ? path.basename(configured).replace(/\.(cmd|exe|bat)$/i, "")
+    : configured;
+
+  for (const candidate of binaryCandidates(commandBase)) {
+    const resolved = findBinaryOnPath(candidate);
+    if (resolved) {
+      return resolved;
+    }
   }
 
-  if (fs.existsSync(raw)) {
-    return raw;
-  }
-
-  // Path looks invalid for this machine (common when .env is copied across OSes).
-  // Fall back to command name so PATH lookup can still succeed.
-  const base = path.basename(raw).replace(/\.exe$/i, "");
-  return base || fallbackCommand;
+  // No path hit; keep a command name fallback so spawn can still try PATH.
+  const fallbackCandidates = binaryCandidates(fallbackCommand);
+  return fallbackCandidates[0] || fallbackCommand;
 }
 
 export function loadConfig() {
