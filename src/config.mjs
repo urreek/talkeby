@@ -266,6 +266,10 @@ export function loadConfig() {
     freeModelsOnly: parseBoolean(process.env.FREE_MODELS_ONLY, true),
   };
 
+  const providers = {
+    discoverModels: parseBoolean(process.env.PROVIDER_MODEL_DISCOVERY, false),
+  };
+
   const security = {
     rateLimitPerMinute: Math.max(
       30,
@@ -303,6 +307,7 @@ export function loadConfig() {
     codex,
     threads,
     runner,
+    providers,
     security,
     runtimePolicy,
   };

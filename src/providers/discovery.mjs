@@ -19,6 +19,50 @@ function baseOption(meta) {
   };
 }
 
+function applyFreeModelsOnlyToProvider(provider, meta, freeModelsOnly) {
+  if (!freeModelsOnly || !meta || meta.freeOnlyModels.length === 0) {
+    return provider;
+  }
+
+  const allowed = new Set(meta.freeOnlyModels);
+  const filtered = [];
+  const seen = new Set();
+
+  for (const option of provider.models || []) {
+    const value = textValue(option?.value || "");
+    if (value === "") {
+      filtered.push(option);
+      seen.add(value);
+      continue;
+    }
+    if (!allowed.has(value) || seen.has(value)) {
+      continue;
+    }
+    filtered.push({
+      ...option,
+      free: true,
+    });
+    seen.add(value);
+  }
+
+  for (const model of meta.freeOnlyModels) {
+    if (seen.has(model)) {
+      continue;
+    }
+    filtered.push({
+      value: model,
+      label: model,
+      free: true,
+    });
+    seen.add(model);
+  }
+
+  return {
+    ...provider,
+    models: filtered,
+  };
+}
+
 function dedupeDiscoveredModels(models) {
   const seen = new Set();
   const entries = [];
@@ -328,8 +372,19 @@ async function discoverModelsForProvider(providerId, config) {
 }
 
 export async function buildProviderCatalogWithDiscovery({ config, log }) {
-  const providers = listProviderCatalog();
+  const providers = listProviderCatalog().map((provider) => {
+    const meta = getProviderMeta(provider.id);
+    return applyFreeModelsOnlyToProvider(
+      provider,
+      meta,
+      Boolean(config.runner?.freeModelsOnly),
+    );
+  });
   const freeModelsOnly = Boolean(config.runner?.freeModelsOnly);
+
+  if (!config.providers?.discoverModels) {
+    return providers;
+  }
 
   const discoveredPerProvider = await Promise.all(
     providers.map(async (provider) => {
@@ -370,5 +425,8 @@ export async function buildProviderCatalogWithDiscovery({ config, log }) {
       ...provider,
       models: mergedModels,
     };
+  }).map((provider) => {
+    const meta = getProviderMeta(provider.id);
+    return applyFreeModelsOnlyToProvider(provider, meta, freeModelsOnly);
   });
 }

@@ -78,6 +78,7 @@ Optional useful values:
 - `ANTHROPIC_API_KEY=<key>`
 - `AIDER_BINARY=aider`
 - `FREE_MODELS_ONLY=true`
+- `PROVIDER_MODEL_DISCOVERY=false` (recommended for same model lists across machines)
 - `APP_ACCESS_KEY=<long-random-secret>`
 - `OWNER_CHAT_ID=<your-telegram-chat-id>` (optional default chat for web when app key is used)
 - `API_RATE_LIMIT_PER_MINUTE=240`
