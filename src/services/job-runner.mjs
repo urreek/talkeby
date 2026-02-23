@@ -385,8 +385,6 @@ export class JobRunner {
 
           // Look up thread's CLI session ID for continuity (all providers)
           let sessionId = null;
-          let threadBudget = 0;
-          let threadUsed = 0;
           let taskText = activeJob.request;
           let threadAutoTrimContext = this.config.threads?.autoTrimContextDefault !== false;
           let bootstrapPrompt = "";
@@ -397,8 +395,6 @@ export class JobRunner {
             try {
               const thread = this.repository.getThread(activeJob.threadId);
               sessionId = thread?.cliSessionId || null;
-              threadBudget = Math.max(0, Number.parseInt(String(thread?.tokenBudget || 0), 10) || 0);
-              threadUsed = Math.max(0, Number.parseInt(String(thread?.tokenUsed || 0), 10) || 0);
               threadAutoTrimContext = thread?.autoTrimContext !== 0;
               if (thread?.bootstrapPrompt && !thread?.bootstrapAppliedAt) {
                 bootstrapPrompt = String(thread.bootstrapPrompt);
@@ -416,78 +412,14 @@ export class JobRunner {
             }
           }
 
-          let allowSoftBudgetOverflow = false;
-
-          if (threadBudget > 0) {
-            const remaining = Math.max(0, threadBudget - threadUsed);
-            const prepared = buildBudgetAwarePrompt({
-              userTask: activeJob.request,
-              bootstrapPrompt,
-              resumeContext,
-              remainingBudget: remaining,
-              autoTrimContext: threadAutoTrimContext,
-            });
-            taskText = prepared.prompt;
-            inputTokenEstimate = prepared.estimatedTokens;
-
-            if (prepared.trimmed) {
-              this.eventBus.publish({
-                jobId: activeJob.id,
-                chatId: activeJob.chatId,
-                eventType: "thread_context_trimmed",
-                message: "Trimmed optional context to fit thread token budget.",
-                payload: {
-                  threadId: threadIdForBudget,
-                  removed: prepared.removed,
-                  estimatedTokens: prepared.estimatedTokens,
-                  remainingBudget: remaining,
-                },
-              });
-            }
-
-            if (prepared.cannotFit) {
-              if (!threadAutoTrimContext) {
-                throw new Error(
-                  `Thread token budget exhausted (${threadUsed}/${threadBudget}). Increase budget or start a new thread.`,
-                );
-              }
-              // Best-effort mode: keep the minimal prompt and continue even if strict fit is impossible.
-              allowSoftBudgetOverflow = true;
-              this.eventBus.publish({
-                jobId: activeJob.id,
-                chatId: activeJob.chatId,
-                eventType: "thread_context_trimmed",
-                message: "Could not fully fit budget; continuing with minimal context.",
-                payload: {
-                  threadId: threadIdForBudget,
-                  removed: prepared.removed,
-                  estimatedTokens: prepared.estimatedTokens,
-                  remainingBudget: remaining,
-                  softOverflow: true,
-                },
-              });
-            }
-          } else {
-            const prepared = buildBudgetAwarePrompt({
-              userTask: activeJob.request,
-              bootstrapPrompt,
-              resumeContext,
-              autoTrimContext: threadAutoTrimContext,
-            });
-            taskText = prepared.prompt;
-            inputTokenEstimate = prepared.estimatedTokens;
-          }
-
-          if (
-            !allowSoftBudgetOverflow
-            && threadIdForBudget
-            && threadBudget > 0
-            && threadUsed + inputTokenEstimate > threadBudget
-          ) {
-            throw new Error(
-              `Thread token budget exhausted (${threadUsed}/${threadBudget}). Increase budget or start a new thread.`,
-            );
-          }
+          const prepared = buildBudgetAwarePrompt({
+            userTask: activeJob.request,
+            bootstrapPrompt,
+            resumeContext,
+            autoTrimContext: threadAutoTrimContext,
+          });
+          taskText = prepared.prompt;
+          inputTokenEstimate = prepared.estimatedTokens;
 
           if (!isFreeModelAllowed({
             providerName: provider,

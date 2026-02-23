@@ -216,10 +216,9 @@ function JobsScreen() {
     )
     : "";
 
-  const budget = Number(activeThread?.tokenBudget || 0);
-  const used = Number(activeThread?.tokenUsed || 0);
-  const remaining = budget > 0 ? Math.max(0, budget - used) : 0;
-  const progress = budget > 0 ? Math.max(0, Math.min(100, Math.round((used / Math.max(1, budget)) * 100))) : 0;
+  const threadTotalTokens = Number(activeThread?.tokenUsed || 0);
+  const threadExactTokens = Number(activeThread?.tokenUsedExact || 0);
+  const threadEstimatedTokens = Number(activeThread?.tokenUsedEstimated || 0);
   const autoTrimValue = Boolean(activeThread?.autoTrimContext) ? "on" : "off";
 
   return (
@@ -312,22 +311,12 @@ function JobsScreen() {
               />
               <CardDescription className="text-xs text-muted-foreground">
                 {activeProject} · {threadJobs.length} message
-                {threadJobs.length !== 1 ? "s" : ""} · tokens {used}/{budget || "unlimited"}
+                {threadJobs.length !== 1 ? "s" : ""} · tokens burned {threadTotalTokens}
               </CardDescription>
               <div className="pt-1 space-y-2">
-                {budget > 0 && (
-                  <div className="space-y-1">
-                    <div className="h-2 w-full rounded-full bg-muted overflow-hidden">
-                      <div
-                        className="h-full rounded-full bg-primary transition-all"
-                        style={{ width: `${progress}%` }}
-                      />
-                    </div>
-                    <p className="text-[11px] text-muted-foreground">
-                      Remaining: {remaining} tokens ({progress}% used)
-                    </p>
-                  </div>
-                )}
+                <p className="text-[11px] text-muted-foreground">
+                  Thread total: {threadTotalTokens} tokens (exact {threadExactTokens} / estimated {threadEstimatedTokens})
+                </p>
                 <div className="flex flex-wrap gap-2">
                   <div className="flex items-center gap-2">
                     <span className="text-xs text-muted-foreground">Auto-Trim</span>

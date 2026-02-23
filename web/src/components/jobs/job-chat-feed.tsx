@@ -43,6 +43,29 @@ function durationBetween(start: string, end: string): string {
   return `${minutes}m ${seconds}s`;
 }
 
+function formatTokenCount(value: number | null | undefined): string {
+  if (typeof value !== "number" || !Number.isFinite(value) || value <= 0) {
+    return "0";
+  }
+  return Math.round(value).toLocaleString();
+}
+
+function tokenUsageLine(job: Job): string {
+  const isFinal =
+    job.status === "completed"
+    || job.status === "failed"
+    || job.status === "denied"
+    || job.status === "cancelled";
+  if (!isFinal && !job.tokenTotal) {
+    return "Tokens calculating...";
+  }
+  const total = formatTokenCount(job.tokenTotal);
+  const input = formatTokenCount(job.tokenInput);
+  const output = formatTokenCount(job.tokenOutput);
+  const source = (job.tokenSource || "estimate").toString().toLowerCase();
+  return `Tokens ${total} (in ${input} / out ${output}, ${source})`;
+}
+
 function statusLabel(status: string) {
   switch (status) {
     case "running":
@@ -412,6 +435,10 @@ export function JobChatFeed({
                     </Markdown>
                   </div>
                 )}
+
+                <p className="mt-2 text-[11px] text-muted-foreground">
+                  {tokenUsageLine(job)}
+                </p>
 
                 {/* Inline approve/deny for pending jobs */}
                 {job.status === "pending_approval" && onApprove && onDeny && (
