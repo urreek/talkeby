@@ -152,10 +152,6 @@ async function runInstall() {
       process.exitCode = 1;
       return;
     }
-    if (!runCommand("npm", ["run", "web:install"])) {
-      process.exitCode = 1;
-      return;
-    }
   }
 
   if (installLaunchdAnswer.startsWith("y")) {
@@ -169,6 +165,69 @@ async function runInstall() {
   printHeader("Install Complete");
   // eslint-disable-next-line no-console
   console.log("Next: npm start");
+}
+
+function isPlaceholderPath(value) {
+  const normalized = String(value || "").toLowerCase();
+  return normalized.includes("your-user") || normalized.includes("path/to/repo");
+}
+
+async function runBootstrap() {
+  printHeader("Talkeby Bootstrap");
+
+  if (!nodeVersionOk()) {
+    // eslint-disable-next-line no-console
+    console.error(`Node ${process.versions.node} detected; require >=20.19.`);
+    process.exitCode = 1;
+    return;
+  }
+
+  ensureEnvFile();
+  const env = readEnvFile();
+  const updates = [];
+
+  const port = String(env.get("PORT") || "").trim();
+  if (!port) {
+    updates.push(["PORT", "3000"]);
+  }
+
+  const workdir = String(env.get("CODEX_WORKDIR") || "").trim();
+  if (!workdir || isPlaceholderPath(workdir)) {
+    updates.push(["CODEX_WORKDIR", ROOT_DIR]);
+  }
+
+  const projectsBaseDir = String(env.get("CODEX_PROJECTS_BASE_DIR") || "").trim();
+  if (!projectsBaseDir || isPlaceholderPath(projectsBaseDir)) {
+    updates.push(["CODEX_PROJECTS_BASE_DIR", path.dirname(ROOT_DIR)]);
+  }
+
+  const currentBinary = String(env.get("CODEX_BINARY") || "").trim();
+  const resolvedBinary = which("codex");
+  if (resolvedBinary && (!currentBinary || currentBinary === "codex" || isPlaceholderPath(currentBinary))) {
+    updates.push(["CODEX_BINARY", resolvedBinary]);
+  }
+
+  if (updates.length > 0) {
+    upsertEnvValues(ENV_PATH, updates);
+  }
+
+  printHeader("Installing Dependencies");
+  if (!runCommand("npm", ["install"])) {
+    process.exitCode = 1;
+    return;
+  }
+
+  printHeader("Bootstrap Complete");
+  // eslint-disable-next-line no-console
+  console.log(`Environment file: ${ENV_PATH}`);
+  // eslint-disable-next-line no-console
+  console.log("Next steps:");
+  // eslint-disable-next-line no-console
+  console.log("1) Run `npm run setup` to fill Telegram token/chat if not set.");
+  // eslint-disable-next-line no-console
+  console.log("2) Run `npm start` for backend worker.");
+  // eslint-disable-next-line no-console
+  console.log("3) Run `npm run web:dev` in another terminal for mobile UI.");
 }
 
 function isLikelyTelegramToken(value) {
@@ -316,12 +375,16 @@ async function main() {
 
   if (!command || command === "help" || command === "--help" || command === "-h") {
     // eslint-disable-next-line no-console
-    console.log("Usage: node scripts/talkeby-cli.mjs <install|doctor>");
+    console.log("Usage: node scripts/talkeby-cli.mjs <install|bootstrap|doctor>");
     return;
   }
 
-  if (command === "install") {
+  if (command === "install" || command === "setup") {
     await runInstall();
+    return;
+  }
+  if (command === "bootstrap") {
+    await runBootstrap();
     return;
   }
   if (command === "doctor") {

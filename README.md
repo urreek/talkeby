@@ -38,22 +38,26 @@ codex login
 
 ## Quickstart
 
-1. Clone and install
+1. Clone
 
 ```bash
 git clone <your-repo-url>
 cd talkeby
-npm install
-npm run web:install
 ```
 
-2. Configure environment
+2. One-command bootstrap (installs root + web deps, creates `.env` if missing)
 
 ```bash
-cp .env.example .env
+npm run setup:auto
 ```
 
-Required values in `.env`:
+3. Guided setup (fills required env values interactively)
+
+```bash
+npm run setup
+```
+
+Required values (guided setup asks for these):
 
 - `TELEGRAM_BOT_TOKEN`
 - `TELEGRAM_ALLOWED_CHAT_IDS` (your Telegram chat id)
@@ -80,25 +84,19 @@ Optional useful values:
 - `CSRF_TTL_SECONDS=43200`
 - `RUNTIME_POLICY_ENABLED=true`
 
-Guided setup alternative:
-
-```bash
-npm run setup:guided
-```
-
-3. Start backend + Telegram worker
+4. Start backend + Telegram worker
 
 ```bash
 npm start
 ```
 
-4. Start mobile web app (second terminal)
+5. Start mobile web app (second terminal)
 
 ```bash
 npm run web:dev
 ```
 
-5. Open UI
+6. Open UI
 
 - Local machine: `http://localhost:5173`
 - Same network phone: `http://<your-computer-ip>:5173`
@@ -151,7 +149,6 @@ git fetch --all --prune
 git checkout <branch>
 git pull --ff-only
 npm ci
-npm run web:install
 ```
 
 Then restart services.
