@@ -19,6 +19,13 @@ export function bootstrapDatabase(sqlite) {
       project_name TEXT NOT NULL,
       title TEXT NOT NULL,
       status TEXT NOT NULL DEFAULT 'active',
+      bootstrap_prompt TEXT,
+      bootstrap_applied_at TEXT,
+      auto_trim_context INTEGER NOT NULL DEFAULT 1,
+      token_budget INTEGER NOT NULL DEFAULT 12000,
+      token_used INTEGER NOT NULL DEFAULT 0,
+      token_used_exact INTEGER NOT NULL DEFAULT 0,
+      token_used_estimated INTEGER NOT NULL DEFAULT 0,
       created_at TEXT NOT NULL,
       updated_at TEXT NOT NULL
     );
@@ -38,6 +45,15 @@ export function bootstrapDatabase(sqlite) {
       started_at TEXT,
       completed_at TEXT,
       denied_at TEXT,
+      cancelled_at TEXT,
+      execution_lease_id TEXT,
+      execution_attempt INTEGER NOT NULL DEFAULT 0,
+      resumed_from_job_id TEXT,
+      token_source TEXT,
+      token_input INTEGER,
+      token_output INTEGER,
+      token_total INTEGER,
+      provider_cost_usd TEXT,
       summary TEXT,
       error TEXT
     );
@@ -66,6 +82,32 @@ export function bootstrapDatabase(sqlite) {
       payload_json TEXT,
       created_at TEXT NOT NULL
     );
+
+    CREATE TABLE IF NOT EXISTS runtime_approvals (
+      id TEXT PRIMARY KEY,
+      provider TEXT NOT NULL,
+      chat_id TEXT NOT NULL,
+      job_id TEXT NOT NULL,
+      thread_id TEXT,
+      method TEXT NOT NULL,
+      kind TEXT NOT NULL,
+      status TEXT NOT NULL,
+      risk_level TEXT NOT NULL,
+      summary TEXT NOT NULL,
+      reason TEXT,
+      command TEXT,
+      cwd TEXT,
+      payload_json TEXT,
+      created_at TEXT NOT NULL,
+      resolved_at TEXT,
+      resolved_by_chat_id TEXT
+    );
+
+    CREATE TABLE IF NOT EXISTS app_settings (
+      key TEXT PRIMARY KEY,
+      value TEXT NOT NULL,
+      updated_at TEXT NOT NULL
+    );
   `);
 
   // Phase 2: Migrations (must run before indexes on new columns)
@@ -79,6 +121,86 @@ export function bootstrapDatabase(sqlite) {
   } catch {
     // Column already exists
   }
+  try {
+    sqlite.exec(`ALTER TABLE threads ADD COLUMN bootstrap_prompt TEXT`);
+  } catch {
+    // Column already exists
+  }
+  try {
+    sqlite.exec(`ALTER TABLE threads ADD COLUMN bootstrap_applied_at TEXT`);
+  } catch {
+    // Column already exists
+  }
+  try {
+    sqlite.exec(`ALTER TABLE threads ADD COLUMN token_budget INTEGER NOT NULL DEFAULT 12000`);
+  } catch {
+    // Column already exists
+  }
+  try {
+    sqlite.exec(`ALTER TABLE threads ADD COLUMN token_used INTEGER NOT NULL DEFAULT 0`);
+  } catch {
+    // Column already exists
+  }
+  try {
+    sqlite.exec(`ALTER TABLE threads ADD COLUMN auto_trim_context INTEGER NOT NULL DEFAULT 1`);
+  } catch {
+    // Column already exists
+  }
+  try {
+    sqlite.exec(`ALTER TABLE threads ADD COLUMN token_used_exact INTEGER NOT NULL DEFAULT 0`);
+  } catch {
+    // Column already exists
+  }
+  try {
+    sqlite.exec(`ALTER TABLE threads ADD COLUMN token_used_estimated INTEGER NOT NULL DEFAULT 0`);
+  } catch {
+    // Column already exists
+  }
+  try {
+    sqlite.exec(`ALTER TABLE jobs ADD COLUMN execution_lease_id TEXT`);
+  } catch {
+    // Column already exists
+  }
+  try {
+    sqlite.exec(`ALTER TABLE jobs ADD COLUMN execution_attempt INTEGER NOT NULL DEFAULT 0`);
+  } catch {
+    // Column already exists
+  }
+  try {
+    sqlite.exec(`ALTER TABLE jobs ADD COLUMN cancelled_at TEXT`);
+  } catch {
+    // Column already exists
+  }
+  try {
+    sqlite.exec(`ALTER TABLE jobs ADD COLUMN resumed_from_job_id TEXT`);
+  } catch {
+    // Column already exists
+  }
+  try {
+    sqlite.exec(`ALTER TABLE jobs ADD COLUMN token_source TEXT`);
+  } catch {
+    // Column already exists
+  }
+  try {
+    sqlite.exec(`ALTER TABLE jobs ADD COLUMN token_input INTEGER`);
+  } catch {
+    // Column already exists
+  }
+  try {
+    sqlite.exec(`ALTER TABLE jobs ADD COLUMN token_output INTEGER`);
+  } catch {
+    // Column already exists
+  }
+  try {
+    sqlite.exec(`ALTER TABLE jobs ADD COLUMN token_total INTEGER`);
+  } catch {
+    // Column already exists
+  }
+  try {
+    sqlite.exec(`ALTER TABLE jobs ADD COLUMN provider_cost_usd TEXT`);
+  } catch {
+    // Column already exists
+  }
 
   // Phase 3: Indexes (safe now that all columns exist)
   sqlite.exec(`
@@ -88,8 +210,11 @@ export function bootstrapDatabase(sqlite) {
     CREATE INDEX IF NOT EXISTS idx_jobs_thread_id ON jobs (thread_id);
     CREATE INDEX IF NOT EXISTS idx_threads_project ON threads (project_name);
     CREATE INDEX IF NOT EXISTS idx_projects_name ON projects (name);
+    CREATE INDEX IF NOT EXISTS idx_app_settings_key ON app_settings (key);
     CREATE INDEX IF NOT EXISTS idx_job_events_job_id ON job_events (job_id);
     CREATE INDEX IF NOT EXISTS idx_job_events_created_at ON job_events (created_at);
+    CREATE INDEX IF NOT EXISTS idx_runtime_approvals_chat ON runtime_approvals (chat_id, status, created_at);
+    CREATE INDEX IF NOT EXISTS idx_runtime_approvals_job ON runtime_approvals (job_id, created_at);
   `);
 }
 

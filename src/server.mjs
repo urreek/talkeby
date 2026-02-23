@@ -4,6 +4,7 @@ import { loadConfig } from "./config.mjs";
 import { createDatabase } from "./db/database.mjs";
 import { TalkebyRepository } from "./db/repository.mjs";
 import { registerRoutes } from "./http/routes.mjs";
+import { registerSecurityHooks } from "./http/security.mjs";
 import { EventBus } from "./services/event-bus.mjs";
 import { JobRunner } from "./services/job-runner.mjs";
 import { RuntimeState } from "./services/runtime-state.mjs";
@@ -42,6 +43,11 @@ async function start() {
     logger: true,
   });
 
+  const security = registerSecurityHooks({
+    app,
+    config,
+  });
+
   registerRoutes({
     app,
     config,
@@ -49,6 +55,7 @@ async function start() {
     eventBus,
     jobRunner,
     repository,
+    security,
   });
 
   await app.listen({
@@ -62,6 +69,7 @@ async function start() {
   app.log.info(`Codex projects: ${safeList(state.availableProjectNames())}`);
   app.log.info(`Codex workdir: ${config.codex.workdir}`);
   app.log.info(`Database file: ${config.storage.databaseFile}`);
+  app.log.info(`App access key: ${config.security.ownerKey ? "enabled" : "disabled"}`);
 
   pollTelegramForever({
     config,

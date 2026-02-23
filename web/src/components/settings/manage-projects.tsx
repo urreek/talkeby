@@ -9,16 +9,17 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { deleteProject, fetchProjects } from "@/lib/api";
-import { getStoredChatId } from "@/lib/storage";
 
-export function ManageProjects() {
+type ManageProjectsProps = {
+  chatId: string;
+};
+
+export function ManageProjects({ chatId }: ManageProjectsProps) {
   const queryClient = useQueryClient();
-  const chatId = getStoredChatId();
 
   const projectsQuery = useQuery({
     queryKey: ["projects", chatId],
     queryFn: () => fetchProjects(chatId),
-    enabled: Boolean(chatId),
   });
 
   const removeMutation = useMutation({

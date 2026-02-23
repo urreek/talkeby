@@ -14,6 +14,8 @@ const DISPLAY_NAMES: Record<string, string> = {
   codex: "OpenAI Codex",
   claude: "Claude Code",
   gemini: "Gemini CLI",
+  groq: "Groq (Free Tier)",
+  openrouter: "OpenRouter (Free Models)",
 };
 
 function StatusDot({ ok }: { ok: boolean }) {

@@ -9,7 +9,7 @@
 
 ## Product Summary
 
-Talkeby lets developers control a home-machine AI coding agent from mobile, supporting multiple providers (OpenAI Codex, Claude Code, Gemini), with an interactive approval workflow, live job progress, and secure local-first operation.
+Talkeby lets developers control a home-machine AI coding agent from mobile, supporting multiple providers (OpenAI Codex, Claude Code, Gemini, Groq, OpenRouter), with an interactive approval workflow, live job progress, and secure local-first operation.
 
 ## Problem Statement
 
@@ -18,7 +18,7 @@ Developers want to code while away from their computer (travel, outdoors, commut
 ## Goals
 
 1. Provide a mobile-first UI for creating, approving, and monitoring coding jobs.
-2. Support multiple AI coding providers (Codex, Claude Code, Gemini) with a pluggable runner architecture.
+2. Support multiple AI coding providers (Codex, Claude Code, Gemini, Groq, OpenRouter) with a pluggable runner architecture.
 3. Support two execution modes per user: `auto` and `interactive`.
 4. Stream live job progress and status updates with low latency.
 5. Keep sensitive data local-first by default.
@@ -81,7 +81,7 @@ Developers want to code while away from their computer (travel, outdoors, commut
 
 7. AI execution:
 
-- Support pluggable AI providers: Codex (`codex exec`), Claude Code (`claude -p`), Gemini (`gemini`).
+- Support pluggable AI providers: Codex (`codex exec`), Claude Code (`claude -p`), Gemini (`gemini`), Groq/OpenRouter via Aider (`aider --model ...`).
 - Select provider globally via settings or `AI_PROVIDER` env var.
 - Each provider has its own binary and model configuration.
 - Pass configured model when provided.
@@ -144,7 +144,7 @@ Developers want to code while away from their computer (travel, outdoors, commut
 3. Worker:
 
 - Local AI runner process via pluggable runners (`codex exec`, `claude -p`, `gemini`)
-- Runner registry pattern: `src/runners/{codex,claude,gemini}.mjs`
+- Runner registry pattern: `src/runners/{codex,claude,gemini,groq,openrouter}.mjs`
 
 4. Optional channel:
 
@@ -207,7 +207,7 @@ Developers want to code while away from their computer (travel, outdoors, commut
 
 3. Settings screen:
 
-- AI provider selector (OpenAI Codex / Claude Code / Gemini)
+- AI provider selector (OpenAI Codex / Claude Code / Gemini / Groq / OpenRouter)
 - Mode selector (`auto`/`interactive`)
 - Progress interval settings
 - Active project selector

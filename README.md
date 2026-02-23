@@ -1,21 +1,24 @@
 # Talkeby
 
-Talk to Codex from your phone.  
-Talkeby runs on your machine, accepts tasks from Telegram and the mobile web app, and executes them with Codex in your local projects.
+Talk to coding agents from your phone.  
+Talkeby runs on your machine, accepts tasks from Telegram and the mobile web app, and executes them in your local projects.
 
 ## What You Get
 
 - Telegram bot control (`do`, `approve`, `deny`, `mode`, `project`, `status`)
 - Mobile web app (PWA) for jobs, approvals, timeline, and settings
 - `auto` and `interactive` execution modes
+- Runtime safety policy approvals for risky actions
+- Rich runtime approval cards in the web UI
 - Real-time updates via SSE
 - Local-first storage with SQLite
 - Multi-project routing
+- Observability dashboard (success rate, duration, queue, approvals)
 
 ## Tech Stack
 
 - Backend: Fastify + SQLite + Drizzle ORM
-- Worker: Codex CLI (`codex exec`)
+- Worker: Provider runners (`codex`, `claude`, `gemini`, `groq/openrouter via aider`)
 - Frontend: Vite + React + TypeScript + TanStack Router/Query
 - UI: Tailwind CSS + shadcn/ui
 - Realtime: Server-Sent Events (SSE)
@@ -24,6 +27,7 @@ Talkeby runs on your machine, accepts tasks from Telegram and the mobile web app
 
 - Node.js `>=20.19` (recommended: Node 22 LTS)
 - Codex CLI installed and authenticated on the machine that runs Talkeby
+- Aider CLI installed if using Groq/OpenRouter providers
 - Telegram account
 
 Authenticate Codex once:
@@ -59,9 +63,28 @@ Required values in `.env`:
 Optional useful values:
 
 - `TELEGRAM_DEFAULT_EXECUTION_MODE=auto|interactive`
+- `AI_PROVIDER=codex|claude|gemini|groq|openrouter`
+- `AI_MODEL=<provider-model>`
 - `CODEX_PROJECTS=name=/abs/path,name2=/abs/path2`
 - `CODEX_DEFAULT_PROJECT=<name>`
 - `CODEX_MODEL=<model>`
+- `GROQ_API_KEY=<key>`
+- `OPENROUTER_API_KEY=<key>`
+- `GOOGLE_API_KEY=<key>`
+- `ANTHROPIC_API_KEY=<key>`
+- `AIDER_BINARY=aider`
+- `FREE_MODELS_ONLY=true`
+- `APP_ACCESS_KEY=<long-random-secret>`
+- `OWNER_CHAT_ID=<your-telegram-chat-id>` (optional default chat for web when app key is used)
+- `API_RATE_LIMIT_PER_MINUTE=240`
+- `CSRF_TTL_SECONDS=43200`
+- `RUNTIME_POLICY_ENABLED=true`
+
+Guided setup alternative:
+
+```bash
+npm run setup:guided
+```
 
 3. Start backend + Telegram worker
 
@@ -163,6 +186,7 @@ npm run launchd:uninstall
 
 - Keep `ALLOW_UNVERIFIED_CHATS=false`
 - Restrict `TELEGRAM_ALLOWED_CHAT_IDS` to your own ids
+- Set `APP_ACCESS_KEY` before exposing the app outside your local network
 - Keep `.env` out of Git
 - Prefer absolute `CODEX_BINARY`
 - Use `COMMAND_PIN` if you want an extra guardrail
@@ -173,21 +197,38 @@ npm run launchd:uninstall
 - Telegram `getMe 404 Not Found`: invalid bot token (regenerate in BotFather)
 - `vite: command not found`: run `npm run web:install`
 - Node version error for Vite: upgrade to Node `20.19+` or `22.12+`
+- `aider: command not found`: install aider and set `AIDER_BINARY` if needed
+
+Run full local diagnostics:
+
+```bash
+npm run doctor
+```
 
 ## API Endpoints
 
 - `GET /health`
 - `GET /api/health`
+- `GET /api/security/access`
+- `GET /api/security/csrf`
 - `GET /api/jobs`
 - `POST /api/jobs`
 - `GET /api/jobs/:id`
 - `GET /api/jobs/:id/events`
+- `GET /api/jobs/:jobId/stream` (SSE)
 - `POST /api/jobs/:id/approve`
 - `POST /api/jobs/:id/deny`
 - `GET /api/mode`
 - `POST /api/mode`
+- `GET /api/provider`
+- `POST /api/provider`
+- `GET /api/provider/catalog`
 - `GET /api/projects`
 - `POST /api/projects/select`
+- `GET /api/runtime-approvals`
+- `POST /api/runtime-approvals/:id/approve`
+- `POST /api/runtime-approvals/:id/deny`
+- `GET /api/observability`
 - `GET /api/events` (SSE)
 
 ## Docs

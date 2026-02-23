@@ -1,4 +1,5 @@
 import { resolveExecutionMode } from "./command-parser.mjs";
+import { isSupportedProvider } from "../providers/catalog.mjs";
 
 function textValue(value) {
   return typeof value === "string" ? value.trim() : "";
@@ -33,9 +34,13 @@ export class RuntimeState {
     this.model = config.runner?.model || "";
     this.reasoningEffort = "";
     this.planMode = false;
+    this.runtimeApprovalWaiters = new Map();
   }
 
   hydrate() {
+    // Runtime approvals are in-memory waiters; pending DB approvals cannot be resumed safely after restart.
+    this.repository.denyPendingRuntimeApprovals();
+
     const persistedProjects = this.repository.listProjects();
     for (const row of persistedProjects) {
       const name = textValue(row.name);
@@ -80,8 +85,7 @@ export class RuntimeState {
 
   setProvider(providerName) {
     const normalized = String(providerName || "").trim().toLowerCase();
-    const valid = ["codex", "claude", "gemini"];
-    if (!valid.includes(normalized)) {
+    if (!isSupportedProvider(normalized)) {
       return "";
     }
     this.provider = normalized;
@@ -216,12 +220,51 @@ export class RuntimeState {
     };
   }
 
+  removeProject(projectName) {
+    const resolvedName = this.resolveProjectName(projectName);
+    if (!resolvedName) {
+      return { error: "Project was not found." };
+    }
+
+    this.config.codex.projects.delete(resolvedName);
+    this.repository.deleteProject(resolvedName);
+
+    // Clear chat-level selection when it points to the removed project.
+    for (const [chatId, selectedName] of this.projectNameByChat.entries()) {
+      if (this.resolveProjectName(selectedName)) {
+        continue;
+      }
+
+      this.projectNameByChat.delete(chatId);
+      this.repository.upsertChatSettings({
+        chatId,
+        executionMode: this.getExecutionModeForChat(chatId),
+        projectName: "",
+      });
+    }
+
+    return { ok: true };
+  }
+
   getExecutionModeForChat(chatId) {
+    if (this.config.telegram?.forceAutoMode) {
+      return "auto";
+    }
     const selected = this.executionModeByChat.get(String(chatId)) || "";
     return resolveExecutionMode(selected) || this.config.telegram.defaultExecutionMode;
   }
 
   setExecutionModeForChat(chatId, mode) {
+    if (this.config.telegram?.forceAutoMode) {
+      const id = String(chatId);
+      this.executionModeByChat.set(id, "auto");
+      this.repository.upsertChatSettings({
+        chatId: id,
+        executionMode: "auto",
+        projectName: this.getProjectNameForChat(id),
+      });
+      return "auto";
+    }
     const resolved = resolveExecutionMode(mode);
     if (!resolved) {
       return "";
@@ -340,6 +383,77 @@ export class RuntimeState {
       this.lastPendingJobByChat.delete(chatId);
     }
     return updated;
+  }
+
+  claimJobForExecution({ jobId, leaseId, startedAt }) {
+    const claimed = this.repository.claimJobForExecution({
+      jobId,
+      leaseId,
+      startedAt,
+    });
+    if (!claimed) {
+      return null;
+    }
+
+    this.jobHistory.set(claimed.id, claimed);
+    this.lastJobByChat.set(String(claimed.chatId), claimed.id);
+    return claimed;
+  }
+
+  createRuntimeApproval(input) {
+    return this.repository.insertRuntimeApproval(input);
+  }
+
+  listRuntimeApprovals({ chatId = "", jobId = "", status = "", limit = 50 } = {}) {
+    return this.repository.listRuntimeApprovals({
+      chatId,
+      jobId,
+      status,
+      limit,
+    });
+  }
+
+  getRuntimeApprovalById(id) {
+    return this.repository.getRuntimeApprovalById(id);
+  }
+
+  resolveRuntimeApproval({ id, status, resolvedByChatId = "" }) {
+    return this.repository.resolveRuntimeApproval({
+      id,
+      status,
+      resolvedByChatId,
+    });
+  }
+
+  waitForRuntimeApprovalDecision(id) {
+    const existingRecord = this.getRuntimeApprovalById(id);
+    if (existingRecord && existingRecord.status !== "pending") {
+      return Promise.resolve(existingRecord.status === "approved" ? "approve" : "deny");
+    }
+
+    const existing = this.runtimeApprovalWaiters.get(String(id));
+    if (existing) {
+      return existing.promise;
+    }
+
+    let resolvePromise;
+    const promise = new Promise((resolve) => {
+      resolvePromise = resolve;
+    });
+    this.runtimeApprovalWaiters.set(String(id), {
+      promise,
+      resolve: resolvePromise,
+    });
+    return promise;
+  }
+
+  resolveRuntimeApprovalDecision({ id, decision }) {
+    const waiter = this.runtimeApprovalWaiters.get(String(id));
+    if (!waiter) {
+      return;
+    }
+    this.runtimeApprovalWaiters.delete(String(id));
+    waiter.resolve(decision === "approve" ? "approve" : "deny");
   }
 
   markPendingConsumed(chatId, jobId) {

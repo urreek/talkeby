@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 
 import { Button } from "@/components/ui/button";
@@ -17,41 +17,14 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
-import { fetchProvider, setProvider } from "@/lib/api";
-import { getStoredChatId } from "@/lib/storage";
+import { fetchProvider, fetchProviderCatalog, setProvider } from "@/lib/api";
 import type { AIProvider, ProjectInfo } from "@/lib/types";
-
-const PROVIDER_LABELS: Record<string, string> = {
-  codex: "OpenAI Codex",
-  claude: "Claude Code",
-  gemini: "Gemini CLI",
-};
-
-const MODELS_BY_PROVIDER: Record<
-  AIProvider,
-  { value: string; label: string }[]
-> = {
-  codex: [
-    { value: "__default__", label: "Default" },
-    { value: "gpt-5.3-codex", label: "GPT-5.3 Codex" },
-    { value: "gpt-5.2-codex", label: "GPT-5.2 Codex" },
-  ],
-  claude: [
-    { value: "__default__", label: "Default" },
-    { value: "opus-4.6", label: "Opus 4.6" },
-    { value: "sonnet-4.6", label: "Sonnet 4.6" },
-  ],
-  gemini: [
-    { value: "__default__", label: "Default" },
-    { value: "opus-4.6", label: "Opus 4.6" },
-    { value: "gemini-pro-3.1", label: "Gemini Pro 3.1" },
-  ],
-};
 
 type CreateJobFormProps = {
   projects: ProjectInfo[];
   activeProject: string;
   isSubmitting: boolean;
+  submitError?: string;
   onSubmit: (input: { task: string; projectName: string }) => Promise<void>;
 };
 
@@ -59,6 +32,7 @@ export function CreateJobForm({
   projects,
   activeProject,
   isSubmitting,
+  submitError = "",
   onSubmit,
 }: CreateJobFormProps) {
   const queryClient = useQueryClient();
@@ -75,11 +49,20 @@ export function CreateJobForm({
     queryFn: fetchProvider,
   });
 
+  const catalogQuery = useQuery({
+    queryKey: ["provider-catalog"],
+    queryFn: fetchProviderCatalog,
+  });
+
   const providerData = providerQuery.data;
   const provider = providerData?.provider ?? "codex";
-  const providerLabel = PROVIDER_LABELS[provider] ?? provider;
   const currentModelValue = providerData?.model || "__default__";
-  const models = MODELS_BY_PROVIDER[provider] ?? MODELS_BY_PROVIDER.codex;
+
+  const providerCatalog = catalogQuery.data?.providers ?? [];
+  const activeProvider = useMemo(
+    () => providerCatalog.find((item) => item.id === provider) || providerCatalog[0],
+    [providerCatalog, provider],
+  );
 
   useEffect(() => {
     if (projects.some((project) => project.name === activeProject)) {
@@ -92,18 +75,14 @@ export function CreateJobForm({
   }, [activeProject, projects]);
 
   const handleProviderChange = (value: string) => {
-    const chatId = getStoredChatId();
-    if (!chatId) return;
-    setProvider({ chatId, provider: value }).then(() =>
+    setProvider({ chatId: "", provider: value }).then(() =>
       queryClient.invalidateQueries({ queryKey: ["provider"] }),
     );
   };
 
   const handleModelChange = (value: string) => {
-    const chatId = getStoredChatId();
-    if (!chatId) return;
     const model = value === "__default__" ? "" : value;
-    setProvider({ chatId, model }).then(() =>
+    setProvider({ chatId: "", model }).then(() =>
       queryClient.invalidateQueries({ queryKey: ["provider"] }),
     );
   };
@@ -129,11 +108,15 @@ export function CreateJobForm({
             if (!cleanTask) {
               return;
             }
-            await onSubmit({
-              task: cleanTask,
-              projectName: resolvedProjectValue,
-            });
-            setTask("");
+            try {
+              await onSubmit({
+                task: cleanTask,
+                projectName: resolvedProjectValue,
+              });
+              setTask("");
+            } catch {
+              // Error is surfaced by parent mutation state.
+            }
           }}
         >
           <Textarea
@@ -151,24 +134,15 @@ export function CreateJobForm({
                 />
               </SelectTrigger>
               <SelectContent className="border-white/10 bg-popover/95 text-popover-foreground backdrop-blur-xl">
-                <SelectItem
-                  className="cursor-pointer transition-colors focus:bg-primary/20 focus:text-primary"
-                  value="codex"
-                >
-                  OpenAI Codex
-                </SelectItem>
-                <SelectItem
-                  className="cursor-pointer transition-colors focus:bg-primary/20 focus:text-primary"
-                  value="claude"
-                >
-                  Claude Code
-                </SelectItem>
-                <SelectItem
-                  className="cursor-pointer transition-colors focus:bg-primary/20 focus:text-primary"
-                  value="gemini"
-                >
-                  Gemini CLI
-                </SelectItem>
+                {providerCatalog.map((item) => (
+                  <SelectItem
+                    className="cursor-pointer transition-colors focus:bg-primary/20 focus:text-primary"
+                    key={item.id}
+                    value={item.id as AIProvider}
+                  >
+                    {item.label}
+                  </SelectItem>
+                ))}
               </SelectContent>
             </Select>
             <Select value={currentModelValue} onValueChange={handleModelChange}>
@@ -176,13 +150,13 @@ export function CreateJobForm({
                 <SelectValue className="text-foreground" placeholder="Model" />
               </SelectTrigger>
               <SelectContent className="border-white/10 bg-popover/95 text-popover-foreground backdrop-blur-xl">
-                {models.map((m) => (
+                {(activeProvider?.models || []).map((m) => (
                   <SelectItem
                     className="cursor-pointer transition-colors focus:bg-primary/20 focus:text-primary"
-                    key={m.value}
-                    value={m.value}
+                    key={m.value || "__default__"}
+                    value={m.value || "__default__"}
                   >
-                    {m.label}
+                    {m.label}{m.free ? " (free)" : ""}
                   </SelectItem>
                 ))}
               </SelectContent>
@@ -196,6 +170,11 @@ export function CreateJobForm({
             {isSubmitting ? "Submitting..." : "Run Task"}
             <span className="ml-2 opacity-70">→</span>
           </Button>
+          {submitError ? (
+            <p className="text-sm font-medium text-destructive">
+              {submitError}
+            </p>
+          ) : null}
         </form>
       </CardContent>
     </Card>

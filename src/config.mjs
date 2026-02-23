@@ -1,5 +1,7 @@
 import path from "node:path";
 
+import { isSupportedProvider, supportedProviderText } from "./providers/catalog.mjs";
+
 function parseBoolean(value, fallback) {
   if (value === undefined) {
     return fallback;
@@ -137,13 +139,17 @@ export function loadConfig() {
       10,
       parseInteger(process.env.TELEGRAM_PROGRESS_UPDATE_SECONDS, 60),
     ),
+    forceAutoMode: parseBoolean(process.env.FORCE_AUTO_MODE, true),
   };
+  const ownerChatId = process.env.OWNER_CHAT_ID?.trim() || "";
+  if (ownerChatId) {
+    telegram.allowedChatIds.add(ownerChatId);
+  }
 
   const provider = (process.env.AI_PROVIDER?.trim() || "codex").toLowerCase();
-  const validProviders = ["codex", "claude", "gemini"];
-  if (!validProviders.includes(provider)) {
+  if (!isSupportedProvider(provider)) {
     throw new Error(
-      `Invalid AI_PROVIDER "${provider}". Supported: ${validProviders.join(", ")}`,
+      `Invalid AI_PROVIDER "${provider}". Supported: ${supportedProviderText()}`,
     );
   }
 
@@ -155,6 +161,13 @@ export function loadConfig() {
     defaultProjectName,
     timeoutMs: codexTimeoutMs,
     model: process.env.CODEX_MODEL?.trim() || "",
+  };
+  const threads = {
+    defaultTokenBudget: Math.max(
+      0,
+      parseInteger(process.env.THREAD_DEFAULT_TOKEN_BUDGET, 12000),
+    ),
+    autoTrimContextDefault: parseBoolean(process.env.THREAD_AUTO_TRIM_CONTEXT_DEFAULT, true),
   };
 
   const runner = {
@@ -168,7 +181,38 @@ export function loadConfig() {
       codex: process.env.CODEX_BINARY?.trim() || "codex",
       claude: process.env.CLAUDE_BINARY?.trim() || "claude",
       gemini: process.env.GEMINI_BINARY?.trim() || "gemini",
+      groq: process.env.AIDER_BINARY?.trim() || "aider",
+      openrouter: process.env.AIDER_BINARY?.trim() || "aider",
+      aider: process.env.AIDER_BINARY?.trim() || "aider",
     },
+    freeModelsOnly: parseBoolean(process.env.FREE_MODELS_ONLY, true),
+  };
+
+  const security = {
+    rateLimitPerMinute: Math.max(
+      30,
+      parseInteger(process.env.API_RATE_LIMIT_PER_MINUTE, 240),
+    ),
+    ownerKey: process.env.APP_ACCESS_KEY?.trim() || "",
+    ownerChatId,
+    csrfSecret: process.env.CSRF_SECRET?.trim() || `${telegram.botToken}:${databaseFile}`,
+    csrfTtlMs: Math.max(
+      60,
+      parseInteger(process.env.CSRF_TTL_SECONDS, 12 * 60 * 60),
+    ) * 1000,
+  };
+
+  const runtimePolicy = {
+    enabled: parseBoolean(process.env.RUNTIME_POLICY_ENABLED, true),
+    autoApproveAll: parseBoolean(process.env.RUNTIME_POLICY_AUTO_APPROVE_ALL, true),
+    fileChangeRequiresApproval: parseBoolean(
+      process.env.RUNTIME_POLICY_FILE_CHANGES_REQUIRE_APPROVAL,
+      false,
+    ),
+    telegramApprovalNotifications: parseBoolean(
+      process.env.RUNTIME_APPROVAL_TELEGRAM_NOTIFICATIONS,
+      false,
+    ),
   };
 
   return {
@@ -179,6 +223,9 @@ export function loadConfig() {
     },
     telegram,
     codex,
+    threads,
     runner,
+    security,
+    runtimePolicy,
   };
 }

@@ -3,8 +3,8 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { createRoute } from "@tanstack/react-router";
 
 import { DiscoverProjects } from "@/components/settings/discover-projects";
-import { ManageProjects } from "@/components/settings/manage-projects";
 import { ProviderHealth } from "@/components/settings/provider-health";
+import { ProviderSetup } from "@/components/settings/provider-setup";
 import { SettingsPanel } from "@/components/settings/settings-panel";
 import { Button } from "@/components/ui/button";
 import {
@@ -16,10 +16,13 @@ import {
 } from "@/components/ui/card";
 import {
   addProject,
+  fetchAgentProfile,
   fetchMode,
+  fetchProviderCatalog,
   fetchProjects,
   fetchProvider,
   selectProject,
+  setAgentProfile,
   setMode,
   setProvider,
 } from "@/lib/api";
@@ -40,23 +43,27 @@ function SettingsScreen() {
   const { theme, setTheme } = useTheme();
   const [chatId, setChatId] = useState(() => getStoredChatId());
 
-  const hasChatId = chatId.length > 0;
-
   const modeQuery = useQuery({
     queryKey: ["mode", chatId],
     queryFn: () => fetchMode(chatId),
-    enabled: hasChatId,
   });
 
   const projectsQuery = useQuery({
     queryKey: ["projects", chatId],
     queryFn: () => fetchProjects(chatId),
-    enabled: hasChatId,
   });
 
   const providerQuery = useQuery({
     queryKey: ["provider"],
     queryFn: () => fetchProvider(),
+  });
+  const providerCatalogQuery = useQuery({
+    queryKey: ["provider-catalog"],
+    queryFn: fetchProviderCatalog,
+  });
+  const agentProfileQuery = useQuery({
+    queryKey: ["agent-profile", chatId],
+    queryFn: () => fetchAgentProfile(chatId),
   });
 
   const modeMutation = useMutation({
@@ -95,12 +102,21 @@ function SettingsScreen() {
       queryClient.invalidateQueries({ queryKey: ["jobs", chatId] });
     },
   });
+  const agentProfileMutation = useMutation({
+    mutationFn: (profile: string) => setAgentProfile({ chatId, profile }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["agent-profile", chatId] });
+    },
+  });
 
   const errorMessage =
     getErrorMessage(modeMutation.error) ||
     getErrorMessage(providerMutation.error) ||
     getErrorMessage(projectMutation.error) ||
     getErrorMessage(addProjectMutation.error) ||
+    getErrorMessage(agentProfileMutation.error) ||
+    getErrorMessage(providerCatalogQuery.error) ||
+    getErrorMessage(agentProfileQuery.error) ||
     getErrorMessage(projectsQuery.error) ||
     getErrorMessage(modeQuery.error) ||
     "";
@@ -124,10 +140,9 @@ function SettingsScreen() {
       ) : null}
 
       <ProviderHealth />
+      <ProviderSetup />
 
-      <DiscoverProjects />
-
-      <ManageProjects />
+      <DiscoverProjects chatId={chatId} />
 
       <SoundsToggle />
 
@@ -138,10 +153,12 @@ function SettingsScreen() {
         model={providerQuery.data?.model ?? ""}
         reasoningEffort={providerQuery.data?.reasoningEffort ?? ""}
         planMode={providerQuery.data?.planMode ?? false}
+        providerCatalog={providerCatalogQuery.data?.providers ?? []}
         activeProject={activeProject}
         projects={projects}
         projectsBasePath={projectsBasePath}
         theme={theme}
+        initialAgentProfile={agentProfileQuery.data?.profile ?? ""}
         onSaveChatId={(nextChatId) => {
           const normalized = nextChatId.trim();
           if (!normalized) {
@@ -150,6 +167,9 @@ function SettingsScreen() {
           setStoredChatId(normalized);
           setChatId(normalized);
           queryClient.invalidateQueries({ queryKey: ["jobs"] });
+        }}
+        onSaveAgentProfile={async (profile) => {
+          await agentProfileMutation.mutateAsync(profile);
         }}
         onChangeTheme={setTheme}
         onChangeMode={(mode) => modeMutation.mutate(mode)}
@@ -180,6 +200,7 @@ function SettingsScreen() {
         isUpdatingProvider={providerMutation.isPending}
         isUpdatingProject={projectMutation.isPending}
         isAddingProject={addProjectMutation.isPending}
+        isSavingAgentProfile={agentProfileMutation.isPending}
       />
     </div>
   );

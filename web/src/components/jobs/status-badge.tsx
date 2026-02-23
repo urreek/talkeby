@@ -12,6 +12,7 @@ const variantByStatus: Record<
   completed: "secondary",
   failed: "destructive",
   denied: "destructive",
+  cancelled: "destructive",
 };
 
 const classByStatus: Record<JobStatus, string> = {
@@ -27,6 +28,8 @@ const classByStatus: Record<JobStatus, string> = {
     "bg-red-600 text-white dark:bg-red-500/15 dark:text-red-400 hover:bg-red-700 dark:hover:bg-red-500/25 border-transparent",
   denied:
     "bg-red-600 text-white dark:bg-red-500/15 dark:text-red-400 hover:bg-red-700 dark:hover:bg-red-500/25 border-transparent",
+  cancelled:
+    "bg-zinc-700 text-white dark:bg-zinc-500/20 dark:text-zinc-300 hover:bg-zinc-800 dark:hover:bg-zinc-500/30 border-transparent",
 };
 
 export function StatusBadge({ status }: { status: JobStatus }) {

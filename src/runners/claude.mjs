@@ -2,6 +2,7 @@ import { spawn } from "node:child_process";
 import { promises as fs } from "node:fs";
 import os from "node:os";
 import path from "node:path";
+import { extractClaudeUsageFromJsonPayload } from "../services/usage-parser.mjs";
 
 function buildPrompt(task) {
   return task;
@@ -61,7 +62,7 @@ async function findClaudeSessionId(workdir, afterMs) {
 export async function run(config) {
   const prompt = buildPrompt(config.task);
   const binary = config.binary || "claude";
-  const args = ["-p", "--dangerously-skip-permissions"];
+  const args = ["-p", "--dangerously-skip-permissions", "--output-format", "json"];
   const onLine = config.onLine || null;
   const startTime = Date.now();
 
@@ -76,7 +77,14 @@ export async function run(config) {
 
   args.push(prompt);
 
-  const result = await spawnClaude({ binary, args, workdir: config.workdir, timeoutMs: config.timeoutMs, onLine });
+  const result = await spawnClaude({
+    binary,
+    args,
+    workdir: config.workdir,
+    timeoutMs: config.timeoutMs,
+    onLine,
+    signal: config.signal,
+  });
 
   // Capture new session ID if this was a fresh run
   if (!config.sessionId) {
@@ -89,7 +97,19 @@ export async function run(config) {
   return result;
 }
 
-function spawnClaude({ binary, args, workdir, timeoutMs, onLine }) {
+function parseClaudeJsonOutput(stdout) {
+  const trimmed = String(stdout || "").trim();
+  if (!trimmed) {
+    return null;
+  }
+  try {
+    return JSON.parse(trimmed);
+  } catch {
+    return null;
+  }
+}
+
+function spawnClaude({ binary, args, workdir, timeoutMs, onLine, signal }) {
   return new Promise((resolve, reject) => {
     const child = spawn(binary, args, {
       cwd: workdir,
@@ -126,6 +146,29 @@ function spawnClaude({ binary, args, workdir, timeoutMs, onLine }) {
       }
     });
 
+    child.on("error", (err) => {
+      clearTimeout(timeout);
+      reject(err);
+    });
+
+    if (signal) {
+      if (signal.aborted) {
+        child.kill("SIGTERM");
+        setTimeout(() => child.kill("SIGKILL"), 1200);
+        clearTimeout(timeout);
+        reject(new Error("Run cancelled by user."));
+        return;
+      }
+      signal.addEventListener("abort", () => {
+        child.kill("SIGTERM");
+        setTimeout(() => child.kill("SIGKILL"), 1200);
+        clearTimeout(timeout);
+        reject(new Error("Run cancelled by user."));
+      }, { once: true });
+    }
+
+    child.stdin?.end();
+
     child.on("close", (code) => {
       clearTimeout(timeout);
       if (killed) {
@@ -139,15 +182,10 @@ function spawnClaude({ binary, args, workdir, timeoutMs, onLine }) {
         reject(err);
         return;
       }
-      const message = stdout.trim() || "Claude completed but returned no summary.";
-      resolve({ message });
+      const parsed = parseClaudeJsonOutput(stdout);
+      const message = String(parsed?.response || "").trim() || stdout.trim() || "Claude completed but returned no summary.";
+      const usage = extractClaudeUsageFromJsonPayload(parsed);
+      resolve({ message, usage });
     });
-
-    child.on("error", (err) => {
-      clearTimeout(timeout);
-      reject(err);
-    });
-
-    child.stdin?.end();
   });
 }

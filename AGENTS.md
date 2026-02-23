@@ -33,6 +33,7 @@ Build and maintain Talkeby as a secure, local-first, mobile-control coding syste
 
 - Local AI execution via pluggable runner registry (`src/runners/index.mjs`)
 - Supported providers: Codex (`codex exec`), Claude Code (`claude -p`), Gemini (`gemini`)
+- Extended providers: Groq and OpenRouter via Aider bridge (`aider --model groq/...|openrouter/...`)
 - Each runner implements: `async function run({ task, workdir, model, timeoutMs, binary }) → { message }`
 
 4. Optional channel:
@@ -145,6 +146,7 @@ Build and maintain Talkeby as a secure, local-first, mobile-control coding syste
 7. Prefer deploying reviewed commits from `main` (or an agreed release branch/tag).
 8. Commit lockfiles when dependencies change to keep environments reproducible.
 9. Never commit `.env`, local database files, logs, or other machine-specific runtime artifacts.
+10. For every completed task, commit and push the changes by default unless the user explicitly says not to.
 
 ## Deployment Workflow (Git-First)
 

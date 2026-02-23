@@ -2,6 +2,8 @@ import {
   approveJob,
   createJobFromTask,
   denyJob,
+  resumeJobFromError,
+  retryJob,
 } from "../services/job-lifecycle.mjs";
 import { isAuthorizedChat, textValue } from "./shared.mjs";
 
@@ -193,6 +195,99 @@ export function registerJobRoutes({
       ok: true,
       jobId: denied.job.id,
       status: denied.job.status,
+    };
+  });
+
+  app.post("/api/jobs/:id/retry", async (request, reply) => {
+    const chatId = textValue(request.body?.chatId || "");
+    if (!chatId) {
+      reply.code(400);
+      return { error: "chatId is required." };
+    }
+    if (!isAuthorizedChat(config, chatId)) {
+      reply.code(403);
+      return { error: "Chat is not authorized." };
+    }
+
+    const retried = retryJob({
+      state,
+      eventBus,
+      jobRunner,
+      chatId,
+      jobId: request.params.id,
+    });
+    if (retried.error) {
+      reply.code(400);
+      return { error: retried.error };
+    }
+
+    return {
+      ok: true,
+      jobId: retried.job.id,
+      status: retried.job.status,
+      executionMode: retried.executionMode,
+      queuePosition: retried.queuePosition ?? null,
+      projectName: retried.job.projectName,
+    };
+  });
+
+  app.post("/api/jobs/:id/resume-error", async (request, reply) => {
+    const chatId = textValue(request.body?.chatId || "");
+    if (!chatId) {
+      reply.code(400);
+      return { error: "chatId is required." };
+    }
+    if (!isAuthorizedChat(config, chatId)) {
+      reply.code(403);
+      return { error: "Chat is not authorized." };
+    }
+
+    const resumed = resumeJobFromError({
+      state,
+      eventBus,
+      jobRunner,
+      chatId,
+      jobId: request.params.id,
+    });
+    if (resumed.error) {
+      reply.code(400);
+      return { error: resumed.error };
+    }
+
+    return {
+      ok: true,
+      jobId: resumed.job.id,
+      status: resumed.job.status,
+      executionMode: resumed.executionMode,
+      queuePosition: resumed.queuePosition ?? null,
+      projectName: resumed.job.projectName,
+    };
+  });
+
+  app.post("/api/jobs/:id/stop", async (request, reply) => {
+    const chatId = textValue(request.body?.chatId || "");
+    if (!chatId) {
+      reply.code(400);
+      return { error: "chatId is required." };
+    }
+    if (!isAuthorizedChat(config, chatId)) {
+      reply.code(403);
+      return { error: "Chat is not authorized." };
+    }
+
+    const result = jobRunner.stop({
+      chatId,
+      jobId: request.params.id,
+    });
+    if (result?.error) {
+      reply.code(400);
+      return { error: result.error };
+    }
+
+    return {
+      ok: true,
+      jobId: request.params.id,
+      status: "cancelled",
     };
   });
 }

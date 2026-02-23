@@ -3,6 +3,9 @@ import { promises as fs } from "node:fs";
 import os from "node:os";
 import path from "node:path";
 
+import { runCodexWithRuntimeApprovals } from "../codex-app-server.mjs";
+import { extractCodexUsageFromEvent } from "../services/usage-parser.mjs";
+
 const CODEX_SESSIONS_DIR = path.join(os.homedir(), ".codex", "sessions");
 
 // Lines from Codex stderr that are just startup noise, not real errors
@@ -60,6 +63,38 @@ function buildPrompt(transcript) {
   return transcript;
 }
 
+function emitRuntimeEventLines(event, onLine) {
+  if (!onLine || !event || !event.type) {
+    return;
+  }
+
+  if (event.type === "agent_message") {
+    onLine(`[agent] ${String(event.text || "").trim()}`);
+    return;
+  }
+  if (event.type === "agent_message_delta") {
+    const delta = String(event.delta || "").trim();
+    if (delta) {
+      onLine(`[agent] ${delta}`);
+    }
+    return;
+  }
+  if (event.type === "runtime_approval_requested") {
+    const request = event.request || {};
+    const kind = String(request.kind || "unknown");
+    const command = String(request.command || "").trim();
+    onLine(`[approval] requested (${kind})${command ? `: ${command}` : ""}`);
+    return;
+  }
+  if (event.type === "runtime_approval_decided") {
+    onLine(`[approval] ${String(event.decision || "").toLowerCase() === "approve" ? "approved" : "denied"}`);
+    return;
+  }
+  if (event.type === "fatal_error" || event.type === "turn_failed") {
+    onLine(`[error] ${String(event.message || "").trim()}`);
+  }
+}
+
 function createOutputFilePath() {
   const stamp = `${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
   return path.join(os.tmpdir(), `codex-last-message-${stamp}.txt`);
@@ -86,7 +121,7 @@ async function readLastMessageOrFallback({ outputPath, stdout }) {
  * @param {function} [opts.onLine] - called with each stdout/stderr line
  * @returns {Promise<{message: string, stderr: string}>}
  */
-function runCodexSpawn({ binary, args, workdir, timeoutMs, outputPath, onLine }) {
+function runCodexSpawn({ binary, args, workdir, timeoutMs, outputPath, onLine, signal }) {
   return new Promise((resolve, reject) => {
     const child = spawn(binary, args, {
       cwd: workdir,
@@ -151,6 +186,22 @@ function runCodexSpawn({ binary, args, workdir, timeoutMs, outputPath, onLine })
       clearTimeout(timeout);
       reject(err);
     });
+
+    if (signal) {
+      if (signal.aborted) {
+        child.kill("SIGTERM");
+        setTimeout(() => child.kill("SIGKILL"), 1200);
+        clearTimeout(timeout);
+        reject(new Error("Run cancelled by user."));
+        return;
+      }
+      signal.addEventListener("abort", () => {
+        child.kill("SIGTERM");
+        setTimeout(() => child.kill("SIGKILL"), 1200);
+        clearTimeout(timeout);
+        reject(new Error("Run cancelled by user."));
+      }, { once: true });
+    }
 
     // Close stdin immediately
     child.stdin?.end();
@@ -235,6 +286,45 @@ function buildFreshArgs({ config, outputPath, prompt }) {
   return args;
 }
 
+async function runWithRuntimeApprovals(config) {
+  const onLine = config.onLine || null;
+  const onRuntimeEvent = config.onRuntimeEvent || null;
+  let usage = null;
+
+  const result = await runCodexWithRuntimeApprovals({
+    transcript: config.task,
+    codexConfig: {
+      binary: config.binary,
+      workdir: config.workdir,
+      model: config.model,
+      timeoutMs: config.timeoutMs,
+      interactiveApprovalPolicy: "untrusted",
+      sessionId: config.sessionId || "",
+    },
+    signal: config.signal,
+    onApprovalRequest: config.onRuntimeApproval,
+    onEvent: (event) => {
+      emitRuntimeEventLines(event, onLine);
+      if (event?.type === "thread_token_usage_updated") {
+        const parsed = extractCodexUsageFromEvent(event);
+        if (parsed && parsed.totalTokens > 0) {
+          usage = parsed;
+        }
+      }
+      if (typeof onRuntimeEvent === "function") {
+        onRuntimeEvent(event);
+      }
+    },
+  });
+
+  return {
+    message: result.message,
+    stderr: result.stderr || "",
+    newSessionId: result.threadId || "",
+    usage,
+  };
+}
+
 /**
  * Run a task using the OpenAI Codex CLI with streaming output.
  * @param {object} config
@@ -254,24 +344,24 @@ export async function run(config) {
   const onLine = config.onLine || null;
 
   try {
-    // Try resuming specific session
+    if (typeof config.onRuntimeApproval === "function") {
+      return await runWithRuntimeApprovals(config);
+    }
+
+    // Try resuming specific session (no automatic fallback retry)
     if (config.sessionId) {
-      try {
-        const args = buildResumeArgs({ config, outputPath, sessionId: config.sessionId, prompt });
+      const args = buildResumeArgs({ config, outputPath, sessionId: config.sessionId, prompt });
         return await runCodexSpawn({
           binary: config.binary, args, workdir: config.workdir,
-          timeoutMs: config.timeoutMs, outputPath, onLine,
+          timeoutMs: config.timeoutMs, outputPath, onLine, signal: config.signal,
         });
-      } catch {
-        await fs.rm(outputPath, { force: true });
       }
-    }
 
     // No session ID — start fresh (don't use --last, it might grab another thread's session)
     const args = buildFreshArgs({ config, outputPath, prompt });
     const result = await runCodexSpawn({
       binary: config.binary, args, workdir: config.workdir,
-      timeoutMs: config.timeoutMs, outputPath, onLine,
+      timeoutMs: config.timeoutMs, outputPath, onLine, signal: config.signal,
     });
 
     const newSessionId = await findNewestSessionId(startTime);

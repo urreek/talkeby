@@ -16,7 +16,17 @@ const EVENT_TYPES = [
   "job_running",
   "job_progress",
   "job_completed",
-  "job_failed"
+  "job_failed",
+  "job_cancelled",
+  "job_skipped_duplicate",
+  "thread_token_usage",
+  "thread_context_trimmed",
+  "runtime_approval_requested",
+  "runtime_approval_resolved",
+  "runtime_approval_user_approved",
+  "runtime_approval_user_denied",
+  "runtime_approval_auto_approved",
+  "agent_log",
 ];
 
 export function subscribeJobEvents(options: SubscriberOptions) {

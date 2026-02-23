@@ -1,5 +1,6 @@
 const CHAT_ID_KEY = "talkeby.chat_id";
 const THEME_KEY = "talkeby.theme";
+const ACCESS_KEY = "talkeby.access_key";
 
 export type ThemePreference = "light" | "dark";
 
@@ -18,4 +19,16 @@ export function getStoredTheme(): ThemePreference | "" {
 
 export function setStoredTheme(theme: ThemePreference) {
   localStorage.setItem(THEME_KEY, theme);
+}
+
+export function getStoredAccessKey() {
+  return localStorage.getItem(ACCESS_KEY)?.trim() || "";
+}
+
+export function setStoredAccessKey(accessKey: string) {
+  localStorage.setItem(ACCESS_KEY, accessKey.trim());
+}
+
+export function clearStoredAccessKey() {
+  localStorage.removeItem(ACCESS_KEY);
 }

@@ -209,3 +209,70 @@ export function denyJob({
     job: deniedJob,
   };
 }
+
+export function retryJob({
+  state,
+  eventBus,
+  jobRunner,
+  chatId,
+  jobId,
+}) {
+  const original = state.getJobById(jobId);
+  if (!original || String(original.chatId) !== String(chatId)) {
+    return { error: `Job ${jobId} was not found in this chat.` };
+  }
+
+  const blockedStatuses = new Set(["queued", "running", "pending_approval"]);
+  if (blockedStatuses.has(String(original.status || "").toLowerCase())) {
+    return { error: `Job ${jobId} cannot be retried while status is "${original.status}".` };
+  }
+
+  return createJobFromTask({
+    state,
+    eventBus,
+    jobRunner,
+    chatId,
+    task: original.request,
+    projectName: original.projectName,
+    threadId: original.threadId || undefined,
+  });
+}
+
+export function resumeJobFromError({
+  state,
+  eventBus,
+  jobRunner,
+  chatId,
+  jobId,
+}) {
+  const original = state.getJobById(jobId);
+  if (!original || String(original.chatId) !== String(chatId)) {
+    return { error: `Job ${jobId} was not found in this chat.` };
+  }
+
+  if (String(original.status || "").toLowerCase() !== "failed") {
+    return { error: `Job ${jobId} is not failed; cannot resume from error.` };
+  }
+
+  const task = "Continue from the last error in this thread and fix it.";
+  const created = createJobFromTask({
+    state,
+    eventBus,
+    jobRunner,
+    chatId,
+    task,
+    projectName: original.projectName,
+    threadId: original.threadId || undefined,
+  });
+  if (created.error) {
+    return created;
+  }
+
+  const patched = state.patchJob(created.job.id, {
+    resumedFromJobId: original.id,
+  });
+  if (patched) {
+    created.job = patched;
+  }
+  return created;
+}

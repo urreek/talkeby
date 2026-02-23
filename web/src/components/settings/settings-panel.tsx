@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 
 import { Button } from "@/components/ui/button";
 import {
@@ -16,34 +16,15 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { Textarea } from "@/components/ui/textarea";
 import type { ThemePreference } from "@/lib/storage";
 import type {
   AIProvider,
   ExecutionMode,
   ProjectInfo,
+  ProviderCatalogItem,
   ReasoningEffort,
 } from "@/lib/types";
-
-const MODELS_BY_PROVIDER: Record<
-  AIProvider,
-  { value: string; label: string }[]
-> = {
-  codex: [
-    { value: "", label: "Provider default" },
-    { value: "gpt-5.3-codex", label: "GPT-5.3 Codex" },
-    { value: "gpt-5.2-codex", label: "GPT-5.2 Codex" },
-  ],
-  claude: [
-    { value: "", label: "Provider default" },
-    { value: "opus-4.6", label: "Opus 4.6" },
-    { value: "sonnet-4.6", label: "Sonnet 4.6" },
-  ],
-  gemini: [
-    { value: "", label: "Provider default" },
-    { value: "opus-4.6", label: "Opus 4.6" },
-    { value: "gemini-pro-3.1", label: "Gemini Pro 3.1" },
-  ],
-};
 
 type SettingsPanelProps = {
   initialChatId: string;
@@ -52,11 +33,14 @@ type SettingsPanelProps = {
   model: string;
   reasoningEffort: ReasoningEffort;
   planMode: boolean;
+  providerCatalog: ProviderCatalogItem[];
   activeProject: string;
   projects: ProjectInfo[];
   projectsBasePath: string;
   theme: ThemePreference;
+  initialAgentProfile: string;
   onSaveChatId: (chatId: string) => void;
+  onSaveAgentProfile: (profile: string) => Promise<void>;
   onChangeTheme: (theme: ThemePreference) => void;
   onChangeMode: (mode: ExecutionMode) => void;
   onChangeProvider: (provider: AIProvider) => void;
@@ -72,6 +56,7 @@ type SettingsPanelProps = {
   isUpdatingProvider: boolean;
   isUpdatingProject: boolean;
   isAddingProject: boolean;
+  isSavingAgentProfile: boolean;
 };
 
 export function SettingsPanel({
@@ -81,11 +66,14 @@ export function SettingsPanel({
   model,
   reasoningEffort,
   planMode,
+  providerCatalog,
   activeProject,
   projects,
   projectsBasePath,
   theme,
+  initialAgentProfile,
   onSaveChatId,
+  onSaveAgentProfile,
   onChangeTheme,
   onChangeMode,
   onChangeProvider,
@@ -98,15 +86,31 @@ export function SettingsPanel({
   isUpdatingProvider,
   isUpdatingProject,
   isAddingProject,
+  isSavingAgentProfile,
 }: SettingsPanelProps) {
   const [chatId, setChatId] = useState(initialChatId);
+  const [agentProfile, setAgentProfile] = useState(initialAgentProfile);
   const [newProjectName, setNewProjectName] = useState("");
   const [newProjectPath, setNewProjectPath] = useState("");
+
   const resolvedProjectValue = projects.some(
     (project) => project.name === activeProject,
   )
     ? activeProject
     : "";
+
+  const activeProvider = useMemo(
+    () => providerCatalog.find((item) => item.id === provider) || providerCatalog[0],
+    [providerCatalog, provider],
+  );
+
+  const modelValue = model || "__default__";
+  const supportsReasoning = Boolean(activeProvider?.supportsReasoningEffort);
+  const supportsPlan = Boolean(activeProvider?.supportsPlanMode);
+
+  useEffect(() => {
+    setAgentProfile(initialAgentProfile);
+  }, [initialAgentProfile]);
 
   return (
     <div className="space-y-4">
@@ -127,6 +131,32 @@ export function SettingsPanel({
           />
           <Button className="w-full" onClick={() => onSaveChatId(chatId)}>
             Save Chat ID
+          </Button>
+        </CardContent>
+      </Card>
+
+      <Card className="theme-surface">
+        <CardHeader>
+          <CardTitle>Agent Profile (New Threads)</CardTitle>
+          <CardDescription>
+            Applied once on the first run of each new thread.
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-3">
+          <Textarea
+            className="min-h-[140px] bg-background"
+            value={agentProfile}
+            onChange={(event) => setAgentProfile(event.target.value)}
+            placeholder="Define how the agent should behave on the first message in new threads."
+          />
+          <Button
+            className="w-full"
+            disabled={isSavingAgentProfile}
+            onClick={async () => {
+              await onSaveAgentProfile(agentProfile);
+            }}
+          >
+            {isSavingAgentProfile ? "Saving Profile..." : "Save Agent Profile"}
           </Button>
         </CardContent>
       </Card>
@@ -215,24 +245,21 @@ export function SettingsPanel({
               />
             </SelectTrigger>
             <SelectContent className="bg-popover text-popover-foreground">
-              <SelectItem className="text-popover-foreground" value="codex">
-                OpenAI Codex
-              </SelectItem>
-              <SelectItem className="text-popover-foreground" value="claude">
-                Claude Code
-              </SelectItem>
-              <SelectItem className="text-popover-foreground" value="gemini">
-                Gemini CLI
-              </SelectItem>
+              {providerCatalog.map((item) => (
+                <SelectItem className="text-popover-foreground" key={item.id} value={item.id}>
+                  {item.label}
+                </SelectItem>
+              ))}
             </SelectContent>
           </Select>
+
           <div className="mt-3 space-y-3">
             <div>
               <p className="mb-1.5 text-xs font-medium text-muted-foreground">
                 Model
               </p>
               <Select
-                value={model}
+                value={modelValue}
                 disabled={isUpdatingProvider}
                 onValueChange={(value) => onChangeModel(value)}
               >
@@ -243,25 +270,26 @@ export function SettingsPanel({
                   />
                 </SelectTrigger>
                 <SelectContent className="bg-popover text-popover-foreground">
-                  {MODELS_BY_PROVIDER[provider].map((m) => (
+                  {(activeProvider?.models || []).map((m) => (
                     <SelectItem
                       className="text-popover-foreground"
-                      key={m.value}
+                      key={m.value || "__default__"}
                       value={m.value || "__default__"}
                     >
-                      {m.label}
+                      {m.label}{m.free ? " (free)" : ""}
                     </SelectItem>
                   ))}
                 </SelectContent>
               </Select>
             </div>
+
             <div>
               <p className="mb-1.5 text-xs font-medium text-muted-foreground">
                 Reasoning Effort
               </p>
               <Select
                 value={reasoningEffort || "__default__"}
-                disabled={isUpdatingProvider}
+                disabled={isUpdatingProvider || !supportsReasoning}
                 onValueChange={(value) =>
                   onChangeReasoningEffort(
                     value === "__default__" ? "" : (value as ReasoningEffort),
@@ -271,7 +299,7 @@ export function SettingsPanel({
                 <SelectTrigger className="bg-background text-foreground">
                   <SelectValue
                     className="text-foreground"
-                    placeholder="Default"
+                    placeholder={supportsReasoning ? "Default" : "Not supported"}
                   />
                 </SelectTrigger>
                 <SelectContent className="bg-popover text-popover-foreground">
@@ -284,10 +312,7 @@ export function SettingsPanel({
                   <SelectItem className="text-popover-foreground" value="low">
                     Low
                   </SelectItem>
-                  <SelectItem
-                    className="text-popover-foreground"
-                    value="medium"
-                  >
+                  <SelectItem className="text-popover-foreground" value="medium">
                     Medium
                   </SelectItem>
                   <SelectItem className="text-popover-foreground" value="high">
@@ -296,13 +321,14 @@ export function SettingsPanel({
                 </SelectContent>
               </Select>
             </div>
+
             <div>
               <p className="mb-1.5 text-xs font-medium text-muted-foreground">
                 Plan Mode
               </p>
               <Select
                 value={planMode ? "on" : "off"}
-                disabled={isUpdatingProvider}
+                disabled={isUpdatingProvider || !supportsPlan}
                 onValueChange={(value) => onChangePlanMode(value === "on")}
               >
                 <SelectTrigger className="bg-background text-foreground">
@@ -310,10 +336,10 @@ export function SettingsPanel({
                 </SelectTrigger>
                 <SelectContent className="bg-popover text-popover-foreground">
                   <SelectItem className="text-popover-foreground" value="off">
-                    Off — Execute directly
+                    Off - Execute directly
                   </SelectItem>
                   <SelectItem className="text-popover-foreground" value="on">
-                    On — Plan only, don't execute
+                    On - Plan only, do not execute
                   </SelectItem>
                 </SelectContent>
               </Select>

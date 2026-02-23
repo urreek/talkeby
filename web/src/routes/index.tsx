@@ -4,6 +4,8 @@ import { createRoute } from "@tanstack/react-router";
 
 import { CreateJobForm } from "@/components/jobs/create-job-form";
 import { JobChatFeed } from "@/components/jobs/job-chat-feed";
+import { ObservabilityDashboard } from "@/components/jobs/observability-dashboard";
+import { RuntimeApprovalCards } from "@/components/jobs/runtime-approval-cards";
 import { Button } from "@/components/ui/button";
 import { useConfirmDialog } from "@/components/ui/confirm-dialog";
 import {
@@ -13,19 +15,26 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
-import { Input } from "@/components/ui/input";
 import {
   approveJob,
+  approveRuntimeApproval,
   createJob,
   createThread,
   deleteThread,
   denyJob,
+  denyRuntimeApproval,
+  fetchObservability,
   fetchProjects,
+  fetchRuntimeApprovals,
   fetchThreadJobs,
   fetchThreads,
   renameThread,
+  resumeJobFromError,
+  stopJob,
+  setThreadAutoTrimContext,
+  setThreadBudget,
 } from "@/lib/api";
-import { getStoredChatId, setStoredChatId } from "@/lib/storage";
+import { getStoredChatId } from "@/lib/storage";
 import type { Thread } from "@/lib/types";
 import { rootRoute } from "@/routes/__root";
 
@@ -40,10 +49,19 @@ function truncate(text: string, max: number) {
   return text.slice(0, max) + "…";
 }
 
+function readErrorMessage(error: unknown, fallback: string) {
+  if (error instanceof Error && error.message.trim()) {
+    return error.message.trim();
+  }
+  if (typeof error === "string" && error.trim()) {
+    return error.trim();
+  }
+  return fallback;
+}
+
 function JobsScreen() {
   const queryClient = useQueryClient();
-  const [chatId, setChatId] = useState(() => getStoredChatId());
-  const [draftChatId, setDraftChatId] = useState(chatId);
+  const chatId = getStoredChatId();
   const [selectedThreadId, setSelectedThreadId] = useState<string | null>(null);
   const [selectedProject, setSelectedProject] = useState<string>("");
   const { confirm, ConfirmDialog } = useConfirmDialog();
@@ -84,6 +102,20 @@ function JobsScreen() {
 
   const threadJobs = threadJobsQuery.data?.jobs ?? [];
 
+  const observabilityQuery = useQuery({
+    queryKey: ["observability", chatId],
+    queryFn: () => fetchObservability(chatId),
+    enabled: Boolean(chatId),
+    refetchInterval: 15000,
+  });
+
+  const runtimeApprovalsQuery = useQuery({
+    queryKey: ["runtimeApprovals", chatId],
+    queryFn: () => fetchRuntimeApprovals({ chatId, status: "pending", limit: 100 }),
+    enabled: Boolean(chatId),
+    refetchInterval: 3000,
+  });
+
   // Create new thread
   const createThreadMutation = useMutation({
     mutationFn: () => createThread({ chatId, projectName: activeProject }),
@@ -120,6 +152,38 @@ function JobsScreen() {
       queryClient.invalidateQueries({ queryKey: ["threadJobs"] }),
   });
 
+  const resumeMutation = useMutation({
+    mutationFn: (jobId: string) => resumeJobFromError({ jobId, chatId }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["threadJobs"] });
+      queryClient.invalidateQueries({ queryKey: ["threads"] });
+    },
+  });
+
+  const stopMutation = useMutation({
+    mutationFn: (jobId: string) => stopJob({ jobId, chatId }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["threadJobs"] });
+      queryClient.invalidateQueries({ queryKey: ["threads"] });
+    },
+  });
+
+  const approveRuntimeMutation = useMutation({
+    mutationFn: (id: string) => approveRuntimeApproval({ id, chatId }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["runtimeApprovals", chatId] });
+      queryClient.invalidateQueries({ queryKey: ["threadJobs"] });
+    },
+  });
+
+  const denyRuntimeMutation = useMutation({
+    mutationFn: (id: string) => denyRuntimeApproval({ id, chatId }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["runtimeApprovals", chatId] });
+      queryClient.invalidateQueries({ queryKey: ["threadJobs"] });
+    },
+  });
+
   const deleteThreadMutation = useMutation({
     mutationFn: (threadId: string) => deleteThread(threadId, chatId),
     onSuccess: () => {
@@ -133,45 +197,42 @@ function JobsScreen() {
       renameThread(input.threadId, chatId, input.title),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ["threads"] }),
   });
+  const threadBudgetMutation = useMutation({
+    mutationFn: (input: { threadId: string; tokenBudget: number }) =>
+      setThreadBudget(input.threadId, chatId, input.tokenBudget),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["threads"] }),
+  });
 
-  if (!chatId) {
-    return (
-      <Card className="theme-surface">
-        <CardHeader>
-          <CardTitle>Connect Chat ID</CardTitle>
-          <CardDescription>
-            This UI maps to your Telegram chat identity for mode/project/job
-            ownership.
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-3">
-          <Input
-            type="password"
-            placeholder="Paste your Telegram chat ID"
-            value={draftChatId}
-            className="bg-background"
-            onChange={(event) => setDraftChatId(event.target.value)}
-          />
-          <Button
-            className="w-full"
-            onClick={() => {
-              const next = draftChatId.trim();
-              if (!next) {
-                return;
-              }
-              setStoredChatId(next);
-              setChatId(next);
-            }}
-          >
-            Save and Continue
-          </Button>
-        </CardContent>
-      </Card>
-    );
-  }
+  const threadAutoTrimMutation = useMutation({
+    mutationFn: (input: { threadId: string; autoTrimContext: boolean }) =>
+      setThreadAutoTrimContext(input.threadId, chatId, input.autoTrimContext),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["threads"] }),
+  });
+
+  const createJobErrorMessage = createJobMutation.isError
+    ? readErrorMessage(
+      createJobMutation.error,
+      "Could not run task. Check backend logs and try again.",
+    )
+    : "";
+
+  const budget = Number(activeThread?.tokenBudget || 0);
+  const used = Number(activeThread?.tokenUsed || 0);
+  const remaining = budget > 0 ? Math.max(0, budget - used) : 0;
+  const progress = budget > 0 ? Math.max(0, Math.min(100, Math.round((used / Math.max(1, budget)) * 100))) : 0;
 
   return (
     <div className="space-y-4">
+      <ObservabilityDashboard summary={observabilityQuery.data ?? null} />
+
+      <RuntimeApprovalCards
+        approvals={runtimeApprovalsQuery.data?.approvals ?? []}
+        approvingId={approveRuntimeMutation.variables ?? ""}
+        denyingId={denyRuntimeMutation.variables ?? ""}
+        onApprove={(id) => approveRuntimeMutation.mutate(id)}
+        onDeny={(id) => denyRuntimeMutation.mutate(id)}
+      />
+
       {/* Project tabs */}
       {projects.length > 0 && (
         <div className="animate-in fade-in slide-in-from-bottom-2 duration-300 fill-mode-both">
@@ -250,16 +311,70 @@ function JobsScreen() {
               />
               <CardDescription className="text-xs text-muted-foreground">
                 {activeProject} · {threadJobs.length} message
-                {threadJobs.length !== 1 ? "s" : ""}
+                {threadJobs.length !== 1 ? "s" : ""} · tokens {used}/{budget || "unlimited"}
               </CardDescription>
+              <div className="pt-1 space-y-2">
+                {budget > 0 && (
+                  <div className="space-y-1">
+                    <div className="h-2 w-full rounded-full bg-muted overflow-hidden">
+                      <div
+                        className="h-full rounded-full bg-primary transition-all"
+                        style={{ width: `${progress}%` }}
+                      />
+                    </div>
+                    <p className="text-[11px] text-muted-foreground">
+                      Remaining: {remaining} tokens ({progress}% used)
+                    </p>
+                  </div>
+                )}
+                <div className="flex flex-wrap gap-2">
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={() => {
+                      const current = Number(activeThread.tokenBudget || 0);
+                      const value = window.prompt("Set thread token budget (0 = unlimited):", String(current));
+                      if (value === null) {
+                        return;
+                      }
+                      const parsed = Number.parseInt(value, 10);
+                      if (!Number.isFinite(parsed) || parsed < 0) {
+                        return;
+                      }
+                      threadBudgetMutation.mutate({
+                        threadId: activeThread.id,
+                        tokenBudget: parsed,
+                      });
+                    }}
+                  >
+                    Set Budget
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={() => {
+                      threadAutoTrimMutation.mutate({
+                        threadId: activeThread.id,
+                        autoTrimContext: !(Boolean(activeThread.autoTrimContext)),
+                      });
+                    }}
+                  >
+                    Auto-Trim: {Boolean(activeThread.autoTrimContext) ? "On" : "Off"}
+                  </Button>
+                </div>
+              </div>
             </CardHeader>
             <CardContent>
               <JobChatFeed
                 jobs={threadJobs}
                 approvingJobId={approveMutation.variables ?? ""}
                 denyingJobId={denyMutation.variables ?? ""}
+                resumingJobId={resumeMutation.variables ?? ""}
+                stoppingJobId={stopMutation.variables ?? ""}
                 onApprove={(jobId) => approveMutation.mutate(jobId)}
                 onDeny={(jobId) => denyMutation.mutate(jobId)}
+                onResumeError={(jobId) => resumeMutation.mutate(jobId)}
+                onStop={(jobId) => stopMutation.mutate(jobId)}
               />
             </CardContent>
           </Card>
@@ -288,7 +403,9 @@ function JobsScreen() {
             projects={projects}
             activeProject={activeProject}
             isSubmitting={createJobMutation.isPending}
+            submitError={createJobErrorMessage}
             onSubmit={async (input) => {
+              createJobMutation.reset();
               await createJobMutation.mutateAsync(input);
             }}
           />

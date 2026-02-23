@@ -53,6 +53,8 @@ function statusLabel(status: string) {
       return "Failed";
     case "denied":
       return "Denied";
+    case "cancelled":
+      return "Cancelled";
     case "pending_approval":
       return "Awaiting Approval";
     default:
@@ -69,6 +71,9 @@ function assistantMessage(job: Job) {
   }
   if (job.status === "denied") {
     return "Request denied. I did not run this job.";
+  }
+  if (job.status === "cancelled") {
+    return "Stopped. The job was cancelled before completion.";
   }
   if (job.status === "pending_approval") {
     return "I need your approval before continuing this task.";
@@ -220,16 +225,24 @@ type JobChatFeedProps = {
   jobs: Job[];
   approvingJobId?: string;
   denyingJobId?: string;
+  resumingJobId?: string;
+  stoppingJobId?: string;
   onApprove?: (jobId: string) => void;
   onDeny?: (jobId: string) => void;
+  onResumeError?: (jobId: string) => void;
+  onStop?: (jobId: string) => void;
 };
 
 export function JobChatFeed({
   jobs,
   approvingJobId,
   denyingJobId,
+  resumingJobId,
+  stoppingJobId,
   onApprove,
   onDeny,
+  onResumeError,
+  onStop,
 }: JobChatFeedProps) {
   const scrollRef = useRef<HTMLElement | null>(null);
   const prevStatusesRef = useRef<Record<string, string>>({});
@@ -267,10 +280,20 @@ export function JobChatFeed({
     );
   }
 
-  const ordered = jobs.slice(0, 30).reverse();
+  const ordered = jobs
+    .slice()
+    .sort((a, b) => {
+      const aTime = Date.parse(String(a.createdAt || ""));
+      const bTime = Date.parse(String(b.createdAt || ""));
+      return aTime - bTime;
+    })
+    .slice(-30);
 
   return (
-    <section ref={scrollRef} className="space-y-1">
+    <section
+      ref={scrollRef}
+      className="h-[52vh] min-h-[320px] max-h-[620px] overflow-y-auto pr-1 space-y-1"
+    >
       {ordered.map((job, index) => {
         const msg = assistantMessage(job);
         const isWorking = job.status === "running" || job.status === "queued";
@@ -409,6 +432,34 @@ export function JobChatFeed({
                       onClick={() => onDeny(job.id)}
                     >
                       {denyingJobId === job.id ? "Denying..." : "Deny"}
+                    </Button>
+                  </div>
+                )}
+
+                {(job.status === "failed") && onResumeError && (
+                  <div className="mt-3 flex gap-2">
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      className="flex-1"
+                      disabled={resumingJobId === job.id}
+                      onClick={() => onResumeError(job.id)}
+                    >
+                      {resumingJobId === job.id ? "Resuming..." : "Resume from error"}
+                    </Button>
+                  </div>
+                )}
+
+                {(job.status === "running" || job.status === "queued" || job.status === "pending_approval") && onStop && (
+                  <div className="mt-3 flex gap-2">
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      className="flex-1"
+                      disabled={stoppingJobId === job.id}
+                      onClick={() => onStop(job.id)}
+                    >
+                      {stoppingJobId === job.id ? "Stopping..." : "Stop"}
                     </Button>
                   </div>
                 )}

@@ -2,6 +2,7 @@ import { spawn } from "node:child_process";
 import { promises as fs } from "node:fs";
 import os from "node:os";
 import path from "node:path";
+import { extractGeminiUsageFromJsonPayload } from "../services/usage-parser.mjs";
 
 function buildPrompt(task) {
   return task;
@@ -52,7 +53,7 @@ async function findGeminiSessionId(afterMs) {
 export async function run(config) {
   const prompt = buildPrompt(config.task);
   const binary = config.binary || "gemini";
-  const args = [];
+  const args = ["-p", prompt, "--output-format", "json"];
   const onLine = config.onLine || null;
   const startTime = Date.now();
 
@@ -64,14 +65,20 @@ export async function run(config) {
     args.push("--resume", config.sessionId);
   }
 
-  args.push(prompt);
-
   const env = { ...process.env };
   if (config.reasoningEffort) {
     env.GEMINI_THINKING_LEVEL = config.reasoningEffort;
   }
 
-  const result = await spawnGemini({ binary, args, workdir: config.workdir, timeoutMs: config.timeoutMs, onLine, env });
+  const result = await spawnGemini({
+    binary,
+    args,
+    workdir: config.workdir,
+    timeoutMs: config.timeoutMs,
+    onLine,
+    env,
+    signal: config.signal,
+  });
 
   // Capture new session ID if this was a fresh run
   if (!config.sessionId) {
@@ -84,7 +91,19 @@ export async function run(config) {
   return result;
 }
 
-function spawnGemini({ binary, args, workdir, timeoutMs, onLine, env }) {
+function parseGeminiJsonOutput(stdout) {
+  const trimmed = String(stdout || "").trim();
+  if (!trimmed) {
+    return null;
+  }
+  try {
+    return JSON.parse(trimmed);
+  } catch {
+    return null;
+  }
+}
+
+function spawnGemini({ binary, args, workdir, timeoutMs, onLine, env, signal }) {
   return new Promise((resolve, reject) => {
     const child = spawn(binary, args, {
       cwd: workdir,
@@ -122,6 +141,35 @@ function spawnGemini({ binary, args, workdir, timeoutMs, onLine, env }) {
       }
     });
 
+    child.on("error", (err) => {
+      clearTimeout(timeout);
+      if (err && err.code === "ENOENT") {
+        reject(new Error(
+          `Gemini CLI binary "${binary}" was not found. Install Gemini CLI or set GEMINI_BINARY to the correct executable path.`,
+        ));
+        return;
+      }
+      reject(err);
+    });
+
+    if (signal) {
+      if (signal.aborted) {
+        child.kill("SIGTERM");
+        setTimeout(() => child.kill("SIGKILL"), 1200);
+        clearTimeout(timeout);
+        reject(new Error("Run cancelled by user."));
+        return;
+      }
+      signal.addEventListener("abort", () => {
+        child.kill("SIGTERM");
+        setTimeout(() => child.kill("SIGKILL"), 1200);
+        clearTimeout(timeout);
+        reject(new Error("Run cancelled by user."));
+      }, { once: true });
+    }
+
+    child.stdin?.end();
+
     child.on("close", (code) => {
       clearTimeout(timeout);
       if (killed) {
@@ -135,15 +183,10 @@ function spawnGemini({ binary, args, workdir, timeoutMs, onLine, env }) {
         reject(err);
         return;
       }
-      const message = stdout.trim() || "Gemini completed but returned no summary.";
-      resolve({ message });
+      const parsed = parseGeminiJsonOutput(stdout);
+      const message = String(parsed?.response || "").trim() || stdout.trim() || "Gemini completed but returned no summary.";
+      const usage = extractGeminiUsageFromJsonPayload(parsed);
+      resolve({ message, usage });
     });
-
-    child.on("error", (err) => {
-      clearTimeout(timeout);
-      reject(err);
-    });
-
-    child.stdin?.end();
   });
 }

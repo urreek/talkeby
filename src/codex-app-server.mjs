@@ -1,19 +1,7 @@
 import { spawn } from "node:child_process";
 
 function buildPrompt(transcript) {
-  return [
-    "You are Codex running from a Telegram phone bridge.",
-    "Treat the quoted text as the user's coding request and execute it in this workspace.",
-    "",
-    `User request: """${transcript}"""`,
-    "",
-    "At the end, return a concise summary for chat with exactly these headings:",
-    "RESULT:",
-    "FILES:",
-    "NEXT:",
-    "",
-    "Keep the full response under 120 words and plain text.",
-  ].join("\n");
+  return String(transcript || "").trim();
 }
 
 function toSafeString(value) {
@@ -166,10 +154,157 @@ function withTimeout(promise, timeoutMs, onTimeout) {
   ]);
 }
 
+export async function listCodexModels({
+  codexConfig,
+  includeHidden = false,
+}) {
+  const child = spawn(codexConfig.binary, ["app-server", "--listen", "stdio://"], {
+    cwd: codexConfig.workdir,
+    stdio: ["pipe", "pipe", "pipe"],
+  });
+
+  let nextRequestId = 1;
+  const pendingRequests = new Map();
+  let stderrBuffer = "";
+
+  function writeJson(message) {
+    if (!child.stdin.writable) {
+      return;
+    }
+    child.stdin.write(`${JSON.stringify(message)}\n`);
+  }
+
+  function sendRequest(method, params) {
+    const id = nextRequestId;
+    nextRequestId += 1;
+
+    return new Promise((resolve, reject) => {
+      pendingRequests.set(String(id), { resolve, reject });
+      writeJson({
+        jsonrpc: "2.0",
+        id,
+        method,
+        params,
+      });
+    });
+  }
+
+  lineReader(child.stdout, (line) => {
+    const message = parseLineAsJson(line);
+    if (!message) {
+      return;
+    }
+    const isResponse = message && Object.hasOwn(message, "id")
+      && (Object.hasOwn(message, "result") || Object.hasOwn(message, "error"))
+      && !Object.hasOwn(message, "method");
+    if (!isResponse) {
+      return;
+    }
+    const handler = pendingRequests.get(String(message.id));
+    if (!handler) {
+      return;
+    }
+    pendingRequests.delete(String(message.id));
+    if (Object.hasOwn(message, "error")) {
+      handler.reject(new Error(toSafeString(message.error?.message) || "Codex RPC error"));
+      return;
+    }
+    handler.resolve(message.result);
+  });
+
+  child.stderr.setEncoding("utf8");
+  child.stderr.on("data", (chunk) => {
+    stderrBuffer += chunk;
+  });
+
+  child.on("error", (error) => {
+    for (const handler of pendingRequests.values()) {
+      handler.reject(error);
+    }
+    pendingRequests.clear();
+  });
+
+  try {
+    const timeoutMs = Math.max(5_000, Number(codexConfig.timeoutMs) || 30_000);
+    const result = await withTimeout(
+      (async () => {
+        await sendRequest("initialize", {
+          clientInfo: {
+            name: "talkeby",
+            title: "Talkeby",
+            version: "0.1.0",
+          },
+          capabilities: {
+            experimentalApi: true,
+          },
+        });
+
+        const models = [];
+        const seen = new Set();
+        let cursor = null;
+        let pageGuard = 0;
+
+        while (pageGuard < 20) {
+          pageGuard += 1;
+          const page = await sendRequest("model/list", {
+            cursor,
+            limit: 100,
+            includeHidden,
+          });
+          const data = Array.isArray(page?.data) ? page.data : [];
+          for (const item of data) {
+            const model = toSafeString(item?.model);
+            if (!model || seen.has(model)) {
+              continue;
+            }
+            seen.add(model);
+            models.push({
+              id: toSafeString(item?.id),
+              model,
+              displayName: toSafeString(item?.displayName) || model,
+              hidden: Boolean(item?.hidden),
+              isDefault: Boolean(item?.isDefault),
+            });
+          }
+
+          const nextCursor = toSafeString(page?.nextCursor);
+          if (!nextCursor) {
+            break;
+          }
+          cursor = nextCursor;
+        }
+
+        return models;
+      })(),
+      timeoutMs,
+      () => {
+        child.kill("SIGTERM");
+      },
+    );
+    return result;
+  } catch (error) {
+    const message = toSafeString(error?.message) || "Unknown Codex app-server error.";
+    if (stderrBuffer.trim()) {
+      throw new Error(`${message} ${stderrBuffer.trim()}`.trim());
+    }
+    throw new Error(message);
+  } finally {
+    for (const handler of pendingRequests.values()) {
+      handler.reject(new Error("Codex app-server closed before response."));
+    }
+    pendingRequests.clear();
+    if (!child.killed) {
+      child.kill("SIGTERM");
+    }
+  }
+}
+
 export async function runCodexWithRuntimeApprovals({
   transcript,
   codexConfig,
   onApprovalRequest,
+  onEvent,
+  signal,
 }) {
   const prompt = buildPrompt(transcript);
 
@@ -200,6 +335,26 @@ export async function runCodexWithRuntimeApprovals({
     }
     done = true;
     fn();
+  }
+
+  function emitEvent(type, payload = {}) {
+    if (typeof onEvent !== "function") {
+      return;
+    }
+    try {
+      onEvent({
+        type,
+        ...payload,
+      });
+    } catch {
+      // Runtime event callbacks are best-effort only.
+    }
+  }
+
+  function rejectAsCancelled() {
+    safeComplete(() => {
+      rejectCompletion(new Error("Run cancelled by user."));
+    });
   }
 
   function writeJson(message) {
@@ -238,12 +393,19 @@ export async function runCodexWithRuntimeApprovals({
       return;
     }
 
+    emitEvent("runtime_approval_requested", { request });
+
     let decision = "deny";
     try {
       decision = (await onApprovalRequest(request)) === "approve" ? "approve" : "deny";
     } catch {
       decision = "deny";
     }
+
+    emitEvent("runtime_approval_decided", {
+      request,
+      decision,
+    });
 
     writeJson({
       jsonrpc: "2.0",
@@ -253,10 +415,22 @@ export async function runCodexWithRuntimeApprovals({
   }
 
   function handleNotification(message) {
+    if (message.method === "thread/tokenUsage/updated") {
+      emitEvent("thread_token_usage_updated", {
+        threadId: toSafeString(message.params?.threadId),
+        turnId: toSafeString(message.params?.turnId),
+        tokenUsage: message.params?.tokenUsage || null,
+      });
+      return;
+    }
+
     if (message.method === "codex/event/agent_message") {
       const value = message.params?.msg?.message;
       if (typeof value === "string" && value.trim()) {
         lastAgentMessage = value.trim();
+        emitEvent("agent_message", {
+          text: value.trim(),
+        });
       }
       return;
     }
@@ -265,6 +439,7 @@ export async function runCodexWithRuntimeApprovals({
       const delta = message.params?.msg?.delta;
       if (typeof delta === "string") {
         lastAgentMessage += delta;
+        emitEvent("agent_message_delta", { delta });
       }
       return;
     }
@@ -274,6 +449,9 @@ export async function runCodexWithRuntimeApprovals({
         const candidate = message.params?.msg?.last_agent_message;
         if (typeof candidate === "string" && candidate.trim()) {
           lastAgentMessage = candidate.trim();
+          emitEvent("task_complete_message", {
+            text: candidate.trim(),
+          });
         }
       }
       return;
@@ -284,6 +462,7 @@ export async function runCodexWithRuntimeApprovals({
       const text = toSafeString(message.params?.error?.message);
       if (fatal && text) {
         lastFatalError = text;
+        emitEvent("fatal_error", { message: text });
       }
       return;
     }
@@ -297,12 +476,17 @@ export async function runCodexWithRuntimeApprovals({
         const messageText = toSafeString(turn.error?.message)
           || lastFatalError
           || "Codex turn failed with no details.";
+        emitEvent("turn_failed", { message: messageText });
         safeComplete(() => {
           rejectCompletion(new Error(messageText));
         });
         return;
       }
 
+      emitEvent("turn_completed", {
+        threadId,
+        turnId: activeTurnId,
+      });
       safeComplete(() => {
         resolveCompletion({
           message: lastAgentMessage.trim() || "Codex completed but returned no summary.",
@@ -371,6 +555,24 @@ export async function runCodexWithRuntimeApprovals({
     });
   });
 
+  if (signal) {
+    if (signal.aborted) {
+      rejectAsCancelled();
+    } else {
+      signal.addEventListener("abort", () => {
+        if (activeTurnId && threadId) {
+          void sendRequest("turn/interrupt", {
+            threadId,
+            turnId: activeTurnId,
+          }).catch(() => {});
+        }
+        child.kill("SIGTERM");
+        setTimeout(() => child.kill("SIGKILL"), 1500);
+        rejectAsCancelled();
+      }, { once: true });
+    }
+  }
+
   try {
     await sendRequest("initialize", {
       clientInfo: {
@@ -383,14 +585,30 @@ export async function runCodexWithRuntimeApprovals({
       },
     });
 
-    const threadStart = await sendRequest("thread/start", {
+    const threadStartBaseParams = {
       cwd: codexConfig.workdir,
       model: codexConfig.model || null,
       approvalPolicy: codexConfig.interactiveApprovalPolicy || "untrusted",
       sandbox: "workspace-write",
       experimentalRawEvents: false,
       persistExtendedHistory: true,
-    });
+    };
+
+    let threadStart;
+    if (codexConfig.sessionId) {
+      try {
+        threadStart = await sendRequest("thread/start", {
+          ...threadStartBaseParams,
+          threadId: codexConfig.sessionId,
+        });
+      } catch {
+        threadStart = null;
+      }
+    }
+    if (!threadStart) {
+      threadStart = await sendRequest("thread/start", threadStartBaseParams);
+    }
+
     threadId = toSafeString(threadStart?.thread?.id);
     if (!threadId) {
       throw new Error("Codex thread/start did not return a thread id.");

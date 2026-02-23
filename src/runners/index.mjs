@@ -1,18 +1,22 @@
 import { run as runCodex } from "./codex.mjs";
 import { run as runClaude } from "./claude.mjs";
 import { run as runGemini } from "./gemini.mjs";
+import { run as runGroq } from "./groq.mjs";
+import { run as runOpenRouter } from "./openrouter.mjs";
 
 const runners = {
   codex: runCodex,
   claude: runClaude,
   gemini: runGemini,
+  groq: runGroq,
+  openrouter: runOpenRouter,
 };
 
 export const SUPPORTED_PROVIDERS = Object.keys(runners);
 
 /**
  * Resolve a provider name to its runner function.
- * @param {string} providerName - "codex", "claude", or "gemini"
+ * @param {string} providerName
  * @returns {(config: { task: string, workdir: string, model: string, timeoutMs: number, binary: string }) => Promise<{ message: string }>}
  */
 export function getRunner(providerName) {
