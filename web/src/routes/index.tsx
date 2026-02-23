@@ -16,6 +16,13 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import {
   approveJob,
   approveRuntimeApproval,
   createJob,
@@ -220,6 +227,7 @@ function JobsScreen() {
   const used = Number(activeThread?.tokenUsed || 0);
   const remaining = budget > 0 ? Math.max(0, budget - used) : 0;
   const progress = budget > 0 ? Math.max(0, Math.min(100, Math.round((used / Math.max(1, budget)) * 100))) : 0;
+  const autoTrimValue = Boolean(activeThread?.autoTrimContext) ? "on" : "off";
 
   return (
     <div className="space-y-4">
@@ -349,18 +357,26 @@ function JobsScreen() {
                   >
                     Set Budget
                   </Button>
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    onClick={() => {
-                      threadAutoTrimMutation.mutate({
-                        threadId: activeThread.id,
-                        autoTrimContext: !(Boolean(activeThread.autoTrimContext)),
-                      });
-                    }}
-                  >
-                    Auto-Trim: {Boolean(activeThread.autoTrimContext) ? "On" : "Off"}
-                  </Button>
+                  <div className="flex items-center gap-2">
+                    <span className="text-xs text-muted-foreground">Auto-Trim</span>
+                    <Select
+                      value={autoTrimValue}
+                      onValueChange={(value) => {
+                        threadAutoTrimMutation.mutate({
+                          threadId: activeThread.id,
+                          autoTrimContext: value === "on",
+                        });
+                      }}
+                    >
+                      <SelectTrigger className="h-8 w-[110px]">
+                        <SelectValue placeholder="Auto-Trim" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="on">On</SelectItem>
+                        <SelectItem value="off">Off</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
                 </div>
               </div>
             </CardHeader>
