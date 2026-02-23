@@ -57,12 +57,17 @@
     @apply border-border;
   }
 
+  html {
+    overflow-y: scroll;
+    scrollbar-gutter: stable;
+  }
+
   body {
     background-color: hsl(0 0% 5%);
     color: hsl(var(--foreground));
     margin: 0;
     min-width: 320px;
-    min-height: 100vh;
+    min-height: 100%;
     font-family: "Inter", "SF Pro Text", "Segoe UI", sans-serif;
     line-height: 1.4;
     font-weight: 400;
@@ -71,6 +76,12 @@
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
     transition: background-color 0.3s ease, color 0.3s ease;
+  }
+
+  /* Radix Select scroll-lock adds body margin-right; neutralize to prevent layout shift. */
+  body[data-scroll-locked] {
+    margin-right: 0 !important;
+    padding-right: 0 !important;
   }
 
   body[data-theme="dark"], .dark body {
