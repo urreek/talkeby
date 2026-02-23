@@ -96,6 +96,12 @@ npm start
 npm run web:dev
 ```
 
+Or run both together for development:
+
+```bash
+npm run dev:all
+```
+
 6. Open UI
 
 - Local machine: `http://localhost:5173`
