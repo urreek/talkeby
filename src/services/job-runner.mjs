@@ -24,6 +24,14 @@ function formatDuration(ms) {
   return seconds > 0 ? `${minutes}m ${seconds}s` : `${minutes}m`;
 }
 
+function toNonNegativeInt(value, fallback = 0) {
+  const parsed = Number.parseInt(String(value ?? ""), 10);
+  if (!Number.isFinite(parsed)) {
+    return fallback;
+  }
+  return Math.max(0, parsed);
+}
+
 function buildRunningUpdate(job, startedAtMs) {
   return [
     `Job ${job.id} is still running.`,
@@ -387,6 +395,7 @@ export class JobRunner {
           let sessionId = null;
           let taskText = activeJob.request;
           let threadAutoTrimContext = this.config.threads?.autoTrimContextDefault !== false;
+          let threadRemainingBudget = 0;
           let bootstrapPrompt = "";
           let bootstrapShouldApply = false;
           let resumeContext = "";
@@ -396,6 +405,26 @@ export class JobRunner {
               const thread = this.repository.getThread(activeJob.threadId);
               sessionId = thread?.cliSessionId || null;
               threadAutoTrimContext = thread?.autoTrimContext !== 0;
+              const tokenBudget = toNonNegativeInt(
+                thread?.tokenBudget,
+                toNonNegativeInt(this.config.threads?.defaultTokenBudget, 0),
+              );
+              const tokenUsed = toNonNegativeInt(thread?.tokenUsed, 0);
+              threadRemainingBudget = Math.max(0, tokenBudget - tokenUsed);
+              if (threadAutoTrimContext && tokenBudget > 0 && threadRemainingBudget <= 0 && sessionId) {
+                sessionId = null;
+                this.eventBus.publish({
+                  jobId: activeJob.id,
+                  chatId: activeJob.chatId,
+                  eventType: "thread_context_trimmed",
+                  message: "Thread token budget exhausted; starting a fresh session context.",
+                  payload: {
+                    threadId: activeJob.threadId,
+                    tokenBudget,
+                    tokenUsed,
+                  },
+                });
+              }
               if (thread?.bootstrapPrompt && !thread?.bootstrapAppliedAt) {
                 bootstrapPrompt = String(thread.bootstrapPrompt);
                 bootstrapShouldApply = true;
@@ -416,10 +445,26 @@ export class JobRunner {
             userTask: activeJob.request,
             bootstrapPrompt,
             resumeContext,
+            remainingBudget: threadRemainingBudget,
             autoTrimContext: threadAutoTrimContext,
           });
           taskText = prepared.prompt;
           inputTokenEstimate = prepared.estimatedTokens;
+          if (prepared.trimmed) {
+            this.eventBus.publish({
+              jobId: activeJob.id,
+              chatId: activeJob.chatId,
+              eventType: "thread_context_trimmed",
+              message: "Prompt context trimmed to fit thread token budget.",
+              payload: {
+                threadId: activeJob.threadId || null,
+                removed: prepared.removed,
+                estimatedTokens: prepared.estimatedTokens,
+                cannotFit: Boolean(prepared.cannotFit),
+                remainingBudget: threadRemainingBudget,
+              },
+            });
+          }
 
           if (!isFreeModelAllowed({
             providerName: provider,

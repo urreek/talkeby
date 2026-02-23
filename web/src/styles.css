@@ -78,8 +78,10 @@
     transition: background-color 0.3s ease, color 0.3s ease;
   }
 
-  /* Radix Select scroll-lock adds body margin-right; neutralize to prevent layout shift. */
-  body[data-scroll-locked] {
+  /* Radix Select/RemoveScroll adds right gap; force-disable it to prevent horizontal shift. */
+  body.with-scroll-bars-hidden,
+  html.with-scroll-bars-hidden,
+  body[data-scroll-locked][data-scroll-locked] {
     margin-right: 0 !important;
     padding-right: 0 !important;
   }

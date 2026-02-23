@@ -57,12 +57,14 @@ export function CreateJobForm({
   const providerData = providerQuery.data;
   const provider = providerData?.provider ?? "codex";
   const currentModelValue = providerData?.model || "__default__";
+  const currentReasoningEffort = providerData?.reasoningEffort || "__default__";
 
   const providerCatalog = catalogQuery.data?.providers ?? [];
   const activeProvider = useMemo(
     () => providerCatalog.find((item) => item.id === provider) || providerCatalog[0],
     [providerCatalog, provider],
   );
+  const supportsReasoning = Boolean(activeProvider?.supportsReasoningEffort);
 
   useEffect(() => {
     if (projects.some((project) => project.name === activeProject)) {
@@ -83,6 +85,13 @@ export function CreateJobForm({
   const handleModelChange = (value: string) => {
     const model = value === "__default__" ? "" : value;
     setProvider({ chatId: "", model }).then(() =>
+      queryClient.invalidateQueries({ queryKey: ["provider"] }),
+    );
+  };
+
+  const handleReasoningEffortChange = (value: string) => {
+    const reasoningEffort = value === "__default__" ? "" : value;
+    setProvider({ chatId: "", reasoningEffort }).then(() =>
       queryClient.invalidateQueries({ queryKey: ["provider"] }),
     );
   };
@@ -125,7 +134,7 @@ export function CreateJobForm({
             className="min-h-[100px] resize-none bg-background/50 font-medium placeholder:text-muted-foreground/50 focus-visible:ring-primary focus-visible:ring-offset-2"
             onChange={(event) => setTask(event.target.value)}
           />
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
             <Select value={provider} onValueChange={handleProviderChange}>
               <SelectTrigger className="h-10 bg-background/50 text-sm font-medium text-foreground transition-colors hover:bg-background/80 focus:ring-primary focus:ring-offset-2">
                 <SelectValue
@@ -159,6 +168,44 @@ export function CreateJobForm({
                     {m.label}{m.free ? " (free)" : ""}
                   </SelectItem>
                 ))}
+              </SelectContent>
+            </Select>
+            <Select
+              value={currentReasoningEffort}
+              disabled={!supportsReasoning}
+              onValueChange={handleReasoningEffortChange}
+            >
+              <SelectTrigger className="h-10 bg-background/50 text-sm font-medium text-foreground transition-colors hover:bg-background/80 focus:ring-primary focus:ring-offset-2">
+                <SelectValue
+                  className="text-foreground"
+                  placeholder={supportsReasoning ? "Reasoning" : "Reasoning (n/a)"}
+                />
+              </SelectTrigger>
+              <SelectContent className="border-white/10 bg-popover/95 text-popover-foreground backdrop-blur-xl">
+                <SelectItem
+                  className="cursor-pointer transition-colors focus:bg-primary/20 focus:text-primary"
+                  value="__default__"
+                >
+                  Reasoning: Default
+                </SelectItem>
+                <SelectItem
+                  className="cursor-pointer transition-colors focus:bg-primary/20 focus:text-primary"
+                  value="low"
+                >
+                  Reasoning: Low
+                </SelectItem>
+                <SelectItem
+                  className="cursor-pointer transition-colors focus:bg-primary/20 focus:text-primary"
+                  value="medium"
+                >
+                  Reasoning: Medium
+                </SelectItem>
+                <SelectItem
+                  className="cursor-pointer transition-colors focus:bg-primary/20 focus:text-primary"
+                  value="high"
+                >
+                  Reasoning: High
+                </SelectItem>
               </SelectContent>
             </Select>
           </div>

@@ -78,8 +78,9 @@ export default defineConfig({
   },
   server: {
     host: true,
-    // Required for access through Cloudflare tunnel hostnames/custom domains.
-    allowedHosts: true,
+    allowedHosts: [
+      "talkeby.urimkrasniqi.com"
+    ],
     port: 5173,
     proxy: {
       "/api": {
