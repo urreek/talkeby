@@ -267,7 +267,7 @@ export function loadConfig() {
   };
 
   const providers = {
-    discoverModels: parseBoolean(process.env.PROVIDER_MODEL_DISCOVERY, false),
+    discoverModels: parseBoolean(process.env.PROVIDER_MODEL_DISCOVERY, true),
   };
 
   const security = {
