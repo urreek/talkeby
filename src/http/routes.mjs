@@ -24,8 +24,28 @@ import { isAuthorizedChat, textValue } from "./shared.mjs";
 const execFileAsync = promisify(execFile);
 
 async function checkBinary(name) {
+  const candidate = String(name || "").trim();
+  if (!candidate) {
+    return false;
+  }
+
+  // Absolute/explicit binary path.
+  if (
+    path.isAbsolute(candidate)
+    || candidate.includes("/")
+    || candidate.includes("\\")
+  ) {
+    try {
+      fs.accessSync(candidate, fs.constants.F_OK);
+      return true;
+    } catch {
+      return false;
+    }
+  }
+
   try {
-    await execFileAsync("which", [name], { timeout: 5000 });
+    const locator = process.platform === "win32" ? "where" : "which";
+    await execFileAsync(locator, [candidate], { timeout: 5000 });
     return true;
   } catch {
     return false;

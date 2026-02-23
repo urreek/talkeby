@@ -71,14 +71,28 @@ function upsertEnvValues(filePath, entries) {
 }
 
 function which(binary) {
-  const result = spawnSync("which", [binary], {
+  const candidate = String(binary || "").trim();
+  if (!candidate) {
+    return "";
+  }
+
+  if (path.isAbsolute(candidate) || candidate.includes("/") || candidate.includes("\\")) {
+    return fs.existsSync(candidate) ? candidate : "";
+  }
+
+  const locator = process.platform === "win32" ? "where" : "which";
+  const result = spawnSync(locator, [candidate], {
     cwd: ROOT_DIR,
     encoding: "utf8",
   });
   if (result.status !== 0) {
     return "";
   }
-  return String(result.stdout || "").trim();
+  const first = String(result.stdout || "")
+    .split(/\r?\n/)
+    .map((line) => line.trim())
+    .find(Boolean);
+  return first || "";
 }
 
 function runCommand(command, args) {
@@ -300,7 +314,13 @@ async function runDoctor() {
     failures.push(`CODEX_WORKDIR does not exist or is not a directory: ${workdir}`);
   }
 
-  const resolvedBinary = binary.includes("/") ? binary : which(binary);
+  const resolvedBinary = (
+    binary.includes("/")
+    || binary.includes("\\")
+    || path.isAbsolute(binary)
+  )
+    ? binary
+    : which(binary);
   if (!resolvedBinary) {
     failures.push(`Codex binary not found: ${binary}`);
   }
