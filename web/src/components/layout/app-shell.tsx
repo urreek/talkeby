@@ -1,6 +1,7 @@
 import { Link, useRouterState } from "@tanstack/react-router";
 import { Cog, Home } from "lucide-react";
-import type { PropsWithChildren } from "react";
+import { useEffect, useState } from "react";
+import type { CSSProperties, PropsWithChildren } from "react";
 
 import { ThemeToggle } from "@/components/layout/theme-toggle";
 import { cn } from "@/lib/cn";
@@ -14,9 +15,103 @@ export function AppShell({ children }: PropsWithChildren) {
   const pathname = useRouterState({
     select: (state) => state.location.pathname,
   });
+  const [keyboardInset, setKeyboardInset] = useState(0);
+
+  useEffect(() => {
+    if (typeof window === "undefined") {
+      return;
+    }
+
+    const viewport = window.visualViewport;
+    if (!viewport) {
+      return;
+    }
+
+    const isKeyboardTarget = (target: EventTarget | null) => {
+      if (!(target instanceof HTMLElement)) {
+        return false;
+      }
+
+      if (target.isContentEditable) {
+        return true;
+      }
+
+      if (target instanceof HTMLTextAreaElement) {
+        return true;
+      }
+
+      if (target instanceof HTMLInputElement) {
+        const nonTextTypes = new Set([
+          "button",
+          "checkbox",
+          "color",
+          "file",
+          "hidden",
+          "image",
+          "radio",
+          "range",
+          "reset",
+          "submit",
+        ]);
+
+        return !nonTextTypes.has(target.type);
+      }
+
+      return false;
+    };
+
+    const hasFocusedKeyboardTarget = () => isKeyboardTarget(document.activeElement);
+
+    const updateKeyboardInset = () => {
+      if (!hasFocusedKeyboardTarget()) {
+        setKeyboardInset(0);
+        return;
+      }
+
+      const overlap = Math.max(
+        0,
+        window.innerHeight - viewport.height - viewport.offsetTop,
+      );
+
+      setKeyboardInset(overlap > 80 ? overlap : 0);
+    };
+
+    const handleFocusIn = (event: FocusEvent) => {
+      if (isKeyboardTarget(event.target)) {
+        updateKeyboardInset();
+      }
+    };
+
+    const handleFocusOut = () => {
+      requestAnimationFrame(() => {
+        if (!hasFocusedKeyboardTarget()) {
+          setKeyboardInset(0);
+        }
+      });
+    };
+
+    updateKeyboardInset();
+    viewport.addEventListener("resize", updateKeyboardInset);
+    viewport.addEventListener("scroll", updateKeyboardInset);
+    window.addEventListener("resize", updateKeyboardInset);
+    document.addEventListener("focusin", handleFocusIn);
+    document.addEventListener("focusout", handleFocusOut);
+
+    return () => {
+      viewport.removeEventListener("resize", updateKeyboardInset);
+      viewport.removeEventListener("scroll", updateKeyboardInset);
+      window.removeEventListener("resize", updateKeyboardInset);
+      document.removeEventListener("focusin", handleFocusIn);
+      document.removeEventListener("focusout", handleFocusOut);
+    };
+  }, []);
+
+  const navStyle: CSSProperties = {
+    bottom: `calc(env(safe-area-inset-bottom, 0px) + 1.5rem + ${keyboardInset}px)`,
+  };
 
   return (
-    <div className="talkeby-app mx-auto flex min-h-screen w-full max-w-xl flex-col bg-slate-950 pb-28 relative">
+    <div className="talkeby-app mx-auto flex min-h-dvh min-h-screen w-full max-w-xl flex-col bg-slate-950 pb-28 relative">
       <div className="fixed inset-0 z-0 pointer-events-none overflow-hidden">
         <img
           alt=""
@@ -45,7 +140,10 @@ export function AppShell({ children }: PropsWithChildren) {
         {children}
       </main>
 
-      <nav className="fixed inset-x-0 bottom-6 z-20 mx-auto max-w-sm px-4 animate-in slide-in-from-bottom-12 fade-in duration-700 delay-150 fill-mode-both">
+      <nav
+        className="fixed inset-x-0 z-20 mx-auto max-w-sm px-4 animate-in slide-in-from-bottom-12 fade-in duration-700 delay-150 fill-mode-both transition-[bottom] duration-200"
+        style={navStyle}
+      >
         <div className="theme-surface grid grid-cols-2 gap-2 rounded-[2rem] border border-white/10 bg-card/80 p-2 shadow-2xl backdrop-blur-xl">
           {navItems.map((item) => {
             const Icon = item.icon;
