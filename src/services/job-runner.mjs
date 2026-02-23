@@ -416,6 +416,8 @@ export class JobRunner {
             }
           }
 
+          let allowSoftBudgetOverflow = false;
+
           if (threadBudget > 0) {
             const remaining = Math.max(0, threadBudget - threadUsed);
             const prepared = buildBudgetAwarePrompt({
@@ -444,9 +446,26 @@ export class JobRunner {
             }
 
             if (prepared.cannotFit) {
-              throw new Error(
-                `Thread token budget exhausted (${threadUsed}/${threadBudget}). Increase budget or start a new thread.`,
-              );
+              if (!threadAutoTrimContext) {
+                throw new Error(
+                  `Thread token budget exhausted (${threadUsed}/${threadBudget}). Increase budget or start a new thread.`,
+                );
+              }
+              // Best-effort mode: keep the minimal prompt and continue even if strict fit is impossible.
+              allowSoftBudgetOverflow = true;
+              this.eventBus.publish({
+                jobId: activeJob.id,
+                chatId: activeJob.chatId,
+                eventType: "thread_context_trimmed",
+                message: "Could not fully fit budget; continuing with minimal context.",
+                payload: {
+                  threadId: threadIdForBudget,
+                  removed: prepared.removed,
+                  estimatedTokens: prepared.estimatedTokens,
+                  remainingBudget: remaining,
+                  softOverflow: true,
+                },
+              });
             }
           } else {
             const prepared = buildBudgetAwarePrompt({
@@ -459,7 +478,12 @@ export class JobRunner {
             inputTokenEstimate = prepared.estimatedTokens;
           }
 
-          if (threadIdForBudget && threadBudget > 0 && threadUsed + inputTokenEstimate > threadBudget) {
+          if (
+            !allowSoftBudgetOverflow
+            && threadIdForBudget
+            && threadBudget > 0
+            && threadUsed + inputTokenEstimate > threadBudget
+          ) {
             throw new Error(
               `Thread token budget exhausted (${threadUsed}/${threadBudget}). Increase budget or start a new thread.`,
             );
