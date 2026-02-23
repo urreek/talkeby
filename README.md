@@ -221,6 +221,12 @@ Run full local diagnostics:
 npm run doctor
 ```
 
+Run secret scan before committing:
+
+```bash
+npm run secrets:check
+```
+
 ## API Endpoints
 
 - `GET /health`

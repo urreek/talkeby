@@ -147,6 +147,7 @@ Build and maintain Talkeby as a secure, local-first, mobile-control coding syste
 8. Commit lockfiles when dependencies change to keep environments reproducible.
 9. Never commit `.env`, local database files, logs, or other machine-specific runtime artifacts.
 10. For every completed task, commit and push the changes by default unless the user explicitly says not to.
+11. Run `npm run secrets:check` before every commit and fix any findings before pushing.
 
 ## Deployment Workflow (Git-First)
 
