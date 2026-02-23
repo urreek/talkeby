@@ -1,3 +1,6 @@
+import { useState } from "react";
+
+import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import type { ObservabilitySummary } from "@/lib/types";
 
@@ -14,16 +17,27 @@ function formatNumber(value: number) {
 }
 
 export function ObservabilityDashboard({ summary }: ObservabilityDashboardProps) {
+  const [collapsed, setCollapsed] = useState(true);
+
   if (!summary) {
     return null;
   }
 
   return (
     <Card className="theme-surface">
-      <CardHeader>
+      <CardHeader className="flex flex-row items-center justify-between space-y-0">
         <CardTitle>Observability</CardTitle>
+        <Button
+          type="button"
+          size="sm"
+          variant="outline"
+          onClick={() => setCollapsed((value) => !value)}
+        >
+          {collapsed ? "Show" : "Hide"}
+        </Button>
       </CardHeader>
-      <CardContent className="space-y-3">
+      {!collapsed && (
+        <CardContent className="space-y-3">
         <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
           <Metric label="Jobs (window)" value={formatNumber(summary.jobs.total)} />
           <Metric label="Success Rate" value={formatPercent(summary.jobs.successRate)} />
@@ -36,7 +50,8 @@ export function ObservabilityDashboard({ summary }: ObservabilityDashboardProps)
           <Metric label="Pending Runtime" value={formatNumber(summary.runtimeApprovals.pending)} />
           <Metric label="Approval Avg" value={`${summary.runtimeApprovals.avgDecisionSeconds.toFixed(1)}s`} />
         </div>
-      </CardContent>
+        </CardContent>
+      )}
     </Card>
   );
 }
