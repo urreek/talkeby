@@ -1,3 +1,4 @@
+import fs from "node:fs";
 import path from "node:path";
 
 import { isSupportedProvider, supportedProviderText } from "./providers/catalog.mjs";
@@ -103,6 +104,27 @@ function resolveDefaultProjectName(projects, configuredDefault) {
   );
 }
 
+function normalizeBinarySetting(value, fallbackCommand) {
+  const raw = String(value || "").trim();
+  if (!raw) {
+    return fallbackCommand;
+  }
+
+  const looksLikePath = path.isAbsolute(raw) || raw.includes("/") || raw.includes("\\");
+  if (!looksLikePath) {
+    return raw;
+  }
+
+  if (fs.existsSync(raw)) {
+    return raw;
+  }
+
+  // Path looks invalid for this machine (common when .env is copied across OSes).
+  // Fall back to command name so PATH lookup can still succeed.
+  const base = path.basename(raw).replace(/\.exe$/i, "");
+  return base || fallbackCommand;
+}
+
 export function loadConfig() {
   const port = parseInteger(process.env.PORT, 3000);
   const codexTimeoutMs = parseInteger(process.env.CODEX_TIMEOUT_MS, 15 * 60 * 1000);
@@ -154,7 +176,7 @@ export function loadConfig() {
   }
 
   const codex = {
-    binary: process.env.CODEX_BINARY?.trim() || "codex",
+    binary: normalizeBinarySetting(process.env.CODEX_BINARY, "codex"),
     workdir: defaultProjectName ? projects.get(defaultProjectName) : fallbackWorkdir,
     projectsBaseDir,
     projects,
@@ -178,12 +200,12 @@ export function loadConfig() {
       "",
     timeoutMs: codexTimeoutMs,
     binaries: {
-      codex: process.env.CODEX_BINARY?.trim() || "codex",
-      claude: process.env.CLAUDE_BINARY?.trim() || "claude",
-      gemini: process.env.GEMINI_BINARY?.trim() || "gemini",
-      groq: process.env.AIDER_BINARY?.trim() || "aider",
-      openrouter: process.env.AIDER_BINARY?.trim() || "aider",
-      aider: process.env.AIDER_BINARY?.trim() || "aider",
+      codex: normalizeBinarySetting(process.env.CODEX_BINARY, "codex"),
+      claude: normalizeBinarySetting(process.env.CLAUDE_BINARY, "claude"),
+      gemini: normalizeBinarySetting(process.env.GEMINI_BINARY, "gemini"),
+      groq: normalizeBinarySetting(process.env.AIDER_BINARY, "aider"),
+      openrouter: normalizeBinarySetting(process.env.AIDER_BINARY, "aider"),
+      aider: normalizeBinarySetting(process.env.AIDER_BINARY, "aider"),
     },
     freeModelsOnly: parseBoolean(process.env.FREE_MODELS_ONLY, true),
   };
