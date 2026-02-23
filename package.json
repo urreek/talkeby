@@ -23,7 +23,8 @@
     "launchd:web:install": "bash ./scripts/install-launchd-web.sh",
     "launchd:web:uninstall": "bash ./scripts/uninstall-launchd-web.sh",
     "launchd:install:all": "npm run launchd:install && npm run launchd:web:install",
-    "launchd:uninstall:all": "npm run launchd:web:uninstall && npm run launchd:uninstall"
+    "launchd:uninstall:all": "npm run launchd:web:uninstall && npm run launchd:uninstall",
+    "tunnel:cloudflare": "bash ./scripts/cloudflare-tunnel.sh"
   },
   "engines": {
     "node": ">=20.19.0"

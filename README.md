@@ -228,6 +228,31 @@ Run secret scan before committing:
 npm run secrets:check
 ```
 
+## Internet Access (Cloudflare Tunnel)
+
+1. Keep your backend/web running:
+
+```bash
+npm run dev:all
+```
+
+2. Ensure public access protection is enabled in `.env`:
+
+- `APP_ACCESS_KEY=<long-random-secret>`
+
+3. Start tunnel:
+
+```bash
+npm run tunnel:cloudflare
+```
+
+- Quick mode (default): prints an ephemeral `*.trycloudflare.com` URL
+- Persistent mode: set `CLOUDFLARE_TUNNEL_TOKEN` in your shell/env and it will use your named tunnel
+
+Optional:
+
+- Override tunnel target port with `WEB_PORT` in `.env` (default `5173`)
+
 ## API Endpoints
 
 - `GET /health`
