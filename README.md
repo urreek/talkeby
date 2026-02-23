@@ -161,28 +161,41 @@ Then restart services.
 
 ## Always-On (macOS launchd)
 
-Install:
+Install backend only:
 
 ```bash
 npm run launchd:install
+```
+
+Install backend + web app (recommended for phone UI):
+
+```bash
+npm run launchd:install:all
 ```
 
 Check status:
 
 ```bash
 launchctl print gui/$(id -u)/com.talkeby.worker
+launchctl print gui/$(id -u)/com.talkeby.web
 ```
 
 Tail logs:
 
 ```bash
-tail -f logs/worker.out.log logs/worker.err.log
+tail -f logs/worker.out.log logs/worker.err.log logs/web.out.log logs/web.err.log
 ```
 
-Uninstall:
+Uninstall backend only:
 
 ```bash
 npm run launchd:uninstall
+```
+
+Uninstall backend + web app:
+
+```bash
+npm run launchd:uninstall:all
 ```
 
 ## Security Checklist

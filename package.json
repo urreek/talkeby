@@ -18,7 +18,11 @@
     "doctor": "node scripts/talkeby-cli.mjs doctor",
     "check": "node --check scripts/ensure-native.mjs && node --check src/server.mjs && node --check src/http/routes.mjs && node --check src/http/jobs-routes.mjs && node --check src/http/events-route.mjs && node --check src/http/shared.mjs && node --check src/telegram/worker.mjs && node --check src/telegram/command-handler.mjs && node --check src/telegram/formatters.mjs",
     "launchd:install": "bash ./scripts/install-launchd.sh",
-    "launchd:uninstall": "bash ./scripts/uninstall-launchd.sh"
+    "launchd:uninstall": "bash ./scripts/uninstall-launchd.sh",
+    "launchd:web:install": "bash ./scripts/install-launchd-web.sh",
+    "launchd:web:uninstall": "bash ./scripts/uninstall-launchd-web.sh",
+    "launchd:install:all": "npm run launchd:install && npm run launchd:web:install",
+    "launchd:uninstall:all": "npm run launchd:web:uninstall && npm run launchd:uninstall"
   },
   "engines": {
     "node": ">=20.19.0"
