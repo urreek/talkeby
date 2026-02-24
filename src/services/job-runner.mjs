@@ -4,6 +4,7 @@ import { getRunner } from "../runners/index.mjs";
 import { isFreeModelAllowed } from "../providers/catalog.mjs";
 import { estimateTokens } from "./token-budget.mjs";
 import { buildBudgetAwarePrompt } from "./prompt-trim.mjs";
+import { buildThreadHistoryContext } from "./thread-context.mjs";
 import {
   evaluateRuntimeApprovalRequest,
 } from "./runtime-policy.mjs";
@@ -399,6 +400,7 @@ export class JobRunner {
           let bootstrapPrompt = "";
           let bootstrapShouldApply = false;
           let resumeContext = "";
+          let threadContext = "";
 
           if (activeJob.threadId && this.repository) {
             try {
@@ -429,6 +431,11 @@ export class JobRunner {
                 bootstrapPrompt = String(thread.bootstrapPrompt);
                 bootstrapShouldApply = true;
               }
+              threadContext = buildThreadHistoryContext({
+                repository: this.repository,
+                threadId: activeJob.threadId,
+                currentJobId: activeJob.id,
+              });
             } catch {
               // non-critical
             }
@@ -445,6 +452,7 @@ export class JobRunner {
             userTask: activeJob.request,
             bootstrapPrompt,
             resumeContext,
+            threadContext,
             remainingBudget: threadRemainingBudget,
             autoTrimContext: threadAutoTrimContext,
           });

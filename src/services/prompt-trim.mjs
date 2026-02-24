@@ -12,13 +12,20 @@ function section(title, body) {
   return `${title}\n${value}`;
 }
 
-function composePrompt({ userTask, bootstrapPrompt = "", resumeContext = "" }) {
+function composePrompt({
+  userTask,
+  bootstrapPrompt = "",
+  resumeContext = "",
+  threadContext = "",
+}) {
   const parts = [];
   const bootstrap = section("Bootstrap instructions:", bootstrapPrompt);
   const resume = section("Previous error context:", resumeContext);
+  const history = section("Thread context:", threadContext);
   const task = section("User task:", userTask);
   if (bootstrap) parts.push(bootstrap);
   if (resume) parts.push(resume);
+  if (history) parts.push(history);
   if (task) parts.push(task);
   return normalizeText(parts.join("\n\n"));
 }
@@ -27,6 +34,7 @@ export function buildBudgetAwarePrompt({
   userTask,
   bootstrapPrompt = "",
   resumeContext = "",
+  threadContext = "",
   remainingBudget = 0,
   autoTrimContext = true,
 }) {
@@ -34,6 +42,7 @@ export function buildBudgetAwarePrompt({
     userTask,
     bootstrapPrompt,
     resumeContext,
+    threadContext,
   });
   const fullTokens = estimateTokens(fullPrompt);
   if (!remainingBudget || remainingBudget <= 0 || fullTokens <= remainingBudget) {
@@ -60,6 +69,7 @@ export function buildBudgetAwarePrompt({
     userTask,
     bootstrapPrompt,
     resumeContext: "",
+    threadContext,
   });
   let tokens = estimateTokens(nextPrompt);
   if (tokens <= remainingBudget) {
@@ -76,6 +86,7 @@ export function buildBudgetAwarePrompt({
     userTask,
     bootstrapPrompt: "",
     resumeContext: "",
+    threadContext,
   });
   tokens = estimateTokens(nextPrompt);
   removed.push("resume_context", "bootstrap_prompt");
@@ -88,6 +99,15 @@ export function buildBudgetAwarePrompt({
     };
   }
 
+  nextPrompt = composePrompt({
+    userTask,
+    bootstrapPrompt: "",
+    resumeContext: "",
+    threadContext: "",
+  });
+  tokens = estimateTokens(nextPrompt);
+  removed.push("thread_context");
+
   return {
     prompt: nextPrompt,
     trimmed: true,
@@ -96,4 +116,3 @@ export function buildBudgetAwarePrompt({
     cannotFit: true,
   };
 }
-
