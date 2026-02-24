@@ -591,7 +591,7 @@ export async function runCodexWithRuntimeApprovals({
       approvalPolicy: codexConfig.interactiveApprovalPolicy || "untrusted",
       sandbox: "workspace-write",
       experimentalRawEvents: false,
-      persistExtendedHistory: true,
+      persistExtendedHistory: codexConfig.persistExtendedHistory === true,
     };
 
     let threadStart;

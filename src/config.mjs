@@ -230,6 +230,7 @@ export function loadConfig() {
       `Invalid AI_PROVIDER "${provider}". Supported: ${supportedProviderText()}`,
     );
   }
+  const codexParityMode = parseBoolean(process.env.CODEX_PARITY_MODE, true);
 
   const codex = {
     binary: normalizeBinarySetting(process.env.CODEX_BINARY, "codex"),
@@ -239,6 +240,15 @@ export function loadConfig() {
     defaultProjectName,
     timeoutMs: codexTimeoutMs,
     model: process.env.CODEX_MODEL?.trim() || "",
+    parityMode: codexParityMode,
+    persistExtendedHistory: parseBoolean(
+      process.env.CODEX_PERSIST_EXTENDED_HISTORY,
+      codexParityMode,
+    ),
+    disableSessionResume: parseBoolean(
+      process.env.CODEX_DISABLE_SESSION_RESUME,
+      !codexParityMode,
+    ),
   };
   const threads = {
     defaultTokenBudget: Math.max(

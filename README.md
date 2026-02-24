@@ -72,6 +72,9 @@ Optional useful values:
 - `CODEX_PROJECTS=name=/abs/path,name2=/abs/path2`
 - `CODEX_DEFAULT_PROJECT=<name>`
 - `CODEX_MODEL=<model>`
+- `CODEX_PARITY_MODE=true` (recommended; sends raw user message to Codex, no Talkeby-added prompt context)
+- `CODEX_PERSIST_EXTENDED_HISTORY=true` (Codex runtime thread history behavior)
+- `CODEX_DISABLE_SESSION_RESUME=false` (resume Codex thread/session behavior)
 - `GROQ_API_KEY=<key>`
 - `OPENROUTER_API_KEY=<key>`
 - `GOOGLE_API_KEY=<key>`

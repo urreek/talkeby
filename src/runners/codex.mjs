@@ -339,6 +339,7 @@ async function runWithRuntimeApprovals(config) {
       timeoutMs: config.timeoutMs,
       interactiveApprovalPolicy: "untrusted",
       sessionId: config.sessionId || "",
+      persistExtendedHistory: Boolean(config.persistExtendedHistory),
     },
     signal: config.signal,
     onApprovalRequest: config.onRuntimeApproval,

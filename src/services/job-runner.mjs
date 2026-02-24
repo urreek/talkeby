@@ -449,30 +449,40 @@ export class JobRunner {
             }
           }
 
-          const prepared = buildBudgetAwarePrompt({
-            userTask: activeJob.request,
-            bootstrapPrompt,
-            resumeContext,
-            threadContext,
-            remainingBudget: threadRemainingBudget,
-            autoTrimContext: threadAutoTrimContext,
-          });
-          taskText = prepared.prompt;
-          inputTokenEstimate = prepared.estimatedTokens;
-          if (prepared.trimmed) {
-            this.eventBus.publish({
-              jobId: activeJob.id,
-              chatId: activeJob.chatId,
-              eventType: "thread_context_trimmed",
-              message: "Prompt context trimmed to fit thread token budget.",
-              payload: {
-                threadId: activeJob.threadId || null,
-                removed: prepared.removed,
-                estimatedTokens: prepared.estimatedTokens,
-                cannotFit: Boolean(prepared.cannotFit),
-                remainingBudget: threadRemainingBudget,
-              },
+          if (provider === "codex" && this.config.codex?.disableSessionResume) {
+            sessionId = null;
+          }
+          const codexParityMode = provider === "codex" && this.config.codex?.parityMode !== false;
+          if (codexParityMode) {
+            taskText = String(activeJob.request || "");
+            inputTokenEstimate = estimateTokens(taskText);
+            bootstrapShouldApply = false;
+          } else {
+            const prepared = buildBudgetAwarePrompt({
+              userTask: activeJob.request,
+              bootstrapPrompt,
+              resumeContext,
+              threadContext,
+              remainingBudget: threadRemainingBudget,
+              autoTrimContext: threadAutoTrimContext,
             });
+            taskText = prepared.prompt;
+            inputTokenEstimate = prepared.estimatedTokens;
+            if (prepared.trimmed) {
+              this.eventBus.publish({
+                jobId: activeJob.id,
+                chatId: activeJob.chatId,
+                eventType: "thread_context_trimmed",
+                message: "Prompt context trimmed to fit thread token budget.",
+                payload: {
+                  threadId: activeJob.threadId || null,
+                  removed: prepared.removed,
+                  estimatedTokens: prepared.estimatedTokens,
+                  cannotFit: Boolean(prepared.cannotFit),
+                  remainingBudget: threadRemainingBudget,
+                },
+              });
+            }
           }
 
           if (!isFreeModelAllowed({
@@ -496,6 +506,7 @@ export class JobRunner {
                   workdir: activeJob.workdir,
                   threadId: activeJob.threadId || "",
                   sessionId: sessionId || "",
+                  codexParityMode,
                   requestChars: String(activeJob.request || "").length,
                   promptChars: String(taskText || "").length,
                   prompt: String(taskText || ""),
@@ -515,6 +526,7 @@ export class JobRunner {
             timeoutMs: providerConfig.timeoutMs,
             binary: providerConfig.binaries[provider] || provider,
             sessionId,
+            persistExtendedHistory: Boolean(this.config.codex?.persistExtendedHistory),
             signal: abortController.signal,
             onLine: (line) => {
               appendJobOutput(activeJob.id, line);
