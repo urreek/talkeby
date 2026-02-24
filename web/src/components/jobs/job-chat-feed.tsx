@@ -51,6 +51,10 @@ function formatTokenCount(value: number | null | undefined): string {
 }
 
 function tokenUsageLine(job: Job): string {
+  const source = (job.tokenSource || "estimate").toString().toLowerCase();
+  if (source === "provider_unavailable") {
+    return "Tokens unavailable from provider for this run.";
+  }
   const isFinal =
     job.status === "completed"
     || job.status === "failed"
@@ -62,7 +66,6 @@ function tokenUsageLine(job: Job): string {
   const total = formatTokenCount(job.tokenTotal);
   const input = formatTokenCount(job.tokenInput);
   const output = formatTokenCount(job.tokenOutput);
-  const source = (job.tokenSource || "estimate").toString().toLowerCase();
   return `Tokens ${total} (in ${input} / out ${output}, ${source})`;
 }
 

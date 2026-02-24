@@ -381,11 +381,12 @@ export class JobRunner {
         let threadIdForBudget = activeJob.threadId || "";
         let inputTokenEstimate = 0;
         let outputTokenEstimate = 0;
+        let providerForRun = this.state.getProvider();
         const abortController = new AbortController();
         this.abortControllers.set(activeJob.id, abortController);
 
         try {
-          const provider = this.state.getProvider();
+          const provider = providerForRun;
           const providerConfig = this.config.runner;
           const runner = getRunner(provider);
           const model = this.state.getModel() || providerConfig.model;
@@ -579,16 +580,21 @@ export class JobRunner {
           const exactTotal = Number.parseInt(String(result?.usage?.totalTokens || 0), 10);
           const exactInput = Number.parseInt(String(result?.usage?.inputTokens || 0), 10);
           const exactOutput = Number.parseInt(String(result?.usage?.outputTokens || 0), 10);
-          const usageSource = Number.isFinite(exactTotal) && exactTotal > 0 ? "exact" : "estimate";
+          const hasExactUsage = Number.isFinite(exactTotal) && exactTotal > 0;
+          const usageSource = hasExactUsage
+            ? "exact"
+            : (provider === "codex" ? "provider_unavailable" : "estimate");
           const totalTokens = usageSource === "exact"
             ? Math.max(0, exactTotal)
-            : inputTokenEstimate + outputTokenEstimate + estimateTokens(result.message);
+            : (usageSource === "estimate"
+              ? inputTokenEstimate + outputTokenEstimate + estimateTokens(result.message)
+              : 0);
           const inputTokens = usageSource === "exact"
             ? Math.max(0, exactInput)
-            : inputTokenEstimate;
+            : (usageSource === "estimate" ? inputTokenEstimate : null);
           const outputTokens = usageSource === "exact"
             ? Math.max(0, exactOutput)
-            : outputTokenEstimate + estimateTokens(result.message);
+            : (usageSource === "estimate" ? outputTokenEstimate + estimateTokens(result.message) : null);
           if (this.config.debug?.logTokenUsage) {
             console.log(
               `[job:${activeJob.id}] token_usage`,
@@ -606,6 +612,19 @@ export class JobRunner {
                 2,
               ),
             );
+          }
+          if (usageSource === "provider_unavailable") {
+            this.eventBus.publish({
+              jobId: activeJob.id,
+              chatId: activeJob.chatId,
+              eventType: "thread_token_usage",
+              message: "Provider did not return per-job token usage for this run.",
+              payload: {
+                threadId: threadIdForBudget,
+                consumed: null,
+                source: usageSource,
+              },
+            });
           }
           if (threadIdForBudget && totalTokens > 0 && this.repository) {
             const threadAfterUsage = this.repository.addThreadTokenUsage({
@@ -675,18 +694,25 @@ export class JobRunner {
             wasCancelled ? "Run cancelled by user." : `${error.message || "Job failed."}${quotaHint}`,
             3000,
           );
-          const totalEstimate = inputTokenEstimate + outputTokenEstimate + estimateTokens(failureMessage);
+          const provider = providerForRun || this.state.getProvider();
+          const useEstimatedFailureUsage = provider !== "codex";
+          const estimatedFailureOutput = outputTokenEstimate + estimateTokens(failureMessage);
+          const totalEstimate = inputTokenEstimate + estimatedFailureOutput;
+          const failureUsageSource = useEstimatedFailureUsage ? "estimate" : "provider_unavailable";
+          const failureInputTokens = useEstimatedFailureUsage ? inputTokenEstimate : null;
+          const failureOutputTokens = useEstimatedFailureUsage ? estimatedFailureOutput : null;
+          const failureTotalTokens = useEstimatedFailureUsage ? totalEstimate : null;
           if (this.config.debug?.logTokenUsage) {
             console.log(
               `[job:${activeJob.id}] token_usage`,
               JSON.stringify(
                 {
-                  provider: this.state.getProvider(),
+                  provider,
                   model: this.state.getModel() || this.config.runner?.model || "",
-                  source: "estimate",
-                  inputTokens: inputTokenEstimate,
-                  outputTokens: outputTokenEstimate + estimateTokens(failureMessage),
-                  totalTokens: totalEstimate,
+                  source: failureUsageSource,
+                  inputTokens: failureInputTokens,
+                  outputTokens: failureOutputTokens,
+                  totalTokens: failureTotalTokens,
                   usageRaw: null,
                 },
                 null,
@@ -694,7 +720,7 @@ export class JobRunner {
               ),
             );
           }
-          if (threadIdForBudget && totalEstimate > 0 && this.repository) {
+          if (threadIdForBudget && useEstimatedFailureUsage && totalEstimate > 0 && this.repository) {
             const threadAfterUsage = this.repository.addThreadTokenUsage({
               threadId: threadIdForBudget,
               total: totalEstimate,
@@ -721,10 +747,10 @@ export class JobRunner {
             completedAt: failedAt,
             cancelledAt: wasCancelled ? failedAt : null,
             error: failureMessage,
-            tokenSource: "estimate",
-            tokenInput: inputTokenEstimate,
-            tokenOutput: outputTokenEstimate + estimateTokens(failureMessage),
-            tokenTotal: totalEstimate,
+            tokenSource: failureUsageSource,
+            tokenInput: failureInputTokens,
+            tokenOutput: failureOutputTokens,
+            tokenTotal: failureTotalTokens,
             providerCostUsd: null,
           });
           this.eventBus.publish({
