@@ -4,7 +4,10 @@ import path from "node:path";
 
 import { runCodexWithRuntimeApprovals } from "../codex-app-server.mjs";
 import { spawnCompat } from "../lib/spawn-compat.mjs";
-import { extractCodexUsageFromEvent } from "../services/usage-parser.mjs";
+import {
+  extractCodexTotalUsageFromEvent,
+  extractCodexUsageFromEvent,
+} from "../services/usage-parser.mjs";
 
 const CODEX_SESSIONS_DIR = path.join(os.homedir(), ".codex", "sessions");
 
@@ -61,6 +64,40 @@ function extractMeaningfulError(rawOutput) {
 
 function buildPrompt(transcript) {
   return transcript;
+}
+
+function subtractUsageTotals(current, baseline) {
+  if (!current || !baseline) {
+    return null;
+  }
+  const inputTokens = Math.max(0, Number(current.inputTokens || 0) - Number(baseline.inputTokens || 0));
+  const outputTokens = Math.max(0, Number(current.outputTokens || 0) - Number(baseline.outputTokens || 0));
+  const totalTokens = Math.max(0, Number(current.totalTokens || 0) - Number(baseline.totalTokens || 0));
+  const cachedInputTokens = Math.max(
+    0,
+    Number(current.cachedInputTokens || 0) - Number(baseline.cachedInputTokens || 0),
+  );
+  const reasoningOutputTokens = Math.max(
+    0,
+    Number(current.reasoningOutputTokens || 0) - Number(baseline.reasoningOutputTokens || 0),
+  );
+  if (inputTokens <= 0 && outputTokens <= 0 && totalTokens <= 0) {
+    return null;
+  }
+  return {
+    source: "exact",
+    inputTokens,
+    outputTokens,
+    totalTokens: totalTokens || inputTokens + outputTokens,
+    cachedInputTokens,
+    reasoningOutputTokens,
+    costUsd: null,
+    raw: {
+      derivedFrom: "codex_total_delta",
+      baseline: baseline.raw || null,
+      current: current.raw || null,
+    },
+  };
 }
 
 function emitRuntimeEventLines(event, onLine) {
@@ -290,6 +327,8 @@ async function runWithRuntimeApprovals(config) {
   const onLine = config.onLine || null;
   const onRuntimeEvent = config.onRuntimeEvent || null;
   let usage = null;
+  let totalBaseline = null;
+  let totalLatest = null;
 
   const result = await runCodexWithRuntimeApprovals({
     transcript: config.task,
@@ -310,12 +349,26 @@ async function runWithRuntimeApprovals(config) {
         if (parsed && parsed.totalTokens > 0) {
           usage = parsed;
         }
+        const total = extractCodexTotalUsageFromEvent(event);
+        if (total && total.totalTokens > 0) {
+          if (!totalBaseline) {
+            totalBaseline = total;
+          }
+          totalLatest = total;
+        }
       }
       if (typeof onRuntimeEvent === "function") {
         onRuntimeEvent(event);
       }
     },
   });
+
+  if ((!usage || usage.totalTokens <= 0) && totalBaseline && totalLatest) {
+    const derived = subtractUsageTotals(totalLatest, totalBaseline);
+    if (derived && derived.totalTokens > 0) {
+      usage = derived;
+    }
+  }
 
   return {
     message: result.message,

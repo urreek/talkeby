@@ -30,20 +30,37 @@ function usageRecord({
   };
 }
 
+function parseCodexUsageEntry(entry, raw) {
+  const input = toInt(entry?.inputTokens);
+  const output = toInt(entry?.outputTokens);
+  const total = toInt(entry?.totalTokens || input + output);
+  if (input <= 0 && output <= 0 && total <= 0) {
+    return null;
+  }
+  return usageRecord({
+    source: "exact",
+    inputTokens: input,
+    outputTokens: output,
+    totalTokens: total,
+    cachedInputTokens: toInt(entry?.cachedInputTokens),
+    reasoningOutputTokens: toInt(entry?.reasoningOutputTokens),
+    raw,
+  });
+}
+
 export function extractCodexUsageFromEvent(event) {
   if (!event?.tokenUsage) {
     return null;
   }
-  const last = event.tokenUsage.last || event.tokenUsage.total || {};
-  return usageRecord({
-    source: "exact",
-    inputTokens: last.inputTokens,
-    outputTokens: last.outputTokens,
-    totalTokens: last.totalTokens,
-    cachedInputTokens: last.cachedInputTokens,
-    reasoningOutputTokens: last.reasoningOutputTokens,
-    raw: event.tokenUsage,
-  });
+  // Per-job accounting should use "last" (current turn delta), never cumulative "total".
+  return parseCodexUsageEntry(event.tokenUsage.last, event.tokenUsage);
+}
+
+export function extractCodexTotalUsageFromEvent(event) {
+  if (!event?.tokenUsage) {
+    return null;
+  }
+  return parseCodexUsageEntry(event.tokenUsage.total, event.tokenUsage);
 }
 
 export function extractGeminiUsageFromJsonPayload(payload) {
@@ -109,4 +126,3 @@ export function extractClaudeUsageFromJsonPayload(payload) {
     raw: payload,
   });
 }
-
