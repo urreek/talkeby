@@ -484,6 +484,27 @@ export class JobRunner {
             );
           }
 
+          if (this.config.debug?.logPromptPayload) {
+            console.log(
+              `[job:${activeJob.id}] outbound_prompt`,
+              JSON.stringify(
+                {
+                  provider,
+                  model: model || "",
+                  projectName: activeJob.projectName,
+                  workdir: activeJob.workdir,
+                  threadId: activeJob.threadId || "",
+                  sessionId: sessionId || "",
+                  requestChars: String(activeJob.request || "").length,
+                  promptChars: String(taskText || "").length,
+                  prompt: String(taskText || ""),
+                },
+                null,
+                2,
+              ),
+            );
+          }
+
           const result = await runner({
             task: taskText,
             workdir: activeJob.workdir,
@@ -568,6 +589,24 @@ export class JobRunner {
           const outputTokens = usageSource === "exact"
             ? Math.max(0, exactOutput)
             : outputTokenEstimate + estimateTokens(result.message);
+          if (this.config.debug?.logTokenUsage) {
+            console.log(
+              `[job:${activeJob.id}] token_usage`,
+              JSON.stringify(
+                {
+                  provider,
+                  model: model || "",
+                  source: usageSource,
+                  inputTokens,
+                  outputTokens,
+                  totalTokens,
+                  usageRaw: result?.usage || null,
+                },
+                null,
+                2,
+              ),
+            );
+          }
           if (threadIdForBudget && totalTokens > 0 && this.repository) {
             const threadAfterUsage = this.repository.addThreadTokenUsage({
               threadId: threadIdForBudget,
@@ -637,6 +676,24 @@ export class JobRunner {
             3000,
           );
           const totalEstimate = inputTokenEstimate + outputTokenEstimate + estimateTokens(failureMessage);
+          if (this.config.debug?.logTokenUsage) {
+            console.log(
+              `[job:${activeJob.id}] token_usage`,
+              JSON.stringify(
+                {
+                  provider: this.state.getProvider(),
+                  model: this.state.getModel() || this.config.runner?.model || "",
+                  source: "estimate",
+                  inputTokens: inputTokenEstimate,
+                  outputTokens: outputTokenEstimate + estimateTokens(failureMessage),
+                  totalTokens: totalEstimate,
+                  usageRaw: null,
+                },
+                null,
+                2,
+              ),
+            );
+          }
           if (threadIdForBudget && totalEstimate > 0 && this.repository) {
             const threadAfterUsage = this.repository.addThreadTokenUsage({
               threadId: threadIdForBudget,

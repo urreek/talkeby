@@ -296,6 +296,10 @@ export function loadConfig() {
       false,
     ),
   };
+  const debug = {
+    logPromptPayload: parseBoolean(process.env.DEBUG_LOG_PROMPT_PAYLOAD, false),
+    logTokenUsage: parseBoolean(process.env.DEBUG_LOG_TOKEN_USAGE, false),
+  };
 
   return {
     port,
@@ -310,5 +314,6 @@ export function loadConfig() {
     providers,
     security,
     runtimePolicy,
+    debug,
   };
 }

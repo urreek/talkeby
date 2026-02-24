@@ -79,6 +79,8 @@ Optional useful values:
 - `AIDER_BINARY=aider`
 - `FREE_MODELS_ONLY=true`
 - `PROVIDER_MODEL_DISCOVERY=true` (recommended if you want latest discovered models)
+- `DEBUG_LOG_PROMPT_PAYLOAD=true` (logs full outbound prompt payload per job)
+- `DEBUG_LOG_TOKEN_USAGE=true` (logs per-job token usage payload)
 - `APP_ACCESS_KEY=<long-random-secret>`
 - `OWNER_CHAT_ID=<your-telegram-chat-id>` (optional default chat for web when app key is used)
 - `API_RATE_LIMIT_PER_MINUTE=240`
