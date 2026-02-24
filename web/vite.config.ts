@@ -1,4 +1,5 @@
 import fs from "node:fs";
+import net from "node:net";
 import path from "node:path";
 
 import react from "@vitejs/plugin-react";
@@ -25,7 +26,38 @@ function resolveBackendTarget() {
 
 const backendTarget = resolveBackendTarget();
 
-export default defineConfig({
+function checkPortAvailable(port: number, host = "0.0.0.0") {
+  return new Promise<boolean>((resolve) => {
+    const server = net.createServer();
+    server.unref();
+    server.on("error", () => resolve(false));
+    server.listen({ port, host }, () => {
+      server.close(() => resolve(true));
+    });
+  });
+}
+
+async function resolveDevPort(startPort: number) {
+  const first = Number.isFinite(startPort) ? Math.max(1, startPort) : 5173;
+  for (let port = first; port < first + 50; port += 1) {
+    // eslint-disable-next-line no-await-in-loop
+    if (await checkPortAvailable(port)) {
+      return port;
+    }
+  }
+  return first;
+}
+
+export default defineConfig(async () => {
+  const requestedPort = Number.parseInt(process.env.TALKEBY_WEB_PORT || "", 10) || 5173;
+  const resolvedPort = await resolveDevPort(requestedPort);
+  if (resolvedPort !== requestedPort) {
+    console.info(`[talkeby:web] Port ${requestedPort} busy, using ${resolvedPort}.`);
+  } else {
+    console.info(`[talkeby:web] Using port ${resolvedPort}.`);
+  }
+
+  return {
   plugins: [
     react(),
     VitePWA({
@@ -81,7 +113,8 @@ export default defineConfig({
     allowedHosts: [
       "talkeby.urimkrasniqi.com"
     ],
-    port: 5173,
+    port: resolvedPort,
+    strictPort: true,
     proxy: {
       "/api": {
         target: backendTarget,
@@ -89,4 +122,5 @@ export default defineConfig({
       }
     }
   }
+  };
 });
