@@ -52,6 +52,25 @@ async function checkBinary(name) {
   }
 }
 
+function canWriteDirectory(dirPath) {
+  const safeDir = String(dirPath || "").trim();
+  if (!safeDir) {
+    return false;
+  }
+  try {
+    fs.mkdirSync(safeDir, { recursive: true });
+    fs.accessSync(safeDir, fs.constants.W_OK);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+function parseInteger(value, fallback = 0) {
+  const parsed = Number.parseInt(String(value ?? ""), 10);
+  return Number.isFinite(parsed) ? parsed : fallback;
+}
+
 function parseBoolean(value, fallback = true) {
   if (value === undefined || value === null) {
     return fallback;
@@ -259,7 +278,7 @@ export function registerRoutes({
     const activeProvider = state.getProvider();
     const binaries = config.runner?.binaries || {};
 
-    const checks = await Promise.all(
+    const providerChecks = await Promise.all(
       SUPPORTED_PROVIDERS.map(async (provider) => {
         const meta = getProviderMeta(provider);
         const binaryName = binaries[meta?.binaryKey || provider] || provider;
@@ -280,11 +299,117 @@ export function registerRoutes({
       }),
     );
 
-    const active = checks.find((c) => c.active);
+    const checks = [];
+    const addCheck = ({
+      id,
+      ok,
+      severity = "info",
+      message,
+      fix = "",
+    }) => {
+      checks.push({
+        id: String(id || ""),
+        ok: Boolean(ok),
+        severity,
+        message: String(message || ""),
+        fix: fix ? String(fix) : null,
+      });
+    };
+
+    const dbParent = path.dirname(String(config.storage?.databaseFile || ""));
+    const dataDir = String(config.storage?.dataDir || "");
+    const dbParentWritable = canWriteDirectory(dbParent);
+    const dataDirWritable = canWriteDirectory(dataDir);
+    const appAccessKeySet = Boolean(String(config.security?.ownerKey || "").trim());
+    const ownerChatIdSet = Boolean(String(config.security?.ownerChatId || "").trim());
+    const cloudflaredInstalled = await checkBinary("cloudflared");
+    const tunnelTokenSet = Boolean(String(process.env.CLOUDFLARE_TUNNEL_TOKEN || "").trim());
+
+    addCheck({
+      id: "node_version",
+      ok: true,
+      severity: "info",
+      message: `Node ${process.versions.node}`,
+      fix: "",
+    });
+    addCheck({
+      id: "database_dir_writable",
+      ok: dbParentWritable,
+      severity: dbParentWritable ? "info" : "error",
+      message: dbParentWritable
+        ? `Database directory writable: ${dbParent}`
+        : `Database directory not writable: ${dbParent}`,
+      fix: dbParentWritable ? "" : `Create/write access for ${dbParent}`,
+    });
+    addCheck({
+      id: "data_dir_writable",
+      ok: dataDirWritable,
+      severity: dataDirWritable ? "info" : "error",
+      message: dataDirWritable
+        ? `Data directory writable: ${dataDir}`
+        : `Data directory not writable: ${dataDir}`,
+      fix: dataDirWritable ? "" : `Create/write access for ${dataDir}`,
+    });
+    addCheck({
+      id: "app_access_key",
+      ok: appAccessKeySet,
+      severity: appAccessKeySet ? "info" : "warning",
+      message: appAccessKeySet
+        ? "APP_ACCESS_KEY configured."
+        : "APP_ACCESS_KEY missing; public web access is not protected.",
+      fix: appAccessKeySet ? "" : "Set APP_ACCESS_KEY in .env for internet exposure.",
+    });
+    addCheck({
+      id: "owner_chat_id",
+      ok: ownerChatIdSet,
+      severity: ownerChatIdSet ? "info" : "warning",
+      message: ownerChatIdSet
+        ? "OWNER_CHAT_ID configured."
+        : "OWNER_CHAT_ID not set; web clients must supply chatId.",
+      fix: ownerChatIdSet ? "" : "Set OWNER_CHAT_ID in .env for default web identity.",
+    });
+    addCheck({
+      id: "cloudflared_binary",
+      ok: cloudflaredInstalled,
+      severity: cloudflaredInstalled ? "info" : "warning",
+      message: cloudflaredInstalled
+        ? "cloudflared is installed."
+        : "cloudflared is not installed.",
+      fix: cloudflaredInstalled ? "" : "Install cloudflared for internet tunneling.",
+    });
+    addCheck({
+      id: "cloudflare_tunnel_token",
+      ok: tunnelTokenSet,
+      severity: tunnelTokenSet ? "info" : "warning",
+      message: tunnelTokenSet
+        ? "CLOUDFLARE_TUNNEL_TOKEN is set."
+        : "CLOUDFLARE_TUNNEL_TOKEN is not set (ephemeral tunnel mode only).",
+      fix: tunnelTokenSet ? "" : "Set CLOUDFLARE_TUNNEL_TOKEN for stable tunnel URL.",
+    });
+
+    const backendPort = parseInteger(process.env.PORT, 3000);
+    const webPort = parseInteger(process.env.WEB_PORT, 5173);
+    addCheck({
+      id: "ports",
+      ok: backendPort > 0 && webPort > 0,
+      severity: backendPort > 0 && webPort > 0 ? "info" : "error",
+      message: `Configured ports: backend=${backendPort}, web=${webPort}`,
+      fix: backendPort > 0 && webPort > 0 ? "" : "Set valid PORT and WEB_PORT integers in .env.",
+    });
+
+    const active = providerChecks.find((c) => c.active);
+    const failureCount = checks.filter((check) => check.severity === "error" && !check.ok).length;
+    const warningCount = checks.filter((check) => check.severity === "warning" && !check.ok).length;
+
     return {
-      ok: active?.ready ?? false,
+      ok: Boolean(active?.ready) && failureCount === 0,
       activeProvider,
-      providers: checks,
+      providers: providerChecks,
+      summary: {
+        failures: failureCount,
+        warnings: warningCount,
+      },
+      checks,
     };
   });
 

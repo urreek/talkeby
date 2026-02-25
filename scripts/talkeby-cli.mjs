@@ -259,6 +259,79 @@ function checkPortAvailable(port) {
   });
 }
 
+function addUnique(list, value) {
+  const safe = String(value || "").trim();
+  if (!safe) {
+    return;
+  }
+  if (!list.includes(safe)) {
+    list.push(safe);
+  }
+}
+
+function commandForPlatform(commands) {
+  if (!commands || typeof commands !== "object") {
+    return "";
+  }
+  if (commands[process.platform]) {
+    return String(commands[process.platform]);
+  }
+  return String(commands.default || "");
+}
+
+function parseInteger(value, fallback) {
+  const parsed = Number.parseInt(String(value ?? ""), 10);
+  return Number.isFinite(parsed) ? parsed : fallback;
+}
+
+function ensureWritableDirectory(dirPath) {
+  try {
+    fs.mkdirSync(dirPath, { recursive: true });
+    fs.accessSync(dirPath, fs.constants.W_OK);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+function launchdStatus(label) {
+  if (process.platform !== "darwin") {
+    return {
+      supported: false,
+      installed: false,
+      running: false,
+      plistPath: "",
+    };
+  }
+
+  const plistPath = path.join(os.homedir(), "Library", "LaunchAgents", `${label}.plist`);
+  const installed = fs.existsSync(plistPath);
+  if (!installed) {
+    return {
+      supported: true,
+      installed: false,
+      running: false,
+      plistPath,
+    };
+  }
+
+  const uid = typeof process.getuid === "function" ? process.getuid() : "";
+  const target = uid ? `gui/${uid}/${label}` : label;
+  const result = spawnSync("launchctl", ["print", target], {
+    cwd: ROOT_DIR,
+    encoding: "utf8",
+  });
+  const output = `${result.stdout || ""}\n${result.stderr || ""}`;
+  const running = result.status === 0 && /(state\s*=\s*running|pid\s*=)/i.test(output);
+
+  return {
+    supported: true,
+    installed: true,
+    running,
+    plistPath,
+  };
+}
+
 async function checkTelegramToken(token) {
   if (!token) {
     return false;
@@ -280,92 +353,257 @@ async function checkTelegramToken(token) {
 }
 
 async function runDoctor() {
-  printHeader("Talkeby Doctor");
+  printHeader("Talkeby Doctor v2");
   const failures = [];
   const warnings = [];
+  const infos = [];
+  const suggestions = [];
+
+  const addFailure = (message, fix = "") => {
+    addUnique(failures, message);
+    addUnique(suggestions, fix);
+  };
+  const addWarning = (message, fix = "") => {
+    addUnique(warnings, message);
+    addUnique(suggestions, fix);
+  };
+  const addInfo = (message) => {
+    addUnique(infos, message);
+  };
 
   const envExists = fs.existsSync(ENV_PATH);
   if (!envExists) {
-    failures.push(`Missing ${ENV_PATH} (run: npm run setup:guided)`);
+    addFailure(`Missing ${ENV_PATH}.`, "npm run setup:guided");
   }
   const env = envExists ? readEnvFile() : new Map();
 
   if (!nodeVersionOk()) {
-    failures.push(`Node ${process.versions.node} detected; require >=20.19.`);
+    addFailure(
+      `Node ${process.versions.node} detected; require >=20.19.`,
+      commandForPlatform({
+        darwin: "brew install node@22",
+        linux: "nvm install 22 && nvm use 22",
+        win32: "winget install OpenJS.NodeJS.LTS",
+        default: "Install Node.js 22 LTS and retry.",
+      }),
+    );
   }
 
-  const token = env.get("TELEGRAM_BOT_TOKEN") || "";
-  const allowedChats = env.get("TELEGRAM_ALLOWED_CHAT_IDS") || "";
-  const workdir = env.get("CODEX_WORKDIR") || "";
-  const binary = env.get("CODEX_BINARY") || "codex";
-  const databaseFile = env.get("DATABASE_FILE") || "";
-  const port = Number.parseInt(env.get("PORT") || "3000", 10);
+  const token = String(env.get("TELEGRAM_BOT_TOKEN") || "").trim();
+  const allowedChats = String(env.get("TELEGRAM_ALLOWED_CHAT_IDS") || "").trim();
+  const workdir = String(env.get("CODEX_WORKDIR") || "").trim();
+  const projectsBaseDir = String(env.get("CODEX_PROJECTS_BASE_DIR") || path.dirname(ROOT_DIR)).trim();
+  const selectedProvider = String(env.get("AI_PROVIDER") || "codex").trim().toLowerCase();
+  const binaries = {
+    codex: String(env.get("CODEX_BINARY") || "codex").trim(),
+    claude: String(env.get("CLAUDE_BINARY") || "claude").trim(),
+    gemini: String(env.get("GEMINI_BINARY") || "gemini").trim(),
+    groq: String(env.get("AIDER_BINARY") || "aider").trim(),
+    openrouter: String(env.get("AIDER_BINARY") || "aider").trim(),
+  };
+  const dataDir = String(env.get("DATA_DIR") || path.join(ROOT_DIR, "data")).trim();
+  const databaseFile = String(env.get("DATABASE_FILE") || "").trim() || path.join(dataDir, "talkeby.db");
+  const appAccessKey = String(env.get("APP_ACCESS_KEY") || "").trim();
+  const ownerChatId = String(env.get("OWNER_CHAT_ID") || "").trim();
+  const port = parseInteger(env.get("PORT") || "3000", 3000);
+  const webPort = parseInteger(env.get("WEB_PORT") || "5173", 5173);
 
-  if (!isLikelyTelegramToken(token)) {
-    failures.push("TELEGRAM_BOT_TOKEN is missing or invalid format.");
+  if (!token) {
+    addWarning(
+      "TELEGRAM_BOT_TOKEN is missing. Telegram control is disabled.",
+      "Set TELEGRAM_BOT_TOKEN in .env and rerun doctor.",
+    );
+  } else if (!isLikelyTelegramToken(token)) {
+    addFailure(
+      "TELEGRAM_BOT_TOKEN has invalid format.",
+      "Update TELEGRAM_BOT_TOKEN in .env with a valid BotFather token.",
+    );
   }
-  if (!allowedChats.trim()) {
-    failures.push("TELEGRAM_ALLOWED_CHAT_IDS is missing.");
+  if (!allowedChats) {
+    addWarning(
+      "TELEGRAM_ALLOWED_CHAT_IDS is missing.",
+      "Set TELEGRAM_ALLOWED_CHAT_IDS=<your_chat_id> in .env.",
+    );
+  }
+
+  const providerRequirements = [
+    { id: "codex", binary: binaries.codex, binaryEnv: "CODEX_BINARY", apiEnv: "", builtInAuth: true },
+    { id: "claude", binary: binaries.claude, binaryEnv: "CLAUDE_BINARY", apiEnv: "ANTHROPIC_API_KEY", builtInAuth: false },
+    { id: "gemini", binary: binaries.gemini, binaryEnv: "GEMINI_BINARY", apiEnv: "GOOGLE_API_KEY", builtInAuth: false },
+    { id: "groq", binary: binaries.groq, binaryEnv: "AIDER_BINARY", apiEnv: "GROQ_API_KEY", builtInAuth: false },
+    { id: "openrouter", binary: binaries.openrouter, binaryEnv: "AIDER_BINARY", apiEnv: "OPENROUTER_API_KEY", builtInAuth: false },
+  ];
+
+  for (const requirement of providerRequirements) {
+    const isSelected = selectedProvider === requirement.id;
+    const binarySetting = requirement.binary || requirement.id;
+    const binaryResolved = (
+      binarySetting.includes("/")
+      || binarySetting.includes("\\")
+      || path.isAbsolute(binarySetting)
+    )
+      ? (fs.existsSync(binarySetting) ? binarySetting : "")
+      : which(binarySetting);
+
+    if (!binaryResolved) {
+      const message = `${requirement.id}: CLI binary not found (${binarySetting}).`;
+      const fix = `Set ${requirement.binaryEnv} to a valid executable path in .env.`;
+      if (isSelected) {
+        addFailure(message, fix);
+      } else {
+        addWarning(message, fix);
+      }
+      continue;
+    }
+
+    if (!requirement.builtInAuth && requirement.apiEnv && !String(env.get(requirement.apiEnv) || "").trim()) {
+      const message = `${requirement.id}: missing ${requirement.apiEnv}.`;
+      const fix = `Set ${requirement.apiEnv}=<key> in .env for ${requirement.id}.`;
+      if (isSelected) {
+        addFailure(message, fix);
+      } else {
+        addWarning(message, fix);
+      }
+    }
   }
 
   if (!workdir) {
-    failures.push("CODEX_WORKDIR is missing.");
+    addFailure("CODEX_WORKDIR is missing.", "Set CODEX_WORKDIR=/absolute/path/to/project in .env.");
   } else if (!fs.existsSync(workdir) || !fs.statSync(workdir).isDirectory()) {
-    failures.push(`CODEX_WORKDIR does not exist or is not a directory: ${workdir}`);
+    addFailure(
+      `CODEX_WORKDIR does not exist or is not a directory: ${workdir}`,
+      "Update CODEX_WORKDIR in .env to an existing project folder.",
+    );
   }
 
-  const resolvedBinary = (
-    binary.includes("/")
-    || binary.includes("\\")
-    || path.isAbsolute(binary)
-  )
-    ? binary
-    : which(binary);
-  if (!resolvedBinary) {
-    failures.push(`Codex binary not found: ${binary}`);
+  if (!projectsBaseDir || !fs.existsSync(projectsBaseDir) || !fs.statSync(projectsBaseDir).isDirectory()) {
+    addWarning(
+      `CODEX_PROJECTS_BASE_DIR does not exist or is not a directory: ${projectsBaseDir}`,
+      "Set CODEX_PROJECTS_BASE_DIR to an existing folder containing your projects.",
+    );
   }
 
-  if (databaseFile) {
-    const parent = path.dirname(databaseFile);
-    try {
-      fs.mkdirSync(parent, { recursive: true });
-      fs.accessSync(parent, fs.constants.W_OK);
-    } catch {
-      failures.push(`Database directory is not writable: ${parent}`);
-    }
-  } else {
-    warnings.push("DATABASE_FILE not set; default location will be used.");
+  if (!ensureWritableDirectory(path.dirname(databaseFile))) {
+    addFailure(
+      `Database directory is not writable: ${path.dirname(databaseFile)}`,
+      commandForPlatform({
+        win32: `mkdir "${path.dirname(databaseFile)}"`,
+        default: `mkdir -p "${path.dirname(databaseFile)}"`,
+      }),
+    );
+  }
+  if (!ensureWritableDirectory(dataDir)) {
+    addFailure(
+      `DATA_DIR is not writable: ${dataDir}`,
+      commandForPlatform({
+        win32: `mkdir "${dataDir}"`,
+        default: `mkdir -p "${dataDir}"`,
+      }),
+    );
   }
 
   if (Number.isFinite(port) && port > 0) {
     const available = await checkPortAvailable(port);
     if (!available) {
-      failures.push(`PORT ${port} is already in use.`);
+      addWarning(
+        `PORT ${port} is already in use.`,
+        commandForPlatform({
+          win32: `netstat -ano | findstr :${port}`,
+          default: `lsof -i :${port}`,
+        }),
+      );
     }
   } else {
-    failures.push("PORT is invalid.");
+    addFailure("PORT is invalid.", "Set PORT to a valid integer in .env (example: PORT=3000).");
+  }
+
+  if (Number.isFinite(webPort) && webPort > 0) {
+    const webAvailable = await checkPortAvailable(webPort);
+    if (!webAvailable) {
+      addWarning(
+        `WEB_PORT ${webPort} is already in use.`,
+        commandForPlatform({
+          win32: `netstat -ano | findstr :${webPort}`,
+          default: `lsof -i :${webPort}`,
+        }),
+      );
+    }
+  } else {
+    addFailure("WEB_PORT is invalid.", "Set WEB_PORT to a valid integer in .env (example: WEB_PORT=5173).");
   }
 
   if (!fs.existsSync(path.join(ROOT_DIR, "node_modules"))) {
-    failures.push("Root dependencies missing (run: npm install)");
+    addFailure("Root dependencies missing.", "npm install");
   }
   if (!fs.existsSync(path.join(ROOT_DIR, "web", "node_modules"))) {
-    failures.push("Web dependencies missing (run: npm run web:install)");
+    addFailure("Web dependencies missing.", "npm run web:install");
   }
 
   if (token && isLikelyTelegramToken(token)) {
     const telegramOk = await checkTelegramToken(token);
     if (!telegramOk) {
-      failures.push("Telegram token validation failed (check TELEGRAM_BOT_TOKEN and internet access).");
+      addWarning(
+        "Telegram token validation failed (token invalid or no internet access).",
+        "Verify TELEGRAM_BOT_TOKEN and retry when internet is available.",
+      );
     }
+  }
+
+  if (!appAccessKey) {
+    addWarning(
+      "APP_ACCESS_KEY is missing. Public web exposure is not protected.",
+      "Set APP_ACCESS_KEY=<long-random-secret> in .env.",
+    );
+  }
+  if (!ownerChatId) {
+    addInfo("OWNER_CHAT_ID not set. Web clients must provide chatId explicitly.");
+  }
+
+  const cloudflaredBinary = which("cloudflared");
+  const cloudflareToken = String(env.get("CLOUDFLARE_TUNNEL_TOKEN") || process.env.CLOUDFLARE_TUNNEL_TOKEN || "").trim();
+  if (!cloudflaredBinary) {
+    addWarning(
+      "cloudflared binary not found (internet tunnel helper unavailable).",
+      commandForPlatform({
+        darwin: "brew install cloudflared",
+        linux: "Install cloudflared from https://developers.cloudflare.com/cloudflare-one/connections/connect-networks/downloads/",
+        win32: "winget install Cloudflare.cloudflared",
+        default: "Install cloudflared and rerun doctor.",
+      }),
+    );
+  } else if (!cloudflareToken) {
+    addInfo("CLOUDFLARE_TUNNEL_TOKEN not set. Tunnel helper will use temporary trycloudflare URL.");
+  }
+
+  const workerService = launchdStatus("com.talkeby.worker");
+  const webService = launchdStatus("com.talkeby.web");
+  if (workerService.supported) {
+    if (!workerService.installed) {
+      addWarning("launchd worker service is not installed.", "npm run launchd:install");
+    } else if (!workerService.running) {
+      addWarning("launchd worker service is installed but not running.", "launchctl kickstart -k gui/$(id -u)/com.talkeby.worker");
+    }
+    if (!webService.installed) {
+      addWarning("launchd web service is not installed.", "npm run launchd:web:install");
+    } else if (!webService.running) {
+      addWarning("launchd web service is installed but not running.", "launchctl kickstart -k gui/$(id -u)/com.talkeby.web");
+    }
+  } else {
+    addInfo("Background service checks are currently available only on macOS launchd.");
   }
 
   // eslint-disable-next-line no-console
   console.log(`Node version: ${process.versions.node}`);
   // eslint-disable-next-line no-console
+  console.log(`Platform: ${process.platform} ${os.release()}`);
+  // eslint-disable-next-line no-console
   console.log(`Env file: ${envExists ? "OK" : "MISSING"}`);
   // eslint-disable-next-line no-console
-  console.log(`Codex binary: ${resolvedBinary || "NOT FOUND"}`);
+  console.log(`Provider: ${selectedProvider}`);
+  // eslint-disable-next-line no-console
+  console.log(`Database: ${databaseFile}`);
+  // eslint-disable-next-line no-console
+  console.log(`Ports: backend=${port} web=${webPort}`);
 
   if (warnings.length > 0) {
     printHeader("Warnings");
@@ -375,19 +613,38 @@ async function runDoctor() {
     }
   }
 
+  if (infos.length > 0) {
+    printHeader("Info");
+    for (const info of infos) {
+      // eslint-disable-next-line no-console
+      console.log(`- ${info}`);
+    }
+  }
+
+  if (suggestions.length > 0) {
+    printHeader("Suggested Fixes");
+    for (const suggestion of suggestions) {
+      // eslint-disable-next-line no-console
+      console.log(`- ${suggestion}`);
+    }
+  }
+
   if (failures.length > 0) {
     printHeader("Failures");
     for (const failure of failures) {
       // eslint-disable-next-line no-console
       console.log(`- ${failure}`);
     }
+    printHeader("Doctor Failed");
+    // eslint-disable-next-line no-console
+    console.log(`Failures: ${failures.length}, Warnings: ${warnings.length}`);
     process.exitCode = 1;
     return;
   }
 
   printHeader("Doctor Passed");
   // eslint-disable-next-line no-console
-  console.log("Environment looks healthy.");
+  console.log(`Environment looks healthy. Warnings: ${warnings.length}`);
 }
 
 async function main() {

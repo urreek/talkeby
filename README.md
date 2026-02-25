@@ -14,6 +14,7 @@ Talkeby runs on your machine, accepts tasks from Telegram and the mobile web app
 - Local-first storage with SQLite
 - Multi-project routing
 - Observability dashboard (success rate, duration, queue, approvals)
+- Per-job Context Inspector (shows outbound prompt sections and token estimates)
 
 ## Tech Stack
 
@@ -226,6 +227,16 @@ Run full local diagnostics:
 ```bash
 npm run doctor
 ```
+
+`doctor` now validates:
+- provider binaries + API keys
+- database/data directory write access
+- backend/web port configuration
+- cloudflared + tunnel token setup
+- launchd background service state on macOS
+- app access key / owner chat defaults
+
+and prints copy-paste fix commands for your OS.
 
 Run secret scan before committing:
 
