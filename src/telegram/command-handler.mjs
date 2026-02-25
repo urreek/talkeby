@@ -268,6 +268,7 @@ export async function handleTextMessage({
     state,
     eventBus,
     jobRunner,
+    config,
     chatId,
     task: command.task,
   });

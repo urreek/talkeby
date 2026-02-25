@@ -1,4 +1,5 @@
 import crypto from "node:crypto";
+import { resolveAgentProfile } from "./agent-profile.mjs";
 
 function nextQueuePosition(state, jobRunner) {
   return state.countQueuedJobs() + (jobRunner.getRunningJobId() ? 1 : 0) + 1;
@@ -35,6 +36,7 @@ export function createJobFromTask({
   state,
   eventBus,
   jobRunner,
+  config,
   chatId,
   task,
   projectName = "",
@@ -54,6 +56,13 @@ export function createJobFromTask({
   }
 
   const activeProject = state.getProjectForChat(chatId);
+  const resolvedThreadId = resolveOrCreateThreadIdForChat({
+    state,
+    config,
+    chatId,
+    projectName: activeProject.name,
+    requestedThreadId: threadId,
+  });
   const executionMode = state.getExecutionModeForChat(chatId);
   const queuePosition = nextQueuePosition(state, jobRunner);
   const now = new Date().toISOString();
@@ -61,7 +70,7 @@ export function createJobFromTask({
   const job = state.createJob({
     id: crypto.randomUUID().slice(0, 8),
     chatId,
-    threadId: threadId || null,
+    threadId: resolvedThreadId || null,
     request: normalizedTask,
     projectName: activeProject.name,
     workdir: activeProject.workdir,
@@ -71,15 +80,15 @@ export function createJobFromTask({
   });
 
   // Auto-title thread from first message
-  if (threadId) {
+  if (resolvedThreadId) {
     try {
-      const thread = state.repository.getThread(threadId);
+      const thread = state.repository.getThread(resolvedThreadId);
       if (thread && String(thread.title || "").trim().toLowerCase() === "new thread") {
         const title =
           normalizedTask.length > 15
             ? normalizedTask.slice(0, 15) + "…"
             : normalizedTask;
-        state.repository.updateThread(threadId, { title });
+        state.repository.updateThread(resolvedThreadId, { title });
       }
     } catch {
       // non-critical
@@ -120,6 +129,57 @@ export function createJobFromTask({
     queued: true,
     queuePosition,
   };
+}
+
+function defaultThreadSettingKey(chatId, projectName) {
+  return `chat_default_thread:${String(chatId)}:${String(projectName)}`;
+}
+
+function resolveOrCreateThreadIdForChat({
+  state,
+  config,
+  chatId,
+  projectName,
+  requestedThreadId,
+}) {
+  const requested = String(requestedThreadId || "").trim();
+  if (requested) {
+    return requested;
+  }
+  const safeProjectName = String(projectName || "").trim();
+  if (!safeProjectName) {
+    return "";
+  }
+
+  const settingKey = defaultThreadSettingKey(chatId, safeProjectName);
+  const current = state.repository.getAppSetting(settingKey);
+  const existingThreadId = String(current?.value || "").trim();
+  if (existingThreadId) {
+    const thread = state.repository.getThread(existingThreadId);
+    if (thread && String(thread.projectName || "").trim() === safeProjectName) {
+      return existingThreadId;
+    }
+  }
+
+  const bootstrapPrompt = resolveAgentProfile(state.repository.getAgentProfile());
+  const created = state.repository.createThread({
+    id: `thr_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
+    projectName: safeProjectName,
+    title: "New thread",
+    bootstrapPrompt,
+    tokenBudget: config?.threads?.defaultTokenBudget ?? 12000,
+    autoTrimContext: config?.threads?.autoTrimContextDefault !== false,
+  });
+  const threadId = String(created?.id || "").trim();
+  if (!threadId) {
+    return "";
+  }
+
+  state.repository.setAppSetting({
+    key: settingKey,
+    value: threadId,
+  });
+  return threadId;
 }
 
 export function approveJob({
@@ -214,6 +274,7 @@ export function retryJob({
   state,
   eventBus,
   jobRunner,
+  config,
   chatId,
   jobId,
 }) {
@@ -231,6 +292,7 @@ export function retryJob({
     state,
     eventBus,
     jobRunner,
+    config,
     chatId,
     task: original.request,
     projectName: original.projectName,
@@ -242,6 +304,7 @@ export function resumeJobFromError({
   state,
   eventBus,
   jobRunner,
+  config,
   chatId,
   jobId,
 }) {
@@ -259,6 +322,7 @@ export function resumeJobFromError({
     state,
     eventBus,
     jobRunner,
+    config,
     chatId,
     task,
     projectName: original.projectName,

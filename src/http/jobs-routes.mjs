@@ -86,6 +86,7 @@ export function registerJobRoutes({
       state,
       eventBus,
       jobRunner,
+      config,
       chatId,
       task,
       projectName,
@@ -213,6 +214,7 @@ export function registerJobRoutes({
       state,
       eventBus,
       jobRunner,
+      config,
       chatId,
       jobId: request.params.id,
     });
@@ -246,6 +248,7 @@ export function registerJobRoutes({
       state,
       eventBus,
       jobRunner,
+      config,
       chatId,
       jobId: request.params.id,
     });

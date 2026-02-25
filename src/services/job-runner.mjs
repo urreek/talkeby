@@ -392,6 +392,7 @@ export class JobRunner {
           const model = this.state.getModel() || providerConfig.model;
           const reasoningEffort = this.state.getReasoningEffort();
           const planMode = this.state.getPlanMode();
+          const codexParityMode = provider === "codex" && this.config.codex?.parityMode !== false;
 
           // Look up thread's CLI session ID for continuity (all providers)
           let sessionId = null;
@@ -416,7 +417,14 @@ export class JobRunner {
               threadTokenBudget = tokenBudget;
               const tokenUsed = toNonNegativeInt(thread?.tokenUsed, 0);
               threadRemainingBudget = Math.max(0, tokenBudget - tokenUsed);
-              if (threadAutoTrimContext && tokenBudget > 0 && threadRemainingBudget <= 0 && sessionId) {
+              // In codex parity mode, preserve runtime session continuity and only trim injected context.
+              if (
+                threadAutoTrimContext
+                && tokenBudget > 0
+                && threadRemainingBudget <= 0
+                && sessionId
+                && !codexParityMode
+              ) {
                 sessionId = null;
                 this.eventBus.publish({
                   jobId: activeJob.id,
@@ -454,7 +462,6 @@ export class JobRunner {
           if (provider === "codex" && this.config.codex?.disableSessionResume) {
             sessionId = null;
           }
-          const codexParityMode = provider === "codex" && this.config.codex?.parityMode !== false;
           if (codexParityMode) {
             taskText = String(activeJob.request || "");
             inputTokenEstimate = estimateTokens(taskText);
