@@ -40,3 +40,8 @@ data/*.sqlite-wal
 .vscode/
 .cursor/
 .DS_Store
+
+# Local codex diagnostics
+.codex_tmp/
+codex-*.json
+codex-*.log
