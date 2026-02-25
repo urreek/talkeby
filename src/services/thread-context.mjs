@@ -48,6 +48,34 @@ function serializeTurns(turns) {
   return lines.join("\n");
 }
 
+function extractLatestUserFacts(turns) {
+  let declaredName = "";
+
+  for (const turn of turns) {
+    const user = String(turn?.user || "");
+    const match = user.match(/\bmy name is\s+([a-zA-Z][a-zA-Z0-9_\- ]{0,40})\b/i);
+    if (match && match[1]) {
+      declaredName = match[1].trim();
+    }
+  }
+
+  return {
+    name: declaredName,
+  };
+}
+
+function serializeFacts(facts) {
+  const name = String(facts?.name || "").trim();
+  if (!name) {
+    return "";
+  }
+  return [
+    "Remembered user facts from this thread:",
+    `- Name: ${name}`,
+    "If asked about the user's name, use this value unless the user updates it.",
+  ].join("\n");
+}
+
 export function buildThreadHistoryContext({
   repository,
   threadId,
@@ -83,7 +111,10 @@ export function buildThreadHistoryContext({
   }
 
   const latestTurns = turns.slice(-safeMaxTurns);
-  const full = serializeTurns(latestTurns);
+  const facts = extractLatestUserFacts(latestTurns);
+  const factsBlock = serializeFacts(facts);
+  const turnsBlock = serializeTurns(latestTurns);
+  const full = factsBlock ? `${factsBlock}\n\n${turnsBlock}` : turnsBlock;
   if (full.length <= safeMaxChars) {
     return full;
   }
