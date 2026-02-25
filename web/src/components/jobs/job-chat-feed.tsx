@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import Markdown from "react-markdown";
 
 import { Button } from "@/components/ui/button";
+import { JobContextInspector } from "@/components/jobs/job-context-inspector";
 import type { Job } from "@/lib/types";
 import {
   isSoundsEnabled,
@@ -248,6 +249,7 @@ function TimelineConnector({ duration }: { duration: string }) {
 }
 
 type JobChatFeedProps = {
+  chatId: string;
   jobs: Job[];
   approvingJobId?: string;
   denyingJobId?: string;
@@ -260,6 +262,7 @@ type JobChatFeedProps = {
 };
 
 export function JobChatFeed({
+  chatId,
   jobs,
   approvingJobId,
   denyingJobId,
@@ -442,6 +445,7 @@ export function JobChatFeed({
                 <p className="mt-2 text-[11px] text-muted-foreground">
                   {tokenUsageLine(job)}
                 </p>
+                <JobContextInspector chatId={chatId} jobId={job.id} />
 
                 {/* Inline approve/deny for pending jobs */}
                 {job.status === "pending_approval" && onApprove && onDeny && (

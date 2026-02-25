@@ -55,6 +55,43 @@ export interface Job {
   error: string | null;
 }
 
+export interface ContextInspectorSection {
+  id: string;
+  label: string;
+  removed: boolean;
+  included: boolean;
+  chars: number;
+  estimatedTokens: number;
+  preview: string;
+}
+
+export interface JobContextInspector {
+  provider: string;
+  model: string;
+  reasoningEffort: string;
+  planMode: boolean;
+  parityMode: boolean;
+  threadId: string;
+  sessionId: string;
+  tokenBudget: number;
+  remainingBudget: number;
+  autoTrimContext: boolean;
+  trimmed: boolean;
+  cannotFit: boolean;
+  removedSections: string[];
+  promptChars: number;
+  promptEstimatedTokens: number;
+  promptPreview: string;
+  sections: ContextInspectorSection[];
+}
+
+export interface JobContextResponse {
+  jobId: string;
+  eventId: number | null;
+  createdAt: string | null;
+  context: JobContextInspector | null;
+}
+
 export interface JobEvent {
   id: number;
   jobId: string;
@@ -141,6 +178,17 @@ export interface DoctorResponse {
   ok: boolean;
   activeProvider: AIProvider;
   providers: ProviderHealthCheck[];
+  summary?: {
+    failures: number;
+    warnings: number;
+  };
+  checks?: Array<{
+    id: string;
+    ok: boolean;
+    severity: "error" | "warning" | "info";
+    message: string;
+    fix?: string | null;
+  }>;
 }
 
 export interface AccessStatusResponse {

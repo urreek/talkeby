@@ -4,6 +4,7 @@ import type {
   DoctorResponse,
   ExecutionMode,
   Job,
+  JobContextResponse,
   JobEvent,
   ImportProjectsResponse,
   ModeResponse,
@@ -367,6 +368,12 @@ export async function fetchJob(id: string, chatId: string) {
 export async function fetchJobEvents(jobId: string, chatId: string, limit = 250) {
   return requestJson<JobEvent[]>(
     `/api/jobs/${encodeURIComponent(jobId)}/events?chatId=${encodeURIComponent(chatId)}&limit=${limit}`
+  );
+}
+
+export async function fetchJobContext(jobId: string, chatId: string) {
+  return requestJson<JobContextResponse>(
+    `/api/jobs/${encodeURIComponent(jobId)}/context?chatId=${encodeURIComponent(chatId)}`
   );
 }
 

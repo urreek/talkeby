@@ -139,6 +139,48 @@ export function registerJobRoutes({
     });
   });
 
+  app.get("/api/jobs/:id/context", async (request, reply) => {
+    const chatId = textValue(request.query?.chatId || "");
+    if (!chatId) {
+      reply.code(400);
+      return { error: "chatId is required." };
+    }
+    if (!isAuthorizedChat(config, chatId)) {
+      reply.code(403);
+      return { error: "Chat is not authorized." };
+    }
+
+    const job = state.getJobById(request.params.id);
+    if (!job) {
+      reply.code(404);
+      return { error: "Job not found" };
+    }
+    if (String(job.chatId) !== chatId) {
+      reply.code(403);
+      return { error: "Job does not belong to this chat." };
+    }
+
+    const events = repository.listEventsForJob({
+      jobId: request.params.id,
+      limit: 500,
+    });
+    let contextEvent = null;
+    for (let index = events.length - 1; index >= 0; index -= 1) {
+      const event = events[index];
+      if (String(event.eventType || "") === "job_context_prepared") {
+        contextEvent = event;
+        break;
+      }
+    }
+
+    return {
+      jobId: request.params.id,
+      eventId: contextEvent?.id ?? null,
+      createdAt: contextEvent?.createdAt ?? null,
+      context: contextEvent?.payload ?? null,
+    };
+  });
+
   app.post("/api/jobs/:id/approve", async (request, reply) => {
     const chatId = textValue(request.body?.chatId || "");
     if (!chatId) {

@@ -5,6 +5,7 @@ import { isFreeModelAllowed } from "../providers/catalog.mjs";
 import { estimateTokens } from "./token-budget.mjs";
 import { buildBudgetAwarePrompt } from "./prompt-trim.mjs";
 import { buildThreadHistoryContext } from "./thread-context.mjs";
+import { buildContextInspectorPayload } from "./context-inspector.mjs";
 import {
   evaluateRuntimeApprovalRequest,
 } from "./runtime-policy.mjs";
@@ -404,6 +405,9 @@ export class JobRunner {
           let bootstrapShouldApply = false;
           let resumeContext = "";
           let threadContext = "";
+          let promptTrimmed = false;
+          let promptRemovedSections = [];
+          let promptCannotFit = false;
 
           if (activeJob.threadId && this.repository) {
             try {
@@ -462,62 +466,67 @@ export class JobRunner {
           if (provider === "codex" && this.config.codex?.disableSessionResume) {
             sessionId = null;
           }
+          const effectiveBootstrapPrompt = codexParityMode ? "" : bootstrapPrompt;
+          const prepared = buildBudgetAwarePrompt({
+            userTask: activeJob.request,
+            bootstrapPrompt: effectiveBootstrapPrompt,
+            resumeContext,
+            threadContext,
+            remainingBudget: threadRemainingBudget,
+            budgetEnabled: threadTokenBudget > 0,
+            autoTrimContext: threadAutoTrimContext,
+          });
+          taskText = prepared.prompt;
+          inputTokenEstimate = prepared.estimatedTokens;
+          promptTrimmed = Boolean(prepared.trimmed);
+          promptRemovedSections = Array.isArray(prepared.removed) ? prepared.removed : [];
+          promptCannotFit = Boolean(prepared.cannotFit);
           if (codexParityMode) {
-            const prepared = buildBudgetAwarePrompt({
-              userTask: activeJob.request,
-              bootstrapPrompt: "",
-              resumeContext,
-              threadContext,
-              remainingBudget: threadRemainingBudget,
-              budgetEnabled: threadTokenBudget > 0,
-              autoTrimContext: threadAutoTrimContext,
-            });
-            taskText = prepared.prompt;
-            inputTokenEstimate = prepared.estimatedTokens;
             bootstrapShouldApply = false;
-            if (prepared.trimmed) {
-              this.eventBus.publish({
-                jobId: activeJob.id,
-                chatId: activeJob.chatId,
-                eventType: "thread_context_trimmed",
-                message: "Prompt context trimmed to fit thread token budget.",
-                payload: {
-                  threadId: activeJob.threadId || null,
-                  removed: prepared.removed,
-                  estimatedTokens: prepared.estimatedTokens,
-                  cannotFit: Boolean(prepared.cannotFit),
-                  remainingBudget: threadRemainingBudget,
-                },
-              });
-            }
-          } else {
-            const prepared = buildBudgetAwarePrompt({
-              userTask: activeJob.request,
-              bootstrapPrompt,
-              resumeContext,
-              threadContext,
-              remainingBudget: threadRemainingBudget,
-              budgetEnabled: threadTokenBudget > 0,
-              autoTrimContext: threadAutoTrimContext,
-            });
-            taskText = prepared.prompt;
-            inputTokenEstimate = prepared.estimatedTokens;
-            if (prepared.trimmed) {
-              this.eventBus.publish({
-                jobId: activeJob.id,
-                chatId: activeJob.chatId,
-                eventType: "thread_context_trimmed",
-                message: "Prompt context trimmed to fit thread token budget.",
-                payload: {
-                  threadId: activeJob.threadId || null,
-                  removed: prepared.removed,
-                  estimatedTokens: prepared.estimatedTokens,
-                  cannotFit: Boolean(prepared.cannotFit),
-                  remainingBudget: threadRemainingBudget,
-                },
-              });
-            }
           }
+          if (prepared.trimmed) {
+            this.eventBus.publish({
+              jobId: activeJob.id,
+              chatId: activeJob.chatId,
+              eventType: "thread_context_trimmed",
+              message: "Prompt context trimmed to fit thread token budget.",
+              payload: {
+                threadId: activeJob.threadId || null,
+                removed: prepared.removed,
+                estimatedTokens: prepared.estimatedTokens,
+                cannotFit: Boolean(prepared.cannotFit),
+                remainingBudget: threadRemainingBudget,
+              },
+            });
+          }
+
+          const contextPayload = buildContextInspectorPayload({
+            provider,
+            model,
+            reasoningEffort,
+            planMode,
+            parityMode: codexParityMode,
+            threadId: activeJob.threadId || "",
+            sessionId: sessionId || "",
+            tokenBudget: threadTokenBudget,
+            remainingBudget: threadRemainingBudget,
+            autoTrimContext: threadAutoTrimContext,
+            userTask: activeJob.request,
+            bootstrapPrompt: effectiveBootstrapPrompt,
+            resumeContext,
+            threadContext,
+            finalPrompt: taskText,
+            removedSections: promptRemovedSections,
+            trimmed: promptTrimmed,
+            cannotFit: promptCannotFit,
+          });
+          this.eventBus.publish({
+            jobId: activeJob.id,
+            chatId: activeJob.chatId,
+            eventType: "job_context_prepared",
+            message: "Execution context prepared.",
+            payload: contextPayload,
+          });
 
           if (!isFreeModelAllowed({
             providerName: provider,

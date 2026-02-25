@@ -343,6 +343,7 @@ function JobsScreen() {
             </CardHeader>
             <CardContent>
               <JobChatFeed
+                chatId={chatId}
                 jobs={threadJobs}
                 approvingJobId={approveMutation.variables ?? ""}
                 denyingJobId={denyMutation.variables ?? ""}
