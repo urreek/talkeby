@@ -74,7 +74,7 @@ export function createJobFromTask({
   if (threadId) {
     try {
       const thread = state.repository.getThread(threadId);
-      if (thread && thread.title === "New thread") {
+      if (thread && String(thread.title || "").trim().toLowerCase() === "new thread") {
         const title =
           normalizedTask.length > 15
             ? normalizedTask.slice(0, 15) + "…"

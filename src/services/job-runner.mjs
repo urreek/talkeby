@@ -318,7 +318,7 @@ export class JobRunner {
         if (activeJob.threadId && this.repository) {
           try {
             const thread = this.repository.getThread(activeJob.threadId);
-            if (thread && thread.title === "New Thread") {
+            if (thread && String(thread.title || "").trim().toLowerCase() === "new thread") {
               const title = truncate(activeJob.request, 60);
               this.repository.updateThread(activeJob.threadId, { title });
             }
@@ -397,6 +397,7 @@ export class JobRunner {
           let sessionId = null;
           let taskText = activeJob.request;
           let threadAutoTrimContext = this.config.threads?.autoTrimContextDefault !== false;
+          let threadTokenBudget = toNonNegativeInt(this.config.threads?.defaultTokenBudget, 0);
           let threadRemainingBudget = 0;
           let bootstrapPrompt = "";
           let bootstrapShouldApply = false;
@@ -412,6 +413,7 @@ export class JobRunner {
                 thread?.tokenBudget,
                 toNonNegativeInt(this.config.threads?.defaultTokenBudget, 0),
               );
+              threadTokenBudget = tokenBudget;
               const tokenUsed = toNonNegativeInt(thread?.tokenUsed, 0);
               threadRemainingBudget = Math.max(0, tokenBudget - tokenUsed);
               if (threadAutoTrimContext && tokenBudget > 0 && threadRemainingBudget <= 0 && sessionId) {
@@ -464,6 +466,7 @@ export class JobRunner {
               resumeContext,
               threadContext,
               remainingBudget: threadRemainingBudget,
+              budgetEnabled: threadTokenBudget > 0,
               autoTrimContext: threadAutoTrimContext,
             });
             taskText = prepared.prompt;

@@ -326,7 +326,9 @@ function buildFreshArgs({ config, outputPath, prompt }) {
 async function runWithRuntimeApprovals(config) {
   const onLine = config.onLine || null;
   const onRuntimeEvent = config.onRuntimeEvent || null;
-  let usage = null;
+  let latestUsageAny = null;
+  const usageByTurn = new Map();
+  const totalsByTurn = new Map();
   let totalBaseline = null;
   let totalLatest = null;
 
@@ -346,9 +348,13 @@ async function runWithRuntimeApprovals(config) {
     onEvent: (event) => {
       emitRuntimeEventLines(event, onLine);
       if (event?.type === "thread_token_usage_updated") {
+        const turnId = String(event.turnId || "").trim();
         const parsed = extractCodexUsageFromEvent(event);
         if (parsed && parsed.totalTokens > 0) {
-          usage = parsed;
+          latestUsageAny = parsed;
+          if (turnId) {
+            usageByTurn.set(turnId, parsed);
+          }
         }
         const total = extractCodexTotalUsageFromEvent(event);
         if (total && total.totalTokens > 0) {
@@ -356,6 +362,14 @@ async function runWithRuntimeApprovals(config) {
             totalBaseline = total;
           }
           totalLatest = total;
+          if (turnId) {
+            const tracked = totalsByTurn.get(turnId);
+            if (tracked) {
+              tracked.last = total;
+            } else {
+              totalsByTurn.set(turnId, { first: total, last: total });
+            }
+          }
         }
       }
       if (typeof onRuntimeEvent === "function") {
@@ -363,6 +377,23 @@ async function runWithRuntimeApprovals(config) {
       }
     },
   });
+
+  const activeTurnId = String(result.turnId || "").trim();
+  let usage = null;
+  if (activeTurnId) {
+    usage = usageByTurn.get(activeTurnId) || null;
+    if (!usage) {
+      const turnTotals = totalsByTurn.get(activeTurnId);
+      if (turnTotals) {
+        usage = subtractUsageTotals(turnTotals.last, turnTotals.first);
+      }
+    }
+    if (!usage && usageByTurn.size === 0) {
+      usage = latestUsageAny;
+    }
+  } else {
+    usage = latestUsageAny;
+  }
 
   if ((!usage || usage.totalTokens <= 0) && totalBaseline && totalLatest) {
     const derived = subtractUsageTotals(totalLatest, totalBaseline);

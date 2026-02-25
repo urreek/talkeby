@@ -36,6 +36,7 @@ export function buildBudgetAwarePrompt({
   resumeContext = "",
   threadContext = "",
   remainingBudget = 0,
+  budgetEnabled = true,
   autoTrimContext = true,
 }) {
   const fullPrompt = composePrompt({
@@ -45,7 +46,17 @@ export function buildBudgetAwarePrompt({
     threadContext,
   });
   const fullTokens = estimateTokens(fullPrompt);
-  if (!remainingBudget || remainingBudget <= 0 || fullTokens <= remainingBudget) {
+  const numericBudget = Number.parseInt(String(remainingBudget || 0), 10);
+  const safeRemainingBudget = Number.isFinite(numericBudget) ? Math.max(0, numericBudget) : 0;
+  if (!budgetEnabled) {
+    return {
+      prompt: fullPrompt,
+      trimmed: false,
+      removed: [],
+      estimatedTokens: fullTokens,
+    };
+  }
+  if (safeRemainingBudget > 0 && fullTokens <= safeRemainingBudget) {
     return {
       prompt: fullPrompt,
       trimmed: false,
@@ -64,6 +75,32 @@ export function buildBudgetAwarePrompt({
     };
   }
 
+  if (safeRemainingBudget <= 0) {
+    const minimalPrompt = composePrompt({
+      userTask,
+      bootstrapPrompt: "",
+      resumeContext: "",
+      threadContext: "",
+    });
+    const removed = [];
+    if (normalizeText(resumeContext)) {
+      removed.push("resume_context");
+    }
+    if (normalizeText(bootstrapPrompt)) {
+      removed.push("bootstrap_prompt");
+    }
+    if (normalizeText(threadContext)) {
+      removed.push("thread_context");
+    }
+    return {
+      prompt: minimalPrompt,
+      trimmed: removed.length > 0,
+      removed,
+      estimatedTokens: estimateTokens(minimalPrompt),
+      cannotFit: true,
+    };
+  }
+
   const removed = [];
   let nextPrompt = composePrompt({
     userTask,
@@ -72,7 +109,7 @@ export function buildBudgetAwarePrompt({
     threadContext,
   });
   let tokens = estimateTokens(nextPrompt);
-  if (tokens <= remainingBudget) {
+  if (tokens <= safeRemainingBudget) {
     removed.push("resume_context");
     return {
       prompt: nextPrompt,
@@ -90,7 +127,7 @@ export function buildBudgetAwarePrompt({
   });
   tokens = estimateTokens(nextPrompt);
   removed.push("resume_context", "bootstrap_prompt");
-  if (tokens <= remainingBudget) {
+  if (tokens <= safeRemainingBudget) {
     return {
       prompt: nextPrompt,
       trimmed: true,
