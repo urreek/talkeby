@@ -463,9 +463,33 @@ export class JobRunner {
             sessionId = null;
           }
           if (codexParityMode) {
-            taskText = String(activeJob.request || "");
-            inputTokenEstimate = estimateTokens(taskText);
+            const prepared = buildBudgetAwarePrompt({
+              userTask: activeJob.request,
+              bootstrapPrompt: "",
+              resumeContext,
+              threadContext,
+              remainingBudget: threadRemainingBudget,
+              budgetEnabled: threadTokenBudget > 0,
+              autoTrimContext: threadAutoTrimContext,
+            });
+            taskText = prepared.prompt;
+            inputTokenEstimate = prepared.estimatedTokens;
             bootstrapShouldApply = false;
+            if (prepared.trimmed) {
+              this.eventBus.publish({
+                jobId: activeJob.id,
+                chatId: activeJob.chatId,
+                eventType: "thread_context_trimmed",
+                message: "Prompt context trimmed to fit thread token budget.",
+                payload: {
+                  threadId: activeJob.threadId || null,
+                  removed: prepared.removed,
+                  estimatedTokens: prepared.estimatedTokens,
+                  cannotFit: Boolean(prepared.cannotFit),
+                  remainingBudget: threadRemainingBudget,
+                },
+              });
+            }
           } else {
             const prepared = buildBudgetAwarePrompt({
               userTask: activeJob.request,
