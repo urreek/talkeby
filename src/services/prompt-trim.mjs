@@ -22,10 +22,10 @@ function composePrompt({
   const bootstrap = section("Bootstrap instructions:", bootstrapPrompt);
   const resume = section("Previous error context:", resumeContext);
   const history = section("Thread context:", threadContext);
-  const task = section("User task:", userTask);
   if (bootstrap) parts.push(bootstrap);
   if (resume) parts.push(resume);
   if (history) parts.push(history);
+  const task = normalizeText(userTask);
   if (task) parts.push(task);
   return normalizeText(parts.join("\n\n"));
 }
