@@ -1,5 +1,6 @@
 import crypto from "node:crypto";
 
+import { OWNER_SUBJECT_ID } from "../services/owner-context.mjs";
 import { textValue } from "./shared.mjs";
 
 const SAFE_METHODS = new Set(["GET", "HEAD", "OPTIONS"]);
@@ -23,11 +24,64 @@ function signPayload(payloadB64, secret) {
     .digest("base64url");
 }
 
-function createCsrfManager({ secret, ttlMs }) {
-  function issue(chatId) {
+function parseCookies(cookieHeader) {
+  const cookies = new Map();
+  const raw = String(cookieHeader || "");
+  if (!raw) {
+    return cookies;
+  }
+
+  for (const entry of raw.split(";")) {
+    const trimmed = entry.trim();
+    if (!trimmed) {
+      continue;
+    }
+    const separatorIndex = trimmed.indexOf("=");
+    if (separatorIndex <= 0) {
+      continue;
+    }
+    const key = trimmed.slice(0, separatorIndex).trim();
+    const value = trimmed.slice(separatorIndex + 1).trim();
+    if (!key) {
+      continue;
+    }
+    cookies.set(key, value);
+  }
+  return cookies;
+}
+
+function serializeCookie(name, value, {
+  maxAgeSeconds,
+  secure,
+}) {
+  const parts = [
+    `${name}=${value}`,
+    "Path=/",
+    "HttpOnly",
+    "SameSite=Lax",
+  ];
+  if (Number.isFinite(maxAgeSeconds)) {
+    parts.push(`Max-Age=${Math.max(0, Math.floor(maxAgeSeconds))}`);
+  }
+  if (secure) {
+    parts.push("Secure");
+  }
+  return parts.join("; ");
+}
+
+function isSecureRequest(request) {
+  if (request.protocol === "https") {
+    return true;
+  }
+  const forwardedProto = textValue(request.headers["x-forwarded-proto"] || "");
+  return forwardedProto.toLowerCase() === "https";
+}
+
+function createSessionManager({ secret, ttlMs }) {
+  function issue() {
     const expiresAt = Date.now() + ttlMs;
     const payload = JSON.stringify({
-      chatId: String(chatId),
+      sub: OWNER_SUBJECT_ID,
       exp: expiresAt,
       nonce: crypto.randomUUID(),
     });
@@ -39,11 +93,72 @@ function createCsrfManager({ secret, ttlMs }) {
     };
   }
 
-  function verify({ chatId, token }) {
+  function verify(token) {
+    const safeToken = textValue(token);
+    if (!safeToken || !safeToken.includes(".")) {
+      return null;
+    }
+
+    const [payloadB64, signature] = safeToken.split(".");
+    if (!payloadB64 || !signature) {
+      return null;
+    }
+
+    const expected = signPayload(payloadB64, secret);
+    if (signature.length !== expected.length) {
+      return null;
+    }
+    if (!crypto.timingSafeEqual(Buffer.from(signature), Buffer.from(expected))) {
+      return null;
+    }
+
+    try {
+      const parsed = JSON.parse(base64UrlDecode(payloadB64));
+      if (!parsed || String(parsed.sub) !== OWNER_SUBJECT_ID) {
+        return null;
+      }
+      const exp = Number(parsed.exp);
+      if (!Number.isFinite(exp) || exp <= Date.now()) {
+        return null;
+      }
+      return {
+        sub: OWNER_SUBJECT_ID,
+        exp,
+        nonce: textValue(parsed.nonce || ""),
+      };
+    } catch {
+      return null;
+    }
+  }
+
+  return {
+    issue,
+    verify,
+  };
+}
+
+function createCsrfManager({ secret, ttlMs }) {
+  function issue(sessionNonce) {
+    const expiresAt = Date.now() + ttlMs;
+    const payload = JSON.stringify({
+      sub: OWNER_SUBJECT_ID,
+      nonce: String(sessionNonce || ""),
+      exp: expiresAt,
+    });
+    const payloadB64 = base64UrlEncode(payload);
+    const signature = signPayload(payloadB64, secret);
+    return {
+      token: `${payloadB64}.${signature}`,
+      expiresAt,
+    };
+  }
+
+  function verify({ sessionNonce, token }) {
     const safeToken = textValue(token);
     if (!safeToken || !safeToken.includes(".")) {
       return false;
     }
+
     const [payloadB64, signature] = safeToken.split(".");
     if (!payloadB64 || !signature) {
       return false;
@@ -59,7 +174,10 @@ function createCsrfManager({ secret, ttlMs }) {
 
     try {
       const parsed = JSON.parse(base64UrlDecode(payloadB64));
-      if (!parsed || String(parsed.chatId) !== String(chatId)) {
+      if (!parsed || String(parsed.sub) !== OWNER_SUBJECT_ID) {
+        return false;
+      }
+      if (String(parsed.nonce || "") !== String(sessionNonce || "")) {
         return false;
       }
       const exp = Number(parsed.exp);
@@ -99,76 +217,10 @@ class FixedWindowLimiter {
     if (existing.count >= this.maxPerWindow) {
       return false;
     }
+
     existing.count += 1;
     return true;
   }
-}
-
-function resolveChatIdForRequest(request) {
-  return textValue(
-    request.body?.chatId
-    || request.query?.chatId
-    || "",
-  );
-}
-
-function resolveConfiguredOwnerChatId(config) {
-  const configuredOwnerChatId = textValue(config.security?.ownerChatId || "");
-  if (configuredOwnerChatId) {
-    return configuredOwnerChatId;
-  }
-
-  const allowed = Array.from(config.telegram?.allowedChatIds || [])
-    .map((id) => textValue(id))
-    .filter(Boolean);
-  if (allowed.length === 1) {
-    return allowed[0];
-  }
-  return "";
-}
-
-function resolveOwnerChatIdForRequest(request, config, isRequestOwnerKeyAuthorized) {
-  const resolvedOwnerChatId = resolveConfiguredOwnerChatId(config);
-  if (!resolvedOwnerChatId) {
-    return "";
-  }
-  if (!isRequestOwnerKeyAuthorized(request)) {
-    return "";
-  }
-  return resolvedOwnerChatId;
-}
-
-function isApiPath(url) {
-  return pathOnly(url).startsWith("/api/");
-}
-
-function isCsrfExemptPath(url) {
-  const value = pathOnly(url);
-  return value.startsWith("/api/security/csrf");
-}
-
-function isOwnerKeyExemptPath(url) {
-  const value = pathOnly(url);
-  return value.startsWith("/api/security/access");
-}
-
-function readOwnerKeyFromRequest(request) {
-  const direct = textValue(
-    request.headers["x-talkeby-key"]
-    || request.headers["x-app-key"]
-    || "",
-  );
-  if (direct) {
-    return direct;
-  }
-
-  const authorization = textValue(request.headers.authorization || "");
-  if (!authorization) {
-    return "";
-  }
-
-  const match = authorization.match(/^bearer\s+(.+)$/i);
-  return match?.[1] ? textValue(match[1]) : "";
 }
 
 function secureStringEquals(left, right) {
@@ -180,6 +232,37 @@ function secureStringEquals(left, right) {
   return crypto.timingSafeEqual(Buffer.from(safeLeft), Buffer.from(safeRight));
 }
 
+function isApiPath(url) {
+  return pathOnly(url).startsWith("/api/");
+}
+
+function isAuthPublicPath(url) {
+  const value = pathOnly(url);
+  return value === "/api/auth/login" || value === "/api/auth/session";
+}
+
+function isCsrfExemptPath(url) {
+  const value = pathOnly(url);
+  return value === "/api/auth/login" || value === "/api/security/csrf";
+}
+
+function readSessionCookie(request, cookieName) {
+  const cookies = parseCookies(request.headers.cookie || "");
+  return textValue(cookies.get(cookieName) || "");
+}
+
+function buildImplicitOwnerSession() {
+  return {
+    sub: OWNER_SUBJECT_ID,
+    exp: Number.MAX_SAFE_INTEGER,
+    nonce: "public-owner-session",
+  };
+}
+
+function readAccessKey(value) {
+  return textValue(value || "");
+}
+
 export function registerSecurityHooks({ app, config }) {
   const limiter = new FixedWindowLimiter({
     windowMs: 60_000,
@@ -187,17 +270,21 @@ export function registerSecurityHooks({ app, config }) {
   });
   const ownerKey = textValue(config.security.ownerKey || "");
   const ownerKeyRequired = Boolean(ownerKey);
+  const sessionManager = createSessionManager({
+    secret: config.security.csrfSecret,
+    ttlMs: config.security.sessionTtlMs,
+  });
   const csrf = createCsrfManager({
     secret: config.security.csrfSecret,
     ttlMs: config.security.csrfTtlMs,
   });
 
-  function isRequestOwnerKeyAuthorized(request) {
+  function resolveOwnerSession(request) {
     if (!ownerKeyRequired) {
-      return true;
+      return buildImplicitOwnerSession();
     }
-    const supplied = readOwnerKeyFromRequest(request);
-    return secureStringEquals(supplied, ownerKey);
+    const token = readSessionCookie(request, config.security.sessionCookieName);
+    return sessionManager.verify(token);
   }
 
   app.addHook("onRequest", async (request, reply) => {
@@ -206,24 +293,24 @@ export function registerSecurityHooks({ app, config }) {
       return;
     }
 
-    if (!isOwnerKeyExemptPath(requestPath) && !isRequestOwnerKeyAuthorized(request)) {
-      reply.code(401).send({
-        error: "Invalid access key.",
-        code: "owner_key_invalid",
+    const routeKey = String(request.routerPath || pathOnly(requestPath));
+    const key = `${request.ip}:${request.method}:${routeKey}`;
+    if (!limiter.consume(key)) {
+      reply.code(429).send({
+        error: "Rate limit exceeded. Please wait before retrying.",
       });
       return;
     }
 
-    const routeKey = String(request.routerPath || requestPath.split("?")[0] || requestPath);
-    const key = `${request.ip}:${request.method}:${routeKey}`;
-    const allowed = limiter.consume(key);
-    if (allowed) {
-      return;
-    }
+    const ownerSession = resolveOwnerSession(request);
+    request.ownerSession = ownerSession;
 
-    reply.code(429).send({
-      error: "Rate limit exceeded. Please wait before retrying.",
-    });
+    if (!isAuthPublicPath(requestPath) && !ownerSession) {
+      reply.code(401).send({
+        error: "Authentication required.",
+        code: "owner_session_missing",
+      });
+    }
   });
 
   app.addHook("preHandler", async (request, reply) => {
@@ -238,17 +325,17 @@ export function registerSecurityHooks({ app, config }) {
       return;
     }
 
-    const chatId = resolveChatIdForRequest(request)
-      || resolveOwnerChatIdForRequest(request, config, isRequestOwnerKeyAuthorized);
-    if (!chatId) {
-      reply.code(400).send({
-        error: "chatId is required for mutating requests.",
+    const ownerSession = request.ownerSession || resolveOwnerSession(request);
+    if (!ownerSession) {
+      reply.code(401).send({
+        error: "Authentication required.",
+        code: "owner_session_missing",
       });
       return reply;
     }
 
     const token = textValue(request.headers["x-csrf-token"] || "");
-    if (!csrf.verify({ chatId, token })) {
+    if (!csrf.verify({ sessionNonce: ownerSession.nonce, token })) {
       reply.code(403).send({
         error: "Invalid or expired CSRF token.",
         code: "csrf_invalid",
@@ -258,20 +345,53 @@ export function registerSecurityHooks({ app, config }) {
   });
 
   return {
-    issueCsrfToken(chatId) {
-      return csrf.issue(chatId);
+    getSessionStatus(request) {
+      const ownerSession = request.ownerSession || resolveOwnerSession(request);
+      return {
+        required: ownerKeyRequired,
+        authenticated: Boolean(ownerSession),
+      };
+    },
+    issueOwnerSession(reply, request) {
+      const issued = sessionManager.issue();
+      reply.header("Set-Cookie", serializeCookie(
+        config.security.sessionCookieName,
+        issued.token,
+        {
+          maxAgeSeconds: config.security.sessionTtlMs / 1000,
+          secure: isSecureRequest(request),
+        },
+      ));
+      return issued;
+    },
+    clearOwnerSession(reply, request) {
+      reply.header("Set-Cookie", serializeCookie(
+        config.security.sessionCookieName,
+        "",
+        {
+          maxAgeSeconds: 0,
+          secure: isSecureRequest(request),
+        },
+      ));
+    },
+    issueCsrfToken(request) {
+      const ownerSession = request.ownerSession || resolveOwnerSession(request);
+      if (!ownerSession) {
+        return null;
+      }
+      return csrf.issue(ownerSession.nonce);
     },
     isOwnerKeyRequired() {
       return ownerKeyRequired;
     },
-    isOwnerKeyValidForRequest(request) {
-      return isRequestOwnerKeyAuthorized(request);
+    isValidOwnerKey(value) {
+      if (!ownerKeyRequired) {
+        return true;
+      }
+      return secureStringEquals(readAccessKey(value), ownerKey);
     },
-    getOwnerChatId() {
-      return resolveConfiguredOwnerChatId(config);
-    },
-    resolveOwnerChatIdForRequest(request) {
-      return resolveOwnerChatIdForRequest(request, config, isRequestOwnerKeyAuthorized);
+    requireOwnerSession(request) {
+      return request.ownerSession || resolveOwnerSession(request);
     },
   };
 }

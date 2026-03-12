@@ -21,14 +21,15 @@ import {
   fetchProviderCatalog,
   fetchProjects,
   fetchProvider,
+  fetchSessionStatus,
+  logout,
   selectProject,
   setAgentProfile,
   setMode,
   setProvider,
 } from "@/lib/api";
+import { isSoundsEnabled, playCompleted, setSoundsEnabled } from "@/lib/sounds";
 import { useTheme } from "@/lib/theme";
-import { isSoundsEnabled, setSoundsEnabled, playCompleted } from "@/lib/sounds";
-import { getStoredChatId, setStoredChatId } from "@/lib/storage";
 import type { AIProvider, ExecutionMode } from "@/lib/types";
 import { rootRoute } from "@/routes/__root";
 
@@ -41,75 +42,89 @@ export const settingsRoute = createRoute({
 function SettingsScreen() {
   const queryClient = useQueryClient();
   const { theme, setTheme } = useTheme();
-  const [chatId, setChatId] = useState(() => getStoredChatId());
+
+  const sessionQuery = useQuery({
+    queryKey: ["auth-session"],
+    queryFn: fetchSessionStatus,
+  });
 
   const modeQuery = useQuery({
-    queryKey: ["mode", chatId],
-    queryFn: () => fetchMode(chatId),
+    queryKey: ["mode"],
+    queryFn: fetchMode,
   });
 
   const projectsQuery = useQuery({
-    queryKey: ["projects", chatId],
-    queryFn: () => fetchProjects(chatId),
+    queryKey: ["projects"],
+    queryFn: fetchProjects,
   });
 
   const providerQuery = useQuery({
     queryKey: ["provider"],
-    queryFn: () => fetchProvider(),
+    queryFn: fetchProvider,
   });
+
   const providerCatalogQuery = useQuery({
     queryKey: ["provider-catalog"],
     queryFn: fetchProviderCatalog,
   });
+
   const agentProfileQuery = useQuery({
-    queryKey: ["agent-profile", chatId],
-    queryFn: () => fetchAgentProfile(chatId),
+    queryKey: ["agent-profile"],
+    queryFn: fetchAgentProfile,
   });
 
   const modeMutation = useMutation({
-    mutationFn: (mode: ExecutionMode) => setMode({ chatId, mode }),
+    mutationFn: (mode: ExecutionMode) => setMode({ mode }),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["mode", chatId] });
-      queryClient.invalidateQueries({ queryKey: ["jobs", chatId] });
+      queryClient.invalidateQueries({ queryKey: ["mode"] });
     },
   });
 
   const providerMutation = useMutation({
-    mutationFn: (provider: AIProvider) => setProvider({ chatId, provider }),
+    mutationFn: (provider: AIProvider) => setProvider({ provider }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["provider"] });
     },
   });
 
   const projectMutation = useMutation({
-    mutationFn: (projectName: string) => selectProject({ chatId, projectName }),
+    mutationFn: (projectName: string) => selectProject({ projectName }),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["projects", chatId] });
-      queryClient.invalidateQueries({ queryKey: ["jobs", chatId] });
+      queryClient.invalidateQueries({ queryKey: ["projects"] });
+      queryClient.invalidateQueries({ queryKey: ["threads"] });
     },
   });
 
   const addProjectMutation = useMutation({
     mutationFn: (input: { projectName: string; path?: string }) =>
       addProject({
-        chatId,
         projectName: input.projectName,
         path: input.path,
         setActive: true,
       }),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["projects", chatId] });
-      queryClient.invalidateQueries({ queryKey: ["jobs", chatId] });
+      queryClient.invalidateQueries({ queryKey: ["projects"] });
+      queryClient.invalidateQueries({ queryKey: ["threads"] });
     },
   });
+
   const agentProfileMutation = useMutation({
-    mutationFn: (profile: string) => setAgentProfile({ chatId, profile }),
+    mutationFn: (profile: string) => setAgentProfile({ profile }),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["agent-profile", chatId] });
+      queryClient.invalidateQueries({ queryKey: ["agent-profile"] });
+    },
+  });
+
+  const logoutMutation = useMutation({
+    mutationFn: logout,
+    onSuccess: () => {
+      queryClient.clear();
+      window.location.assign("/");
     },
   });
 
   const errorMessage =
+    getErrorMessage(sessionQuery.error) ||
     getErrorMessage(modeMutation.error) ||
     getErrorMessage(providerMutation.error) ||
     getErrorMessage(projectMutation.error) ||
@@ -120,12 +135,11 @@ function SettingsScreen() {
     getErrorMessage(projectsQuery.error) ||
     getErrorMessage(modeQuery.error) ||
     "";
+
   const projects = projectsQuery.data?.projects ?? [];
   const projectsBasePath = projectsQuery.data?.basePath ?? "";
   const fetchedActiveProject = projectsQuery.data?.activeProject;
-  const activeProject = projects.some(
-    (project) => project.name === fetchedActiveProject,
-  )
+  const activeProject = projects.some((project) => project.name === fetchedActiveProject)
     ? String(fetchedActiveProject)
     : "";
 
@@ -142,12 +156,11 @@ function SettingsScreen() {
       <ProviderHealth />
       <ProviderSetup />
 
-      <DiscoverProjects chatId={chatId} />
+      <DiscoverProjects />
 
       <SoundsToggle />
 
       <SettingsPanel
-        initialChatId={chatId}
         mode={modeQuery.data?.executionMode ?? "auto"}
         provider={providerQuery.data?.provider ?? "codex"}
         model={providerQuery.data?.model ?? ""}
@@ -159,15 +172,8 @@ function SettingsScreen() {
         projectsBasePath={projectsBasePath}
         theme={theme}
         initialAgentProfile={agentProfileQuery.data?.profile ?? ""}
-        onSaveChatId={(nextChatId) => {
-          const normalized = nextChatId.trim();
-          if (!normalized) {
-            return;
-          }
-          setStoredChatId(normalized);
-          setChatId(normalized);
-          queryClient.invalidateQueries({ queryKey: ["jobs"] });
-        }}
+        showLogout={Boolean(sessionQuery.data?.required)}
+        onLogout={() => logoutMutation.mutate()}
         onSaveAgentProfile={async (profile) => {
           await agentProfileMutation.mutateAsync(profile);
         }}
@@ -176,19 +182,18 @@ function SettingsScreen() {
         onChangeProvider={(provider) => providerMutation.mutate(provider)}
         onChangeModel={(model) =>
           setProvider({
-            chatId,
             model: model === "__default__" ? "" : model,
           }).then(() =>
             queryClient.invalidateQueries({ queryKey: ["provider"] }),
           )
         }
         onChangeReasoningEffort={(effort) =>
-          setProvider({ chatId, reasoningEffort: effort }).then(() =>
+          setProvider({ reasoningEffort: effort }).then(() =>
             queryClient.invalidateQueries({ queryKey: ["provider"] }),
           )
         }
         onChangePlanMode={(enabled) =>
-          setProvider({ chatId, planMode: enabled }).then(() =>
+          setProvider({ planMode: enabled }).then(() =>
             queryClient.invalidateQueries({ queryKey: ["provider"] }),
           )
         }
@@ -201,6 +206,7 @@ function SettingsScreen() {
         isUpdatingProject={projectMutation.isPending}
         isAddingProject={addProjectMutation.isPending}
         isSavingAgentProfile={agentProfileMutation.isPending}
+        isLoggingOut={logoutMutation.isPending}
       />
     </div>
   );
@@ -228,7 +234,7 @@ function SoundsToggle() {
             if (next) playCompleted();
           }}
         >
-          {enabled ? "🔔 Enabled" : "🔕 Disabled"}
+          {enabled ? "Enabled" : "Disabled"}
         </Button>
         {enabled && (
           <Button size="sm" variant="ghost" onClick={() => playCompleted()}>

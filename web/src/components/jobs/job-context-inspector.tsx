@@ -13,16 +13,15 @@ function formatCount(value: number | null | undefined) {
 
 type JobContextInspectorProps = {
   jobId: string;
-  chatId: string;
 };
 
-export function JobContextInspector({ jobId, chatId }: JobContextInspectorProps) {
+export function JobContextInspector({ jobId }: JobContextInspectorProps) {
   const [open, setOpen] = useState(false);
 
   const contextQuery = useQuery({
-    queryKey: ["jobContext", jobId, chatId],
-    queryFn: () => fetchJobContext(jobId, chatId),
-    enabled: open && Boolean(jobId) && Boolean(chatId),
+    queryKey: ["jobContext", jobId],
+    queryFn: () => fetchJobContext(jobId),
+    enabled: open && Boolean(jobId),
     staleTime: 60_000,
   });
 
@@ -45,9 +44,7 @@ export function JobContextInspector({ jobId, chatId }: JobContextInspectorProps)
 
       {open && (
         <div className="mt-2 space-y-2">
-          {!chatId ? (
-            <p className="text-[11px] text-muted-foreground">Chat ID missing.</p>
-          ) : contextQuery.isLoading ? (
+          {contextQuery.isLoading ? (
             <p className="text-[11px] text-muted-foreground">Loading context...</p>
           ) : contextQuery.isError ? (
             <p className="text-[11px] text-destructive">
@@ -58,12 +55,11 @@ export function JobContextInspector({ jobId, chatId }: JobContextInspectorProps)
           ) : (
             <div className="space-y-2">
               <p className="text-[11px] text-muted-foreground">
-                {context.provider || "unknown"} · {context.model || "provider default"} · prompt{" "}
+                {context.provider || "unknown"} · {context.model || "provider default"} · prompt {" "}
                 {formatCount(context.promptEstimatedTokens)} tokens / {formatCount(context.promptChars)} chars
               </p>
               <p className="text-[11px] text-muted-foreground">
-                Budget {formatCount(context.remainingBudget)} / {formatCount(context.tokenBudget)} ·
-                trimmed {context.trimmed ? "yes" : "no"} · parity {context.parityMode ? "on" : "off"}
+                Budget {formatCount(context.remainingBudget)} / {formatCount(context.tokenBudget)} · trimmed {context.trimmed ? "yes" : "no"} · parity {context.parityMode ? "on" : "off"}
               </p>
 
               <div className="space-y-2">

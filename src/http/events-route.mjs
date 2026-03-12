@@ -1,26 +1,19 @@
-import { isAuthorizedChat, textValue } from "./shared.mjs";
+import { serializeEvent } from "./serializers.mjs";
+import { textValue } from "./shared.mjs";
 
 function writeSseEvent(reply, event) {
-  reply.raw.write(`id: ${event.id}\n`);
-  reply.raw.write(`event: ${event.eventType}\n`);
-  reply.raw.write(`data: ${JSON.stringify(event)}\n\n`);
+  const safeEvent = serializeEvent(event);
+  reply.raw.write(`id: ${safeEvent.id}\n`);
+  reply.raw.write(`event: ${safeEvent.eventType}\n`);
+  reply.raw.write(`data: ${JSON.stringify(safeEvent)}\n\n`);
 }
 
-export function registerEventRoute(app, eventBus, config) {
+export function registerEventRoute(app, eventBus) {
   app.get("/api/events", async (request, reply) => {
     const afterEventId = textValue(request.query?.afterEventId || request.headers["last-event-id"] || "0");
     const limitInput = Number.parseInt(String(request.query?.limit || 200), 10);
     const limit = Number.isFinite(limitInput) ? Math.max(1, Math.min(limitInput, 500)) : 200;
-    const chatId = textValue(request.query?.chatId || "");
     const jobId = textValue(request.query?.jobId || "");
-    if (!chatId) {
-      reply.code(400);
-      return { error: "chatId is required." };
-    }
-    if (!isAuthorizedChat(config, chatId)) {
-      reply.code(403);
-      return { error: "Chat is not authorized." };
-    }
 
     reply.raw.writeHead(200, {
       "Content-Type": "text/event-stream",
@@ -34,9 +27,6 @@ export function registerEventRoute(app, eventBus, config) {
       limit,
     });
     for (const event of historical) {
-      if (chatId && String(event.chatId) !== chatId) {
-        continue;
-      }
       if (jobId && String(event.jobId) !== jobId) {
         continue;
       }
@@ -45,7 +35,6 @@ export function registerEventRoute(app, eventBus, config) {
 
     const unsubscribe = eventBus.subscribe({
       reply,
-      chatId,
       jobId,
     });
     request.raw.on("close", () => {

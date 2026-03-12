@@ -35,7 +35,6 @@ const SENSITIVE_ASSIGNMENT_KEYS = [
   "GOOGLE_API_KEY",
   "GROQ_API_KEY",
   "OPENROUTER_API_KEY",
-  "TELEGRAM_BOT_TOKEN",
 ];
 
 const PLACEHOLDER_VALUES = new Set([
@@ -127,11 +126,6 @@ function findPatternMatches(text) {
       type: "github",
       regex: /\bgh[pousr]_[A-Za-z0-9]{20,}\b/g,
       sample: "gh*_***",
-    },
-    {
-      type: "telegram",
-      regex: /\b\d{8,}:[A-Za-z0-9_-]{30,}\b/g,
-      sample: "telegram_token",
     },
     {
       type: "aws",

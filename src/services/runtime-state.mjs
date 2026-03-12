@@ -1,4 +1,5 @@
 import { resolveExecutionMode } from "./command-parser.mjs";
+import { OWNER_SETTING_KEYS, OWNER_SUBJECT_ID } from "./owner-context.mjs";
 import { isSupportedProvider } from "../providers/catalog.mjs";
 
 function textValue(value) {
@@ -9,74 +10,119 @@ function safeTimestamp(value) {
   return value ? String(value) : "";
 }
 
-function safeList(items) {
-  if (!items || items.length === 0) {
-    return "(none)";
-  }
-  return items.join(", ");
-}
-
 function isValidProjectName(name) {
   return /^[a-zA-Z0-9][a-zA-Z0-9._-]{0,63}$/.test(name);
+}
+
+function toStatus(value) {
+  return String(value || "").trim().toLowerCase();
 }
 
 export class RuntimeState {
   constructor({ config, repository }) {
     this.config = config;
     this.repository = repository;
+    this.ownerId = OWNER_SUBJECT_ID;
 
     this.jobHistory = new Map();
-    this.lastJobByChat = new Map();
-    this.lastPendingJobByChat = new Map();
-    this.projectNameByChat = new Map();
-    this.executionModeByChat = new Map();
+    this.latestJobId = "";
+    this.latestPendingJobId = "";
+    this.activeProjectName = "";
+    this.executionMode = config.app?.defaultExecutionMode || "auto";
     this.provider = config.runner?.provider || "codex";
     this.model = config.runner?.model || "";
     this.reasoningEffort = "";
     this.planMode = false;
     this.runtimeApprovalWaiters = new Map();
+    this.startupRecovery = {
+      failedJobs: [],
+      queuedJobs: [],
+    };
   }
 
   hydrate() {
-    // Runtime approvals are in-memory waiters; pending DB approvals cannot be resumed safely after restart.
     this.repository.denyPendingRuntimeApprovals();
+    this.hydrateProjects();
+    this.reconcileStartupJobs();
+    this.hydrateOwnerSettings();
+    this.hydrateJobs();
+  }
 
+  hydrateProjects() {
     const persistedProjects = this.repository.listProjects();
     for (const row of persistedProjects) {
       const name = textValue(row.name);
-      const path = textValue(row.path);
-      if (!name || !path) {
+      const projectPath = textValue(row.path);
+      if (!name || !projectPath) {
         continue;
       }
       if (this.resolveProjectName(name)) {
         continue;
       }
-      this.config.codex.projects.set(name, path);
+      this.config.codex.projects.set(name, projectPath);
     }
+  }
 
-    const chatSettings = this.repository.listChatSettings();
-    for (const row of chatSettings) {
-      if (row.projectName) {
-        this.projectNameByChat.set(String(row.chatId), String(row.projectName));
-      }
-      this.executionModeByChat.set(
-        String(row.chatId),
-        resolveExecutionMode(row.executionMode) || this.config.telegram.defaultExecutionMode,
-      );
-    }
+  reconcileStartupJobs() {
+    const recoveryTime = new Date().toISOString();
+    const jobs = this.repository.listRecentJobs(5000).reverse();
 
-    const jobs = this.repository.listRecentJobs(500).reverse();
     for (const job of jobs) {
-      this.jobHistory.set(job.id, job);
-      this.lastJobByChat.set(String(job.chatId), job.id);
-      if (job.status === "pending_approval") {
-        this.lastPendingJobByChat.set(String(job.chatId), job.id);
+      const status = toStatus(job.status);
+      if (status === "running") {
+        const updated = this.repository.updateJob(job.id, {
+          status: "failed",
+          completedAt: recoveryTime,
+          error: "Talkeby restarted while this job was running.",
+        });
+        if (updated) {
+          this.startupRecovery.failedJobs.push(updated);
+        }
       }
     }
   }
 
-  safeAllowedChats() {
-    return safeList(Array.from(this.config.telegram.allowedChatIds));
+  hydrateOwnerSettings() {
+    const activeProjectSetting = this.repository.getAppSetting(OWNER_SETTING_KEYS.activeProject);
+    const storedProjectName = textValue(activeProjectSetting?.value || "");
+    this.activeProjectName = this.resolveProjectName(storedProjectName)
+      || this.config.codex.defaultProjectName
+      || "";
+
+    const executionModeSetting = this.repository.getAppSetting(OWNER_SETTING_KEYS.executionMode);
+    this.executionMode = resolveExecutionMode(executionModeSetting?.value || "")
+      || this.config.app?.defaultExecutionMode
+      || "auto";
+  }
+
+  hydrateJobs() {
+    const jobs = this.repository.listRecentJobs(5000).reverse();
+    for (const job of jobs) {
+      this.jobHistory.set(job.id, job);
+      this.latestJobId = job.id;
+      if (job.status === "pending_approval") {
+        this.latestPendingJobId = job.id;
+      }
+      if (job.status === "queued") {
+        this.startupRecovery.queuedJobs.push(job);
+      }
+    }
+  }
+
+  consumeStartupRecovery() {
+    const snapshot = {
+      failedJobs: [...this.startupRecovery.failedJobs],
+      queuedJobs: [...this.startupRecovery.queuedJobs],
+    };
+    this.startupRecovery = {
+      failedJobs: [],
+      queuedJobs: [],
+    };
+    return snapshot;
+  }
+
+  getOwnerId() {
+    return this.ownerId;
   }
 
   getProvider() {
@@ -130,11 +176,11 @@ export class RuntimeState {
 
   listProjects() {
     return Array.from(this.config.codex.projects.entries())
-      .map(([name, path]) => ({
+      .map(([name, projectPath]) => ({
         name,
-        path: String(path),
+        path: String(projectPath),
       }))
-      .sort((a, b) => a.name.localeCompare(b.name));
+      .sort((left, right) => left.name.localeCompare(right.name));
   }
 
   normalizeProjectName(inputName) {
@@ -159,17 +205,16 @@ export class RuntimeState {
     return "";
   }
 
-  getProjectNameForChat(chatId) {
-    const selected = this.projectNameByChat.get(String(chatId)) || "";
-    const resolved = this.resolveProjectName(selected);
+  getProjectName() {
+    const resolved = this.resolveProjectName(this.activeProjectName);
     if (resolved) {
       return resolved;
     }
     return this.config.codex.defaultProjectName || "";
   }
 
-  getProjectForChat(chatId) {
-    const name = this.getProjectNameForChat(chatId);
+  getProject() {
+    const name = this.getProjectName();
     if (!name) {
       return { name: "", workdir: "" };
     }
@@ -179,17 +224,20 @@ export class RuntimeState {
     };
   }
 
-  setProjectForChat(chatId, projectName) {
-    const id = String(chatId);
-    this.projectNameByChat.set(id, projectName);
-    this.repository.upsertChatSettings({
-      chatId: id,
-      executionMode: this.getExecutionModeForChat(id),
-      projectName,
+  setProject(projectName) {
+    const resolved = this.resolveProjectName(projectName);
+    if (!resolved) {
+      return "";
+    }
+    this.activeProjectName = resolved;
+    this.repository.setAppSetting({
+      key: OWNER_SETTING_KEYS.activeProject,
+      value: resolved,
     });
+    return resolved;
   }
 
-  addProject({ projectName, projectPath, createdByChatId = "" }) {
+  addProject({ projectName, projectPath }) {
     const normalizedName = this.normalizeProjectName(projectName);
     const normalizedPath = textValue(projectPath);
 
@@ -209,7 +257,7 @@ export class RuntimeState {
     this.repository.upsertProject({
       name: normalizedName,
       path: normalizedPath,
-      createdByChatId,
+      createdByChatId: this.ownerId,
     });
 
     return {
@@ -229,52 +277,30 @@ export class RuntimeState {
     this.config.codex.projects.delete(resolvedName);
     this.repository.deleteProject(resolvedName);
 
-    // Clear chat-level selection when it points to the removed project.
-    for (const [chatId, selectedName] of this.projectNameByChat.entries()) {
-      if (this.resolveProjectName(selectedName)) {
-        continue;
-      }
-
-      this.projectNameByChat.delete(chatId);
-      this.repository.upsertChatSettings({
-        chatId,
-        executionMode: this.getExecutionModeForChat(chatId),
-        projectName: "",
+    if (!this.resolveProjectName(this.activeProjectName)) {
+      this.activeProjectName = this.config.codex.defaultProjectName || "";
+      this.repository.setAppSetting({
+        key: OWNER_SETTING_KEYS.activeProject,
+        value: this.activeProjectName,
       });
     }
 
     return { ok: true };
   }
 
-  getExecutionModeForChat(chatId) {
-    if (this.config.telegram?.forceAutoMode) {
-      return "auto";
-    }
-    const selected = this.executionModeByChat.get(String(chatId)) || "";
-    return resolveExecutionMode(selected) || this.config.telegram.defaultExecutionMode;
+  getExecutionMode() {
+    return resolveExecutionMode(this.executionMode) || this.config.app?.defaultExecutionMode || "auto";
   }
 
-  setExecutionModeForChat(chatId, mode) {
-    if (this.config.telegram?.forceAutoMode) {
-      const id = String(chatId);
-      this.executionModeByChat.set(id, "auto");
-      this.repository.upsertChatSettings({
-        chatId: id,
-        executionMode: "auto",
-        projectName: this.getProjectNameForChat(id),
-      });
-      return "auto";
-    }
+  setExecutionMode(mode) {
     const resolved = resolveExecutionMode(mode);
     if (!resolved) {
       return "";
     }
-    const id = String(chatId);
-    this.executionModeByChat.set(id, resolved);
-    this.repository.upsertChatSettings({
-      chatId: id,
-      executionMode: resolved,
-      projectName: this.getProjectNameForChat(id),
+    this.executionMode = resolved;
+    this.repository.setAppSetting({
+      key: OWNER_SETTING_KEYS.executionMode,
+      value: resolved,
     });
     return resolved;
   }
@@ -293,6 +319,13 @@ export class RuntimeState {
     return this.repository.listRecentJobs(limit);
   }
 
+  listQueuedJobs(limit = 5000) {
+    return this.repository
+      .listRecentJobs(limit)
+      .filter((job) => job.status === "queued")
+      .reverse();
+  }
+
   getJobById(jobId) {
     if (!jobId) {
       return null;
@@ -308,42 +341,39 @@ export class RuntimeState {
     return fromDb || null;
   }
 
-  getLatestJobForChat(chatId) {
-    const latestJobId = this.lastJobByChat.get(String(chatId));
-    return latestJobId ? this.getJobById(latestJobId) : null;
+  getLatestJob() {
+    return this.latestJobId ? this.getJobById(this.latestJobId) : null;
   }
 
-  getLatestPendingJobForChat(chatId) {
-    const latestId = this.lastPendingJobByChat.get(String(chatId));
-    if (latestId) {
-      const latest = this.getJobById(latestId);
-      if (latest && latest.chatId === String(chatId) && latest.status === "pending_approval") {
+  getLatestPendingJob() {
+    if (this.latestPendingJobId) {
+      const latest = this.getJobById(this.latestPendingJobId);
+      if (latest && latest.status === "pending_approval") {
         return latest;
       }
     }
 
     let pending = null;
     for (const job of this.jobHistory.values()) {
-      if (job.chatId === String(chatId) && job.status === "pending_approval") {
+      if (job.status === "pending_approval") {
         pending = job;
       }
     }
     return pending;
   }
 
-  listPendingJobsForChat(chatId, limit = 10) {
-    const chatKey = String(chatId);
+  listPendingJobs(limit = 10) {
     const pending = [];
     for (const job of this.jobHistory.values()) {
-      if (job.chatId === chatKey && job.status === "pending_approval") {
+      if (job.status === "pending_approval") {
         pending.push(job);
       }
     }
 
-    pending.sort((a, b) => {
-      const aTime = Date.parse(String(a.createdAt || ""));
-      const bTime = Date.parse(String(b.createdAt || ""));
-      return bTime - aTime;
+    pending.sort((left, right) => {
+      const leftTime = Date.parse(String(left.createdAt || ""));
+      const rightTime = Date.parse(String(right.createdAt || ""));
+      return rightTime - leftTime;
     });
 
     return pending.slice(0, Math.max(1, limit));
@@ -352,6 +382,7 @@ export class RuntimeState {
   createJob(row) {
     const job = this.repository.insertJob({
       ...row,
+      chatId: row.chatId || this.ownerId,
       createdAt: row.createdAt || new Date().toISOString(),
       queuedAt: safeTimestamp(row.queuedAt),
       pendingApprovalAt: safeTimestamp(row.pendingApprovalAt),
@@ -359,9 +390,9 @@ export class RuntimeState {
     });
 
     this.jobHistory.set(job.id, job);
-    this.lastJobByChat.set(String(job.chatId), job.id);
+    this.latestJobId = job.id;
     if (job.status === "pending_approval") {
-      this.lastPendingJobByChat.set(String(job.chatId), job.id);
+      this.latestPendingJobId = job.id;
     }
     this.pruneJobHistory();
     return job;
@@ -374,13 +405,11 @@ export class RuntimeState {
     }
 
     this.jobHistory.set(updated.id, updated);
-    this.lastJobByChat.set(String(updated.chatId), updated.id);
-
-    const chatId = String(updated.chatId);
+    this.latestJobId = updated.id;
     if (updated.status === "pending_approval") {
-      this.lastPendingJobByChat.set(chatId, updated.id);
-    } else if (this.lastPendingJobByChat.get(chatId) === updated.id) {
-      this.lastPendingJobByChat.delete(chatId);
+      this.latestPendingJobId = updated.id;
+    } else if (this.latestPendingJobId === updated.id) {
+      this.latestPendingJobId = "";
     }
     return updated;
   }
@@ -396,17 +425,19 @@ export class RuntimeState {
     }
 
     this.jobHistory.set(claimed.id, claimed);
-    this.lastJobByChat.set(String(claimed.chatId), claimed.id);
+    this.latestJobId = claimed.id;
     return claimed;
   }
 
   createRuntimeApproval(input) {
-    return this.repository.insertRuntimeApproval(input);
+    return this.repository.insertRuntimeApproval({
+      ...input,
+      chatId: input.chatId || this.ownerId,
+    });
   }
 
-  listRuntimeApprovals({ chatId = "", jobId = "", status = "", limit = 50 } = {}) {
+  listRuntimeApprovals({ jobId = "", status = "", limit = 50 } = {}) {
     return this.repository.listRuntimeApprovals({
-      chatId,
       jobId,
       status,
       limit,
@@ -421,7 +452,7 @@ export class RuntimeState {
     return this.repository.resolveRuntimeApproval({
       id,
       status,
-      resolvedByChatId,
+      resolvedByChatId: resolvedByChatId || this.ownerId,
     });
   }
 
@@ -456,10 +487,9 @@ export class RuntimeState {
     waiter.resolve(decision === "approve" ? "approve" : "deny");
   }
 
-  markPendingConsumed(chatId, jobId) {
-    const id = String(chatId);
-    if (this.lastPendingJobByChat.get(id) === jobId) {
-      this.lastPendingJobByChat.delete(id);
+  markPendingConsumed(jobId) {
+    if (this.latestPendingJobId === jobId) {
+      this.latestPendingJobId = "";
     }
   }
 

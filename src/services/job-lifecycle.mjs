@@ -1,15 +1,14 @@
 import crypto from "node:crypto";
-import { resolveAgentProfile } from "./agent-profile.mjs";
 
 function nextQueuePosition(state, jobRunner) {
   return state.countQueuedJobs() + (jobRunner.getRunningJobId() ? 1 : 0) + 1;
 }
 
-export function getPendingJobForApproval(state, chatId, jobId) {
+function resolvePendingJob(state, jobId) {
   if (jobId) {
     const job = state.getJobById(jobId);
-    if (!job || String(job.chatId) !== String(chatId)) {
-      return { error: `Job ${jobId} was not found in this chat.` };
+    if (!job) {
+      return { error: `Job ${jobId} was not found.` };
     }
     if (job.status !== "pending_approval") {
       return { error: `Job ${jobId} is not waiting for approval (status: ${job.status}).` };
@@ -17,19 +16,27 @@ export function getPendingJobForApproval(state, chatId, jobId) {
     return { job };
   }
 
-  const latest = state.getLatestPendingJobForChat(chatId);
+  const latest = state.getLatestPendingJob();
   if (!latest) {
-    return { error: "No pending approval job found. Send `do <task>` first." };
+    return { error: "No pending approval job found." };
   }
   return { job: latest };
 }
 
-export function resolveStatusJobForChat(state, chatId, jobId) {
-  if (jobId) {
-    const job = state.getJobById(jobId);
-    return job && String(job.chatId) === String(chatId) ? job : null;
+function resolveThreadForProject({ repository, threadId, projectName }) {
+  const requestedThreadId = String(threadId || "").trim();
+  if (!requestedThreadId) {
+    return { error: "threadId is required." };
   }
-  return state.getLatestJobForChat(chatId);
+
+  const thread = repository.getThread(requestedThreadId);
+  if (!thread) {
+    return { error: `Thread ${requestedThreadId} was not found.` };
+  }
+  if (String(thread.projectName || "").trim() !== String(projectName || "").trim()) {
+    return { error: `Thread ${requestedThreadId} does not belong to project ${projectName}.` };
+  }
+  return { thread };
 }
 
 export function createJobFromTask({
@@ -37,14 +44,13 @@ export function createJobFromTask({
   eventBus,
   jobRunner,
   config,
-  chatId,
   task,
   projectName = "",
   threadId,
 }) {
   const normalizedTask = String(task || "").trim();
   if (!normalizedTask) {
-    return { error: "Missing task text. Send `do <task>`." };
+    return { error: "Task is required." };
   }
 
   if (projectName) {
@@ -52,25 +58,30 @@ export function createJobFromTask({
     if (!resolvedProject) {
       return { error: `Unknown project: ${projectName}` };
     }
-    state.setProjectForChat(chatId, resolvedProject);
+    state.setProject(resolvedProject);
   }
 
-  const activeProject = state.getProjectForChat(chatId);
-  const resolvedThreadId = resolveOrCreateThreadIdForChat({
-    state,
-    config,
-    chatId,
+  const activeProject = state.getProject();
+  if (!activeProject.name || !activeProject.workdir) {
+    return { error: "No active project is configured." };
+  }
+
+  const threadResolution = resolveThreadForProject({
+    repository: state.repository,
+    threadId,
     projectName: activeProject.name,
-    requestedThreadId: threadId,
   });
-  const executionMode = state.getExecutionModeForChat(chatId);
+  if (threadResolution.error) {
+    return { error: threadResolution.error };
+  }
+
+  const executionMode = state.getExecutionMode();
   const queuePosition = nextQueuePosition(state, jobRunner);
   const now = new Date().toISOString();
 
   const job = state.createJob({
-    id: crypto.randomUUID().slice(0, 8),
-    chatId,
-    threadId: resolvedThreadId || null,
+    id: crypto.randomUUID(),
+    threadId: threadResolution.thread.id,
     request: normalizedTask,
     projectName: activeProject.name,
     workdir: activeProject.workdir,
@@ -79,30 +90,27 @@ export function createJobFromTask({
     queuedAt: executionMode === "interactive" ? "" : now,
   });
 
-  // Auto-title thread from first message
-  if (resolvedThreadId) {
-    try {
-      const thread = state.repository.getThread(resolvedThreadId);
-      if (thread && String(thread.title || "").trim().toLowerCase() === "new thread") {
-        const title =
-          normalizedTask.length > 15
-            ? normalizedTask.slice(0, 15) + "…"
-            : normalizedTask;
-        state.repository.updateThread(resolvedThreadId, { title });
-      }
-    } catch {
-      // non-critical
+  try {
+    const thread = state.repository.getThread(threadResolution.thread.id);
+    if (thread && String(thread.title || "").trim().toLowerCase() === "new thread") {
+      const title = normalizedTask.length > 60
+        ? `${normalizedTask.slice(0, 59)}…`
+        : normalizedTask;
+      state.repository.updateThread(threadResolution.thread.id, { title });
     }
+  } catch {
+    // Non-critical thread title update.
   }
 
   if (executionMode === "interactive") {
     eventBus.publish({
       jobId: job.id,
-      chatId: job.chatId,
+      chatId: state.getOwnerId(),
       eventType: "job_pending_approval",
       message: "Job created and waiting for approval.",
       payload: {
         projectName: job.projectName,
+        threadId: job.threadId,
       },
     });
     return {
@@ -114,11 +122,12 @@ export function createJobFromTask({
 
   eventBus.publish({
     jobId: job.id,
-    chatId: job.chatId,
+    chatId: state.getOwnerId(),
     eventType: "job_queued",
     message: "Job queued for execution.",
     payload: {
       queuePosition,
+      threadId: job.threadId,
     },
   });
   jobRunner.enqueue(job);
@@ -131,65 +140,13 @@ export function createJobFromTask({
   };
 }
 
-function defaultThreadSettingKey(chatId, projectName) {
-  return `chat_default_thread:${String(chatId)}:${String(projectName)}`;
-}
-
-function resolveOrCreateThreadIdForChat({
-  state,
-  config,
-  chatId,
-  projectName,
-  requestedThreadId,
-}) {
-  const requested = String(requestedThreadId || "").trim();
-  if (requested) {
-    return requested;
-  }
-  const safeProjectName = String(projectName || "").trim();
-  if (!safeProjectName) {
-    return "";
-  }
-
-  const settingKey = defaultThreadSettingKey(chatId, safeProjectName);
-  const current = state.repository.getAppSetting(settingKey);
-  const existingThreadId = String(current?.value || "").trim();
-  if (existingThreadId) {
-    const thread = state.repository.getThread(existingThreadId);
-    if (thread && String(thread.projectName || "").trim() === safeProjectName) {
-      return existingThreadId;
-    }
-  }
-
-  const bootstrapPrompt = resolveAgentProfile(state.repository.getAgentProfile());
-  const created = state.repository.createThread({
-    id: `thr_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
-    projectName: safeProjectName,
-    title: "New thread",
-    bootstrapPrompt,
-    tokenBudget: config?.threads?.defaultTokenBudget ?? 12000,
-    autoTrimContext: config?.threads?.autoTrimContextDefault !== false,
-  });
-  const threadId = String(created?.id || "").trim();
-  if (!threadId) {
-    return "";
-  }
-
-  state.repository.setAppSetting({
-    key: settingKey,
-    value: threadId,
-  });
-  return threadId;
-}
-
 export function approveJob({
   state,
   eventBus,
   jobRunner,
-  chatId,
   jobId = "",
 }) {
-  const approval = getPendingJobForApproval(state, chatId, jobId);
+  const approval = resolvePendingJob(state, jobId);
   if (approval.error) {
     return { error: approval.error };
   }
@@ -209,21 +166,23 @@ export function approveJob({
 
   eventBus.publish({
     jobId: queuedJob.id,
-    chatId: queuedJob.chatId,
+    chatId: state.getOwnerId(),
     eventType: "job_approved",
     message: "Pending job approved.",
     payload: {
       approvedAt: queuedAt,
       queuePosition,
+      threadId: queuedJob.threadId,
     },
   });
   eventBus.publish({
     jobId: queuedJob.id,
-    chatId: queuedJob.chatId,
+    chatId: state.getOwnerId(),
     eventType: "job_queued",
     message: "Job queued for execution.",
     payload: {
       queuePosition,
+      threadId: queuedJob.threadId,
     },
   });
   jobRunner.enqueue(queuedJob);
@@ -237,10 +196,9 @@ export function approveJob({
 export function denyJob({
   state,
   eventBus,
-  chatId,
   jobId = "",
 }) {
-  const denial = getPendingJobForApproval(state, chatId, jobId);
+  const denial = resolvePendingJob(state, jobId);
   if (denial.error) {
     return { error: denial.error };
   }
@@ -257,11 +215,12 @@ export function denyJob({
 
   eventBus.publish({
     jobId: deniedJob.id,
-    chatId: deniedJob.chatId,
+    chatId: state.getOwnerId(),
     eventType: "job_denied",
     message: "Pending job denied by user.",
     payload: {
       deniedAt,
+      threadId: deniedJob.threadId,
     },
   });
 
@@ -275,12 +234,11 @@ export function retryJob({
   eventBus,
   jobRunner,
   config,
-  chatId,
   jobId,
 }) {
   const original = state.getJobById(jobId);
-  if (!original || String(original.chatId) !== String(chatId)) {
-    return { error: `Job ${jobId} was not found in this chat.` };
+  if (!original) {
+    return { error: `Job ${jobId} was not found.` };
   }
 
   const blockedStatuses = new Set(["queued", "running", "pending_approval"]);
@@ -293,7 +251,6 @@ export function retryJob({
     eventBus,
     jobRunner,
     config,
-    chatId,
     task: original.request,
     projectName: original.projectName,
     threadId: original.threadId || undefined,
@@ -305,26 +262,23 @@ export function resumeJobFromError({
   eventBus,
   jobRunner,
   config,
-  chatId,
   jobId,
 }) {
   const original = state.getJobById(jobId);
-  if (!original || String(original.chatId) !== String(chatId)) {
-    return { error: `Job ${jobId} was not found in this chat.` };
+  if (!original) {
+    return { error: `Job ${jobId} was not found.` };
   }
 
   if (String(original.status || "").toLowerCase() !== "failed") {
     return { error: `Job ${jobId} is not failed; cannot resume from error.` };
   }
 
-  const task = "Continue from the last error in this thread and fix it.";
   const created = createJobFromTask({
     state,
     eventBus,
     jobRunner,
     config,
-    chatId,
-    task,
+    task: "Continue from the last error in this thread and fix it.",
     projectName: original.projectName,
     threadId: original.threadId || undefined,
   });

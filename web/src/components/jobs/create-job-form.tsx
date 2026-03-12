@@ -77,21 +77,21 @@ export function CreateJobForm({
   }, [activeProject, projects]);
 
   const handleProviderChange = (value: string) => {
-    setProvider({ chatId: "", provider: value }).then(() =>
+    setProvider({ provider: value }).then(() =>
       queryClient.invalidateQueries({ queryKey: ["provider"] }),
     );
   };
 
   const handleModelChange = (value: string) => {
     const model = value === "__default__" ? "" : value;
-    setProvider({ chatId: "", model }).then(() =>
+    setProvider({ model }).then(() =>
       queryClient.invalidateQueries({ queryKey: ["provider"] }),
     );
   };
 
   const handleReasoningEffortChange = (value: string) => {
     const reasoningEffort = value === "__default__" ? "" : value;
-    setProvider({ chatId: "", reasoningEffort }).then(() =>
+    setProvider({ reasoningEffort }).then(() =>
       queryClient.invalidateQueries({ queryKey: ["provider"] }),
     );
   };
@@ -159,13 +159,13 @@ export function CreateJobForm({
                 <SelectValue className="text-foreground" placeholder="Model" />
               </SelectTrigger>
               <SelectContent className="border-white/10 bg-popover/95 text-popover-foreground backdrop-blur-xl">
-                {(activeProvider?.models || []).map((m) => (
+                {(activeProvider?.models || []).map((modelOption) => (
                   <SelectItem
                     className="cursor-pointer transition-colors focus:bg-primary/20 focus:text-primary"
-                    key={m.value || "__default__"}
-                    value={m.value || "__default__"}
+                    key={modelOption.value || "__default__"}
+                    value={modelOption.value || "__default__"}
                   >
-                    {m.label}{m.free ? " (free)" : ""}
+                    {modelOption.label}{modelOption.free ? " (free)" : ""}
                   </SelectItem>
                 ))}
               </SelectContent>
@@ -215,12 +215,10 @@ export function CreateJobForm({
             disabled={isSubmitting || !task.trim()}
           >
             {isSubmitting ? "Submitting..." : "Run Task"}
-            <span className="ml-2 opacity-70">→</span>
+            <span className="ml-2 opacity-70">-&gt;</span>
           </Button>
           {submitError ? (
-            <p className="text-sm font-medium text-destructive">
-              {submitError}
-            </p>
+            <p className="text-sm font-medium text-destructive">{submitError}</p>
           ) : null}
         </form>
       </CardContent>

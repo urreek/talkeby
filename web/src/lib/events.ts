@@ -1,7 +1,6 @@
 import type { JobEvent } from "@/lib/types";
 
 type SubscriberOptions = {
-  chatId: string;
   jobId?: string;
   afterEventId?: number;
   onEvent: (event: JobEvent) => void;
@@ -32,7 +31,6 @@ const EVENT_TYPES = [
 
 export function subscribeJobEvents(options: SubscriberOptions) {
   const params = new URLSearchParams();
-  params.set("chatId", options.chatId);
   if (options.jobId) {
     params.set("jobId", options.jobId);
   }
@@ -40,7 +38,8 @@ export function subscribeJobEvents(options: SubscriberOptions) {
     params.set("afterEventId", String(options.afterEventId));
   }
 
-  const source = new EventSource(`/api/events?${params.toString()}`);
+  const query = params.toString();
+  const source = new EventSource(`/api/events${query ? `?${query}` : ""}`);
 
   const handleMessage = (input: Event) => {
     const messageEvent = input as MessageEvent<string>;

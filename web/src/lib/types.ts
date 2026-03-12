@@ -32,7 +32,7 @@ export interface ThreadsResponse {
 
 export interface Job {
   id: string;
-  chatId: string;
+  threadId: string | null;
   request: string;
   projectName: string;
   workdir: string;
@@ -95,7 +95,6 @@ export interface JobContextResponse {
 export interface JobEvent {
   id: number;
   jobId: string;
-  chatId: string;
   eventType: string;
   message: string;
   payload: Record<string, unknown> | null;
@@ -128,8 +127,6 @@ export interface ImportProjectsResponse {
 }
 
 export interface ModeResponse {
-  chatId?: string;
-  defaultExecutionMode?: ExecutionMode;
   executionMode?: ExecutionMode;
 }
 
@@ -194,7 +191,16 @@ export interface DoctorResponse {
 export interface AccessStatusResponse {
   required: boolean;
   authenticated: boolean;
-  ownerChatId?: string | null;
+}
+
+export interface AuthSessionResponse {
+  required: boolean;
+  authenticated: boolean;
+}
+
+export interface AuthLoginResponse extends AuthSessionResponse {
+  ok: true;
+  expiresAt?: string;
 }
 
 export interface AgentProfileResponse {
@@ -211,7 +217,6 @@ export type RuntimeApprovalStatus =
 export interface RuntimeApproval {
   id: string;
   provider: string;
-  chatId: string;
   jobId: string;
   threadId: string | null;
   method: string;
@@ -226,7 +231,6 @@ export interface RuntimeApproval {
   payload: Record<string, unknown> | null;
   createdAt: string;
   resolvedAt: string | null;
-  resolvedByChatId: string | null;
 }
 
 export interface RuntimeApprovalsResponse {

@@ -33,24 +33,8 @@ function parseExecutionMode(value, fallback) {
     return normalized;
   }
   throw new Error(
-    `Invalid TELEGRAM_DEFAULT_EXECUTION_MODE "${value}". Use "auto" or "interactive".`,
+    `Invalid DEFAULT_EXECUTION_MODE "${value}". Use "auto" or "interactive".`,
   );
-}
-
-function requireEnv(name) {
-  const value = process.env[name];
-  if (!value || !String(value).trim()) {
-    throw new Error(`Missing required environment variable: ${name}`);
-  }
-  return String(value).trim();
-}
-
-function parseIdList(value) {
-  const items = String(value ?? "")
-    .split(",")
-    .map((item) => item.trim())
-    .filter(Boolean);
-  return new Set(items);
 }
 
 function parseProjectMap(value, fallbackWorkdir) {
@@ -199,30 +183,23 @@ export function loadConfig() {
     projects,
     process.env.CODEX_DEFAULT_PROJECT,
   );
-
-  const telegram = {
-    botToken: requireEnv("TELEGRAM_BOT_TOKEN"),
-    allowedChatIds: parseIdList(process.env.TELEGRAM_ALLOWED_CHAT_IDS),
-    allowUnverifiedChats: parseBoolean(process.env.ALLOW_UNVERIFIED_CHATS, false),
+  const app = {
     defaultExecutionMode: parseExecutionMode(
-      process.env.TELEGRAM_DEFAULT_EXECUTION_MODE,
+      process.env.DEFAULT_EXECUTION_MODE,
       "auto",
     ),
-    commandPin: process.env.COMMAND_PIN?.trim() || "",
-    pollTimeoutSeconds: parseInteger(process.env.TELEGRAM_POLL_TIMEOUT_SECONDS, 30),
-    retryDelayMs: parseInteger(process.env.TELEGRAM_RETRY_DELAY_MS, 1500),
-    dropPendingUpdates: parseBoolean(process.env.TELEGRAM_DROP_PENDING_UPDATES, true),
-    progressUpdates: parseBoolean(process.env.TELEGRAM_PROGRESS_UPDATES, true),
+    progressUpdates: parseBoolean(
+      process.env.PROGRESS_UPDATES,
+      true,
+    ),
     progressUpdateSeconds: Math.max(
       10,
-      parseInteger(process.env.TELEGRAM_PROGRESS_UPDATE_SECONDS, 60),
+      parseInteger(
+        process.env.PROGRESS_UPDATE_SECONDS,
+        60,
+      ),
     ),
-    forceAutoMode: parseBoolean(process.env.FORCE_AUTO_MODE, true),
   };
-  const ownerChatId = process.env.OWNER_CHAT_ID?.trim() || "";
-  if (ownerChatId) {
-    telegram.allowedChatIds.add(ownerChatId);
-  }
 
   const provider = (process.env.AI_PROVIDER?.trim() || "codex").toLowerCase();
   if (!isSupportedProvider(provider)) {
@@ -286,11 +263,15 @@ export function loadConfig() {
       parseInteger(process.env.API_RATE_LIMIT_PER_MINUTE, 240),
     ),
     ownerKey: process.env.APP_ACCESS_KEY?.trim() || "",
-    ownerChatId,
-    csrfSecret: process.env.CSRF_SECRET?.trim() || `${telegram.botToken}:${databaseFile}`,
+    sessionCookieName: "talkeby_session",
+    csrfSecret: process.env.CSRF_SECRET?.trim() || `${process.env.APP_ACCESS_KEY?.trim() || "talkeby"}:${databaseFile}`,
     csrfTtlMs: Math.max(
       60,
       parseInteger(process.env.CSRF_TTL_SECONDS, 12 * 60 * 60),
+    ) * 1000,
+    sessionTtlMs: Math.max(
+      300,
+      parseInteger(process.env.SESSION_TTL_SECONDS, 30 * 24 * 60 * 60),
     ) * 1000,
   };
 
@@ -299,10 +280,6 @@ export function loadConfig() {
     autoApproveAll: parseBoolean(process.env.RUNTIME_POLICY_AUTO_APPROVE_ALL, true),
     fileChangeRequiresApproval: parseBoolean(
       process.env.RUNTIME_POLICY_FILE_CHANGES_REQUIRE_APPROVAL,
-      false,
-    ),
-    telegramApprovalNotifications: parseBoolean(
-      process.env.RUNTIME_APPROVAL_TELEGRAM_NOTIFICATIONS,
       false,
     ),
   };
@@ -317,7 +294,7 @@ export function loadConfig() {
       dataDir,
       databaseFile,
     },
-    telegram,
+    app,
     codex,
     threads,
     runner,

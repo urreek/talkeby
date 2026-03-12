@@ -11,11 +11,7 @@ import {
 } from "@/components/ui/card";
 import { addProject, deleteProject, discoverProjects } from "@/lib/api";
 
-type DiscoverProjectsProps = {
-  chatId: string;
-};
-
-export function DiscoverProjects({ chatId }: DiscoverProjectsProps) {
+export function DiscoverProjects() {
   const queryClient = useQueryClient();
 
   const discoverQuery = useQuery({
@@ -27,7 +23,7 @@ export function DiscoverProjects({ chatId }: DiscoverProjectsProps) {
 
   const addMutation = useMutation({
     mutationFn: (input: { name: string; path: string }) =>
-      addProject({ chatId, projectName: input.name, path: input.path }),
+      addProject({ projectName: input.name, path: input.path }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["projects"] });
       queryClient.invalidateQueries({ queryKey: ["discover-projects"] });
@@ -35,7 +31,7 @@ export function DiscoverProjects({ chatId }: DiscoverProjectsProps) {
   });
 
   const removeMutation = useMutation({
-    mutationFn: (name: string) => deleteProject(name, chatId),
+    mutationFn: (name: string) => deleteProject(name),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["projects"] });
       queryClient.invalidateQueries({ queryKey: ["discover-projects"] });
@@ -74,7 +70,7 @@ export function DiscoverProjects({ chatId }: DiscoverProjectsProps) {
           </Button>
         </div>
         <CardDescription>
-          Folders found in{" "}
+          Folders found in {" "}
           <code className="rounded bg-muted px-1 text-xs">{data.basePath}</code>
           . Tap Add on a folder to make it selectable in Jobs.
         </CardDescription>
@@ -82,8 +78,7 @@ export function DiscoverProjects({ chatId }: DiscoverProjectsProps) {
       <CardContent className="space-y-2">
         {data.discovered.length === 0 ? (
           <p className="text-sm text-muted-foreground">
-            No folders found right now. Create a folder inside this base path and
-            tap Refresh.
+            No folders found right now. Create a folder inside this base path and tap Refresh.
           </p>
         ) : (
           data.discovered.map((project) => (

@@ -27,7 +27,6 @@ import type {
 } from "@/lib/types";
 
 type SettingsPanelProps = {
-  initialChatId: string;
   mode: ExecutionMode;
   provider: AIProvider;
   model: string;
@@ -39,7 +38,8 @@ type SettingsPanelProps = {
   projectsBasePath: string;
   theme: ThemePreference;
   initialAgentProfile: string;
-  onSaveChatId: (chatId: string) => void;
+  showLogout: boolean;
+  onLogout: () => void;
   onSaveAgentProfile: (profile: string) => Promise<void>;
   onChangeTheme: (theme: ThemePreference) => void;
   onChangeMode: (mode: ExecutionMode) => void;
@@ -57,10 +57,10 @@ type SettingsPanelProps = {
   isUpdatingProject: boolean;
   isAddingProject: boolean;
   isSavingAgentProfile: boolean;
+  isLoggingOut: boolean;
 };
 
 export function SettingsPanel({
-  initialChatId,
   mode,
   provider,
   model,
@@ -72,7 +72,8 @@ export function SettingsPanel({
   projectsBasePath,
   theme,
   initialAgentProfile,
-  onSaveChatId,
+  showLogout,
+  onLogout,
   onSaveAgentProfile,
   onChangeTheme,
   onChangeMode,
@@ -87,8 +88,8 @@ export function SettingsPanel({
   isUpdatingProject,
   isAddingProject,
   isSavingAgentProfile,
+  isLoggingOut,
 }: SettingsPanelProps) {
-  const [chatId, setChatId] = useState(initialChatId);
   const [agentProfile, setAgentProfile] = useState(initialAgentProfile);
   const [newProjectName, setNewProjectName] = useState("");
   const [newProjectPath, setNewProjectPath] = useState("");
@@ -114,27 +115,6 @@ export function SettingsPanel({
 
   return (
     <div className="space-y-4">
-      <Card className="theme-surface">
-        <CardHeader>
-          <CardTitle>Chat Identity</CardTitle>
-          <CardDescription>
-            Use the same Telegram chat ID you allow in your backend.
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-3">
-          <Input
-            type="password"
-            placeholder="Example: 123456789"
-            value={chatId}
-            className="bg-background"
-            onChange={(event) => setChatId(event.target.value)}
-          />
-          <Button className="w-full" onClick={() => onSaveChatId(chatId)}>
-            Save Chat ID
-          </Button>
-        </CardContent>
-      </Card>
-
       <Card className="theme-surface">
         <CardHeader>
           <CardTitle>Agent Profile (New Threads)</CardTitle>
@@ -270,13 +250,13 @@ export function SettingsPanel({
                   />
                 </SelectTrigger>
                 <SelectContent className="bg-popover text-popover-foreground">
-                  {(activeProvider?.models || []).map((m) => (
+                  {(activeProvider?.models || []).map((modelOption) => (
                     <SelectItem
                       className="text-popover-foreground"
-                      key={m.value || "__default__"}
-                      value={m.value || "__default__"}
+                      key={modelOption.value || "__default__"}
+                      value={modelOption.value || "__default__"}
                     >
-                      {m.label}{m.free ? " (free)" : ""}
+                      {modelOption.label}{modelOption.free ? " (free)" : ""}
                     </SelectItem>
                   ))}
                 </SelectContent>
@@ -410,13 +390,13 @@ export function SettingsPanel({
             disabled={isAddingProject || !newProjectName.trim()}
             onClick={async () => {
               const projectName = newProjectName.trim();
-              const path = newProjectPath.trim();
+              const projectPath = newProjectPath.trim();
               if (!projectName) {
                 return;
               }
               await onAddProject({
                 projectName,
-                path: path || undefined,
+                path: projectPath || undefined,
               });
               setNewProjectName("");
               setNewProjectPath("");
@@ -426,6 +406,27 @@ export function SettingsPanel({
           </Button>
         </CardContent>
       </Card>
+
+      {showLogout ? (
+        <Card className="theme-surface">
+          <CardHeader>
+            <CardTitle>Session</CardTitle>
+            <CardDescription>
+              End the current owner session on this device.
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <Button
+              variant="outline"
+              className="w-full"
+              disabled={isLoggingOut}
+              onClick={onLogout}
+            >
+              {isLoggingOut ? "Logging Out..." : "Log Out"}
+            </Button>
+          </CardContent>
+        </Card>
+      ) : null}
     </div>
   );
 }

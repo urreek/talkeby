@@ -1,21 +1,14 @@
 import { useEffect, useState } from "react";
 import { Outlet, createRootRoute } from "@tanstack/react-router";
 
-import { fetchAccessStatus } from "@/lib/api";
-import {
-  clearStoredAccessKey,
-  getStoredChatId,
-  getStoredAccessKey,
-  setStoredChatId,
-  setStoredAccessKey,
-} from "@/lib/storage";
+import { fetchSessionStatus, login } from "@/lib/api";
 import { AppShell } from "@/components/layout/app-shell";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 
 export const rootRoute = createRootRoute({
-  component: RootComponent
+  component: RootComponent,
 });
 
 function readErrorMessage(error: unknown, fallback: string) {
@@ -35,33 +28,31 @@ function RootComponent() {
     authenticated: false,
     error: "",
   });
-  const [draftAccessKey, setDraftAccessKey] = useState(() => getStoredAccessKey());
+  const [draftAccessKey, setDraftAccessKey] = useState("");
   const [unlockError, setUnlockError] = useState("");
+  const [unlocking, setUnlocking] = useState(false);
 
-  const refreshAccessStatus = async () => {
+  const refreshSessionStatus = async () => {
     setStatus((current) => ({
       ...current,
       loading: true,
       error: "",
     }));
+
     try {
-      const next = await fetchAccessStatus();
+      const next = await fetchSessionStatus();
       setStatus({
         loading: false,
         required: next.required,
         authenticated: next.authenticated,
         error: "",
       });
-
       if (!next.required || next.authenticated) {
         setUnlockError("");
       }
-      if (next.ownerChatId && !getStoredChatId()) {
-        setStoredChatId(next.ownerChatId);
-      }
       return next;
     } catch (error) {
-      const message = readErrorMessage(error, "Could not verify access key.");
+      const message = readErrorMessage(error, "Could not verify session.");
       setStatus({
         loading: false,
         required: true,
@@ -73,7 +64,7 @@ function RootComponent() {
   };
 
   useEffect(() => {
-    void refreshAccessStatus();
+    void refreshSessionStatus();
   }, []);
 
   if (status.loading) {
@@ -81,8 +72,8 @@ function RootComponent() {
       <div className="mx-auto flex min-h-screen w-full max-w-xl items-center justify-center p-4">
         <Card className="w-full theme-surface">
           <CardHeader>
-            <CardTitle>Checking Access</CardTitle>
-            <CardDescription>Verifying secure access to this instance.</CardDescription>
+            <CardTitle>Checking Session</CardTitle>
+            <CardDescription>Verifying access to this Talkeby instance.</CardDescription>
           </CardHeader>
         </Card>
       </div>
@@ -98,7 +89,7 @@ function RootComponent() {
             <CardDescription>{status.error}</CardDescription>
           </CardHeader>
           <CardContent>
-            <Button className="w-full" onClick={() => void refreshAccessStatus()}>
+            <Button className="w-full" onClick={() => void refreshSessionStatus()}>
               Retry
             </Button>
           </CardContent>
@@ -114,7 +105,7 @@ function RootComponent() {
           <CardHeader>
             <CardTitle>Instance Locked</CardTitle>
             <CardDescription>
-              Enter your private access key to unlock this Talkeby instance.
+              Enter your owner access key to start a secure session on this Talkeby instance.
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-3">
@@ -122,21 +113,21 @@ function RootComponent() {
               className="space-y-3"
               onSubmit={async (event) => {
                 event.preventDefault();
-                const key = draftAccessKey.trim();
-                if (!key) {
+                const accessKey = draftAccessKey.trim();
+                if (!accessKey) {
                   setUnlockError("Access key is required.");
                   return;
                 }
 
-                setStoredAccessKey(key);
-                const next = await refreshAccessStatus().catch(() => null);
-                if (!next) {
-                  setUnlockError("Could not verify access key.");
-                  return;
-                }
-                if (next.required && !next.authenticated) {
-                  clearStoredAccessKey();
-                  setUnlockError("Invalid access key.");
+                setUnlocking(true);
+                try {
+                  await login(accessKey);
+                  setDraftAccessKey("");
+                  await refreshSessionStatus();
+                } catch (error) {
+                  setUnlockError(readErrorMessage(error, "Invalid access key."));
+                } finally {
+                  setUnlocking(false);
                 }
               }}
             >
@@ -153,8 +144,8 @@ function RootComponent() {
                   }
                 }}
               />
-              <Button className="w-full" type="submit">
-                Unlock
+              <Button className="w-full" type="submit" disabled={unlocking}>
+                {unlocking ? "Unlocking..." : "Unlock"}
               </Button>
             </form>
             {unlockError ? (

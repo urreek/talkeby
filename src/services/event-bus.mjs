@@ -29,9 +29,6 @@ export class EventBus {
     }
 
     for (const client of this.clients.values()) {
-      if (client.chatId && String(client.chatId) !== String(chatId)) {
-        continue;
-      }
       if (client.jobId && String(client.jobId) !== String(jobId)) {
         continue;
       }
@@ -44,12 +41,11 @@ export class EventBus {
     return event;
   }
 
-  subscribe({ reply, chatId, jobId }) {
+  subscribe({ reply, jobId }) {
     this.lastClientId += 1;
     const id = this.lastClientId;
     this.clients.set(id, {
       reply,
-      chatId: chatId ? String(chatId) : "",
       jobId: jobId ? String(jobId) : "",
     });
     return () => {

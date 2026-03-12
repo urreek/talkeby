@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { createRoute } from "@tanstack/react-router";
 
@@ -6,14 +6,12 @@ import { CreateJobForm } from "@/components/jobs/create-job-form";
 import { JobChatFeed } from "@/components/jobs/job-chat-feed";
 import { ObservabilityDashboard } from "@/components/jobs/observability-dashboard";
 import { RuntimeApprovalCards } from "@/components/jobs/runtime-approval-cards";
-import { Button } from "@/components/ui/button";
 import { useConfirmDialog } from "@/components/ui/confirm-dialog";
 import {
   Card,
   CardContent,
   CardDescription,
   CardHeader,
-  CardTitle,
 } from "@/components/ui/card";
 import {
   Select,
@@ -37,22 +35,35 @@ import {
   fetchThreads,
   renameThread,
   resumeJobFromError,
-  stopJob,
+  selectProject,
   setThreadAutoTrimContext,
+  stopJob,
 } from "@/lib/api";
-import { getStoredChatId } from "@/lib/storage";
 import type { Thread } from "@/lib/types";
 import { rootRoute } from "@/routes/__root";
+
+type JobsSearch = {
+  project?: string;
+  thread?: string;
+};
 
 export const jobsRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: "/",
+  validateSearch: (search): JobsSearch => ({
+    project: typeof search.project === "string" && search.project.trim()
+      ? search.project.trim()
+      : undefined,
+    thread: typeof search.thread === "string" && search.thread.trim()
+      ? search.thread.trim()
+      : undefined,
+  }),
   component: JobsScreen,
 });
 
 function truncate(text: string, max: number) {
   if (text.length <= max) return text;
-  return text.slice(0, max) + "…";
+  return text.slice(0, max) + "...";
 }
 
 function readErrorMessage(error: unknown, fallback: string) {
@@ -66,27 +77,26 @@ function readErrorMessage(error: unknown, fallback: string) {
 }
 
 function JobsScreen() {
+  const navigate = jobsRoute.useNavigate();
+  const search = jobsRoute.useSearch();
   const queryClient = useQueryClient();
-  const chatId = getStoredChatId();
-  const [selectedThreadId, setSelectedThreadId] = useState<string | null>(null);
-  const [selectedProject, setSelectedProject] = useState<string>("");
   const { confirm, ConfirmDialog } = useConfirmDialog();
 
-  // Fetch projects
   const projectsQuery = useQuery({
-    queryKey: ["projects", chatId],
-    queryFn: () => fetchProjects(chatId),
-    enabled: Boolean(chatId),
+    queryKey: ["projects"],
+    queryFn: fetchProjects,
   });
 
   const projects = projectsQuery.data?.projects ?? [];
-  const activeProject =
-    selectedProject ||
-    projectsQuery.data?.activeProject ||
-    projects[0]?.name ||
-    "";
+  const projectNames = new Set(projects.map((project) => project.name));
+  const activeProjectFromSearch = search.project && projectNames.has(search.project)
+    ? search.project
+    : "";
+  const activeProjectFromState = projectsQuery.data?.activeProject && projectNames.has(projectsQuery.data.activeProject)
+    ? projectsQuery.data.activeProject
+    : "";
+  const activeProject = activeProjectFromSearch || activeProjectFromState || projects[0]?.name || "";
 
-  // Fetch threads for the active project
   const threadsQuery = useQuery({
     queryKey: ["threads", activeProject],
     queryFn: () => fetchThreads(activeProject),
@@ -95,10 +105,8 @@ function JobsScreen() {
   });
 
   const threads = threadsQuery.data?.threads ?? [];
-  const activeThread =
-    threads.find((t) => t.id === selectedThreadId) ?? threads[0] ?? null;
+  const activeThread = threads.find((thread) => thread.id === search.thread) ?? threads[0] ?? null;
 
-  // Fetch jobs for the selected thread
   const threadJobsQuery = useQuery({
     queryKey: ["threadJobs", activeThread?.id],
     queryFn: () => fetchThreadJobs(activeThread!.id),
@@ -109,104 +117,154 @@ function JobsScreen() {
   const threadJobs = threadJobsQuery.data?.jobs ?? [];
 
   const observabilityQuery = useQuery({
-    queryKey: ["observability", chatId],
-    queryFn: () => fetchObservability(chatId),
-    enabled: Boolean(chatId),
-    refetchInterval: 15000,
+    queryKey: ["observability"],
+    queryFn: () => fetchObservability(),
+    refetchInterval: 15_000,
   });
 
   const runtimeApprovalsQuery = useQuery({
-    queryKey: ["runtimeApprovals", chatId],
-    queryFn: () => fetchRuntimeApprovals({ chatId, status: "pending", limit: 100 }),
-    enabled: Boolean(chatId),
+    queryKey: ["runtimeApprovals"],
+    queryFn: () => fetchRuntimeApprovals({ status: "pending", limit: 100 }),
     refetchInterval: 3000,
   });
 
-  // Create new thread
-  const createThreadMutation = useMutation({
-    mutationFn: () => createThread({ chatId, projectName: activeProject }),
-    onSuccess: (data) => {
-      queryClient.invalidateQueries({ queryKey: ["threads"] });
-      setSelectedThreadId(data.thread.id);
+  useEffect(() => {
+    const nextProject = activeProject || undefined;
+    const nextThread = activeThread?.id || undefined;
+    const currentProject = search.project || undefined;
+    const currentThread = search.thread || undefined;
+
+    if (nextProject === currentProject && nextThread === currentThread) {
+      return;
+    }
+
+    if (!nextProject && !currentProject && !nextThread && !currentThread) {
+      return;
+    }
+
+    void navigate({
+      replace: true,
+      search: (previous) => ({
+        ...previous,
+        project: nextProject,
+        thread: nextThread,
+      }),
+    });
+  }, [activeProject, activeThread?.id, navigate, search.project, search.thread]);
+
+  const selectProjectMutation = useMutation({
+    mutationFn: (projectName: string) => selectProject({ projectName }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["projects"] });
     },
   });
 
-  // Send task to thread
+  const createThreadMutation = useMutation({
+    mutationFn: () => createThread({ projectName: activeProject }),
+    onSuccess: (data) => {
+      queryClient.invalidateQueries({ queryKey: ["threads", activeProject] });
+      void navigate({
+        search: (previous) => ({
+          ...previous,
+          project: activeProject || undefined,
+          thread: data.thread.id,
+        }),
+      });
+    },
+  });
+
   const createJobMutation = useMutation({
     mutationFn: (input: { task: string; projectName: string }) =>
       createJob({
-        chatId,
         task: input.task,
         projectName: input.projectName,
-        threadId: activeThread?.id,
+        threadId: activeThread?.id || "",
       }),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["threadJobs"] });
-      queryClient.invalidateQueries({ queryKey: ["threads"] });
+      queryClient.invalidateQueries({ queryKey: ["threadJobs", activeThread?.id] });
+      queryClient.invalidateQueries({ queryKey: ["threads", activeProject] });
     },
   });
 
   const approveMutation = useMutation({
-    mutationFn: (jobId: string) => approveJob({ jobId, chatId }),
-    onSuccess: () =>
-      queryClient.invalidateQueries({ queryKey: ["threadJobs"] }),
+    mutationFn: (jobId: string) => approveJob({ jobId }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["threadJobs", activeThread?.id] });
+      queryClient.invalidateQueries({ queryKey: ["threads", activeProject] });
+    },
   });
 
   const denyMutation = useMutation({
-    mutationFn: (jobId: string) => denyJob({ jobId, chatId }),
-    onSuccess: () =>
-      queryClient.invalidateQueries({ queryKey: ["threadJobs"] }),
+    mutationFn: (jobId: string) => denyJob({ jobId }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["threadJobs", activeThread?.id] });
+      queryClient.invalidateQueries({ queryKey: ["threads", activeProject] });
+    },
   });
 
   const resumeMutation = useMutation({
-    mutationFn: (jobId: string) => resumeJobFromError({ jobId, chatId }),
+    mutationFn: (jobId: string) => resumeJobFromError({ jobId }),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["threadJobs"] });
-      queryClient.invalidateQueries({ queryKey: ["threads"] });
+      queryClient.invalidateQueries({ queryKey: ["threadJobs", activeThread?.id] });
+      queryClient.invalidateQueries({ queryKey: ["threads", activeProject] });
     },
   });
 
   const stopMutation = useMutation({
-    mutationFn: (jobId: string) => stopJob({ jobId, chatId }),
+    mutationFn: (jobId: string) => stopJob({ jobId }),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["threadJobs"] });
-      queryClient.invalidateQueries({ queryKey: ["threads"] });
+      queryClient.invalidateQueries({ queryKey: ["threadJobs", activeThread?.id] });
+      queryClient.invalidateQueries({ queryKey: ["threads", activeProject] });
+      queryClient.invalidateQueries({ queryKey: ["runtimeApprovals"] });
     },
   });
 
   const approveRuntimeMutation = useMutation({
-    mutationFn: (id: string) => approveRuntimeApproval({ id, chatId }),
+    mutationFn: (id: string) => approveRuntimeApproval({ id }),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["runtimeApprovals", chatId] });
-      queryClient.invalidateQueries({ queryKey: ["threadJobs"] });
+      queryClient.invalidateQueries({ queryKey: ["runtimeApprovals"] });
+      queryClient.invalidateQueries({ queryKey: ["threadJobs", activeThread?.id] });
     },
   });
 
   const denyRuntimeMutation = useMutation({
-    mutationFn: (id: string) => denyRuntimeApproval({ id, chatId }),
+    mutationFn: (id: string) => denyRuntimeApproval({ id }),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["runtimeApprovals", chatId] });
-      queryClient.invalidateQueries({ queryKey: ["threadJobs"] });
+      queryClient.invalidateQueries({ queryKey: ["runtimeApprovals"] });
+      queryClient.invalidateQueries({ queryKey: ["threadJobs", activeThread?.id] });
     },
   });
 
   const deleteThreadMutation = useMutation({
-    mutationFn: (threadId: string) => deleteThread(threadId, chatId),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["threads"] });
-      setSelectedThreadId(null);
+    mutationFn: (threadId: string) => deleteThread(threadId),
+    onSuccess: (_, threadId) => {
+      queryClient.invalidateQueries({ queryKey: ["threads", activeProject] });
+      queryClient.removeQueries({ queryKey: ["threadJobs", threadId] });
+      if (search.thread === threadId) {
+        void navigate({
+          search: (previous) => ({
+            ...previous,
+            thread: undefined,
+          }),
+        });
+      }
     },
   });
 
   const renameThreadMutation = useMutation({
     mutationFn: (input: { threadId: string; title: string }) =>
-      renameThread(input.threadId, chatId, input.title),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["threads"] }),
+      renameThread(input.threadId, input.title),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["threads", activeProject] });
+    },
   });
+
   const threadAutoTrimMutation = useMutation({
     mutationFn: (input: { threadId: string; autoTrimContext: boolean }) =>
-      setThreadAutoTrimContext(input.threadId, chatId, input.autoTrimContext),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["threads"] }),
+      setThreadAutoTrimContext(input.threadId, input.autoTrimContext),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["threads", activeProject] });
+    },
   });
 
   const createJobErrorMessage = createJobMutation.isError
@@ -233,32 +291,36 @@ function JobsScreen() {
         onDeny={(id) => denyRuntimeMutation.mutate(id)}
       />
 
-      {/* Project tabs */}
       {projects.length > 0 && (
         <div className="animate-in fade-in slide-in-from-bottom-2 duration-300 fill-mode-both">
           <div className="flex gap-2 overflow-x-auto pb-1 scrollbar-none">
-            {projects.map((p) => (
+            {projects.map((project) => (
               <button
-                key={p.name}
+                key={project.name}
                 type="button"
                 onClick={() => {
-                  setSelectedProject(p.name);
-                  setSelectedThreadId(null);
+                  selectProjectMutation.mutate(project.name);
+                  void navigate({
+                    search: (previous) => ({
+                      ...previous,
+                      project: project.name,
+                      thread: undefined,
+                    }),
+                  });
                 }}
                 className={`shrink-0 rounded-lg px-4 py-2 text-xs font-semibold transition-all ${
-                  p.name === activeProject
+                  project.name === activeProject
                     ? "bg-primary text-primary-foreground shadow-md shadow-primary/20"
                     : "bg-muted/50 text-muted-foreground hover:bg-muted hover:text-foreground border border-border/50"
                 }`}
               >
-                {p.name}
+                {project.name}
               </button>
             ))}
           </div>
         </div>
       )}
 
-      {/* Thread tabs + New Thread */}
       {activeProject && (
         <div className="animate-in fade-in slide-in-from-bottom-4 duration-400 fill-mode-both">
           <div className="flex items-center gap-2 overflow-x-auto pb-1 scrollbar-none">
@@ -267,12 +329,20 @@ function JobsScreen() {
                 key={thread.id}
                 thread={thread}
                 isActive={thread.id === activeThread?.id}
-                onClick={() => setSelectedThreadId(thread.id)}
+                onClick={() => {
+                  void navigate({
+                    search: (previous) => ({
+                      ...previous,
+                      project: activeProject,
+                      thread: thread.id,
+                    }),
+                  });
+                }}
                 onDelete={async () => {
                   const confirmed = await confirm({
                     title: `Delete "${thread.title}"?`,
                     description:
-                      "This will permanently remove the thread and its CLI session from disk. This cannot be undone.",
+                      "This permanently removes the thread and its Codex resume session from disk.",
                     confirmLabel: "Delete",
                     variant: "destructive",
                   });
@@ -294,7 +364,6 @@ function JobsScreen() {
         </div>
       )}
 
-      {/* Chat feed */}
       <div className="animate-in fade-in slide-in-from-bottom-6 duration-500 fill-mode-both">
         {activeThread ? (
           <Card className="theme-surface relative overflow-hidden border-border/50 shadow-md">
@@ -343,7 +412,7 @@ function JobsScreen() {
             </CardHeader>
             <CardContent>
               <JobChatFeed
-                chatId={chatId}
+                threadId={activeThread.id}
                 jobs={threadJobs}
                 approvingJobId={approveMutation.variables ?? ""}
                 denyingJobId={denyMutation.variables ?? ""}
@@ -360,7 +429,9 @@ function JobsScreen() {
           <Card
             className="theme-surface cursor-pointer transition-all hover:border-primary/30 hover:shadow-md"
             onClick={() => {
-              if (activeProject) createThreadMutation.mutate();
+              if (activeProject) {
+                createThreadMutation.mutate();
+              }
             }}
           >
             <CardContent className="py-12 text-center">
@@ -374,7 +445,6 @@ function JobsScreen() {
         )}
       </div>
 
-      {/* New Task composer */}
       {activeThread && (
         <div className="animate-in fade-in slide-in-from-bottom-8 duration-700 delay-75 fill-mode-both">
           <CreateJobForm
@@ -443,19 +513,19 @@ function ThreadPill({
       <span
         role="button"
         tabIndex={0}
-        onClick={(e) => {
-          e.stopPropagation();
+        onClick={(event) => {
+          event.stopPropagation();
           onDelete();
         }}
-        onKeyDown={(e) => {
-          if (e.key === "Enter") {
-            e.stopPropagation();
+        onKeyDown={(event) => {
+          if (event.key === "Enter") {
+            event.stopPropagation();
             onDelete();
           }
         }}
         className="ml-0.5 opacity-0 group-hover:opacity-60 hover:!opacity-100 transition-opacity text-xs"
       >
-        ×
+        x
       </span>
     </button>
   );
@@ -492,7 +562,7 @@ function EditableTitle({
       autoFocus
       className="text-base font-bold bg-transparent border-b border-primary outline-none w-full"
       value={draft}
-      onChange={(e) => setDraft(e.target.value)}
+      onChange={(event) => setDraft(event.target.value)}
       onBlur={() => {
         const trimmed = draft.trim();
         if (trimmed && trimmed !== title) {
@@ -500,11 +570,11 @@ function EditableTitle({
         }
         setEditing(false);
       }}
-      onKeyDown={(e) => {
-        if (e.key === "Enter") {
-          (e.target as HTMLInputElement).blur();
+      onKeyDown={(event) => {
+        if (event.key === "Enter") {
+          (event.target as HTMLInputElement).blur();
         }
-        if (e.key === "Escape") {
+        if (event.key === "Escape") {
           setDraft(title);
           setEditing(false);
         }

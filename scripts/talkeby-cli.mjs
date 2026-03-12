@@ -1,5 +1,6 @@
 #!/usr/bin/env node
 import { spawnSync } from "node:child_process";
+import crypto from "node:crypto";
 import fs from "node:fs";
 import net from "node:net";
 import os from "node:os";
@@ -49,17 +50,17 @@ function upsertEnvValues(filePath, entries) {
   const lines = existing.split(/\r?\n/);
   const pending = new Map(entries);
 
-  for (let i = 0; i < lines.length; i += 1) {
-    const line = lines[i];
-    const idx = line.indexOf("=");
-    if (idx <= 0) {
+  for (let index = 0; index < lines.length; index += 1) {
+    const line = lines[index];
+    const separatorIndex = line.indexOf("=");
+    if (separatorIndex <= 0) {
       continue;
     }
-    const key = line.slice(0, idx).trim();
+    const key = line.slice(0, separatorIndex).trim();
     if (!pending.has(key)) {
       continue;
     }
-    lines[i] = `${key}=${pending.get(key)}`;
+    lines[index] = `${key}=${pending.get(key)}`;
     pending.delete(key);
   }
 
@@ -105,7 +106,6 @@ function runCommand(command, args) {
 }
 
 function printHeader(title) {
-  // eslint-disable-next-line no-console
   console.log(`\n== ${title} ==`);
 }
 
@@ -119,144 +119,24 @@ function nodeVersionOk() {
   return major > 20 || (major === 20 && minor >= 19);
 }
 
-async function runInstall() {
-  printHeader("Talkeby Guided Install");
-  ensureEnvFile();
-  const env = readEnvFile();
-
-  const rl = readline.createInterface({ input, output });
-  const ask = async (label, fallback = "") => {
-    const suffix = fallback ? ` [${fallback}]` : "";
-    const answer = (await rl.question(`${label}${suffix}: `)).trim();
-    return answer || fallback;
-  };
-
-  const defaultWorkdir = env.get("CODEX_WORKDIR") || ROOT_DIR;
-  const defaultProjectsBase = env.get("CODEX_PROJECTS_BASE_DIR") || path.dirname(defaultWorkdir);
-  const defaultPort = env.get("PORT") || "3000";
-  const codexBinary = which("codex") || env.get("CODEX_BINARY") || "codex";
-
-  const token = await ask("TELEGRAM_BOT_TOKEN", env.get("TELEGRAM_BOT_TOKEN") || "");
-  const allowedChats = await ask("TELEGRAM_ALLOWED_CHAT_IDS", env.get("TELEGRAM_ALLOWED_CHAT_IDS") || "");
-  const workdir = await ask("CODEX_WORKDIR", defaultWorkdir);
-  const projectsBaseDir = await ask("CODEX_PROJECTS_BASE_DIR", defaultProjectsBase);
-  const port = await ask("PORT", defaultPort);
-
-  const installDepsAnswer = (await ask("Install npm dependencies now? (yes/no)", "yes")).toLowerCase();
-  const installLaunchdAnswer = (await ask("Install launchd service now? (yes/no)", "no")).toLowerCase();
-
-  rl.close();
-
-  upsertEnvValues(ENV_PATH, [
-    ["PORT", port],
-    ["TELEGRAM_BOT_TOKEN", token],
-    ["TELEGRAM_ALLOWED_CHAT_IDS", allowedChats],
-    ["ALLOW_UNVERIFIED_CHATS", "false"],
-    ["CODEX_BINARY", codexBinary],
-    ["CODEX_WORKDIR", path.resolve(workdir)],
-    ["CODEX_PROJECTS_BASE_DIR", path.resolve(projectsBaseDir)],
-  ]);
-
-  // eslint-disable-next-line no-console
-  console.log(`Updated ${ENV_PATH}`);
-
-  if (installDepsAnswer.startsWith("y")) {
-    printHeader("Installing Dependencies");
-    if (!runCommand("npm", ["install"])) {
-      process.exitCode = 1;
-      return;
-    }
-  }
-
-  if (installLaunchdAnswer.startsWith("y")) {
-    printHeader("Installing Launchd Service");
-    if (!runCommand("npm", ["run", "launchd:install"])) {
-      process.exitCode = 1;
-      return;
-    }
-  }
-
-  printHeader("Install Complete");
-  // eslint-disable-next-line no-console
-  console.log("Next: npm start");
-}
-
 function isPlaceholderPath(value) {
   const normalized = String(value || "").toLowerCase();
   return normalized.includes("your-user") || normalized.includes("path/to/repo");
 }
 
-async function runBootstrap() {
-  printHeader("Talkeby Bootstrap");
-
-  if (!nodeVersionOk()) {
-    // eslint-disable-next-line no-console
-    console.error(`Node ${process.versions.node} detected; require >=20.19.`);
-    process.exitCode = 1;
-    return;
-  }
-
-  ensureEnvFile();
-  const env = readEnvFile();
-  const updates = [];
-
-  const port = String(env.get("PORT") || "").trim();
-  if (!port) {
-    updates.push(["PORT", "3000"]);
-  }
-
-  const workdir = String(env.get("CODEX_WORKDIR") || "").trim();
-  if (!workdir || isPlaceholderPath(workdir)) {
-    updates.push(["CODEX_WORKDIR", ROOT_DIR]);
-  }
-
-  const projectsBaseDir = String(env.get("CODEX_PROJECTS_BASE_DIR") || "").trim();
-  if (!projectsBaseDir || isPlaceholderPath(projectsBaseDir)) {
-    updates.push(["CODEX_PROJECTS_BASE_DIR", path.dirname(ROOT_DIR)]);
-  }
-
-  const currentBinary = String(env.get("CODEX_BINARY") || "").trim();
-  const resolvedBinary = which("codex");
-  if (resolvedBinary && (!currentBinary || currentBinary === "codex" || isPlaceholderPath(currentBinary))) {
-    updates.push(["CODEX_BINARY", resolvedBinary]);
-  }
-
-  if (updates.length > 0) {
-    upsertEnvValues(ENV_PATH, updates);
-  }
-
-  printHeader("Installing Dependencies");
-  if (!runCommand("npm", ["install"])) {
-    process.exitCode = 1;
-    return;
-  }
-
-  printHeader("Bootstrap Complete");
-  // eslint-disable-next-line no-console
-  console.log(`Environment file: ${ENV_PATH}`);
-  // eslint-disable-next-line no-console
-  console.log("Next steps:");
-  // eslint-disable-next-line no-console
-  console.log("1) Run `npm run setup` to fill Telegram token/chat if not set.");
-  // eslint-disable-next-line no-console
-  console.log("2) Run `npm start` for backend worker.");
-  // eslint-disable-next-line no-console
-  console.log("3) Run `npm run web:dev` in another terminal for mobile UI.");
+function parseInteger(value, fallback) {
+  const parsed = Number.parseInt(String(value ?? ""), 10);
+  return Number.isFinite(parsed) ? parsed : fallback;
 }
 
-function isLikelyTelegramToken(value) {
-  return /^\d{5,}:[A-Za-z0-9_-]{20,}$/.test(String(value || "").trim());
-}
-
-function checkPortAvailable(port) {
-  return new Promise((resolve) => {
-    const server = net.createServer();
-    server.once("error", () => resolve(false));
-    server.once("listening", () => {
-      server.close(() => resolve(true));
-    });
-    server.listen(port, "127.0.0.1");
-  });
+function ensureWritableDirectory(dirPath) {
+  try {
+    fs.mkdirSync(dirPath, { recursive: true });
+    fs.accessSync(dirPath, fs.constants.W_OK);
+    return true;
+  } catch {
+    return false;
+  }
 }
 
 function addUnique(list, value) {
@@ -279,19 +159,15 @@ function commandForPlatform(commands) {
   return String(commands.default || "");
 }
 
-function parseInteger(value, fallback) {
-  const parsed = Number.parseInt(String(value ?? ""), 10);
-  return Number.isFinite(parsed) ? parsed : fallback;
-}
-
-function ensureWritableDirectory(dirPath) {
-  try {
-    fs.mkdirSync(dirPath, { recursive: true });
-    fs.accessSync(dirPath, fs.constants.W_OK);
-    return true;
-  } catch {
-    return false;
-  }
+function checkPortAvailable(port) {
+  return new Promise((resolve) => {
+    const server = net.createServer();
+    server.once("error", () => resolve(false));
+    server.once("listening", () => {
+      server.close(() => resolve(true));
+    });
+    server.listen(port, "127.0.0.1");
+  });
 }
 
 function launchdStatus(label) {
@@ -332,24 +208,122 @@ function launchdStatus(label) {
   };
 }
 
-async function checkTelegramToken(token) {
-  if (!token) {
-    return false;
+function generateAccessKey() {
+  return crypto.randomBytes(24).toString("base64url");
+}
+
+async function runInstall() {
+  printHeader("Talkeby Guided Install");
+  ensureEnvFile();
+  const env = readEnvFile();
+
+  const rl = readline.createInterface({ input, output });
+  const ask = async (label, fallback = "") => {
+    const suffix = fallback ? ` [${fallback}]` : "";
+    const answer = (await rl.question(`${label}${suffix}: `)).trim();
+    return answer || fallback;
+  };
+
+  const defaultWorkdir = env.get("CODEX_WORKDIR") || ROOT_DIR;
+  const defaultProjectsBase = env.get("CODEX_PROJECTS_BASE_DIR") || path.dirname(defaultWorkdir);
+  const defaultPort = env.get("PORT") || "3000";
+  const defaultAccessKey = env.get("APP_ACCESS_KEY") || generateAccessKey();
+  const codexBinary = which("codex") || env.get("CODEX_BINARY") || "codex";
+
+  const accessKey = await ask("APP_ACCESS_KEY", defaultAccessKey);
+  const workdir = await ask("CODEX_WORKDIR", defaultWorkdir);
+  const projectsBaseDir = await ask("CODEX_PROJECTS_BASE_DIR", defaultProjectsBase);
+  const port = await ask("PORT", defaultPort);
+  const installDepsAnswer = (await ask("Install npm dependencies now? (yes/no)", "yes")).toLowerCase();
+  const installLaunchdAnswer = (await ask("Install launchd service now? (yes/no)", "no")).toLowerCase();
+
+  rl.close();
+
+  upsertEnvValues(ENV_PATH, [
+    ["PORT", port],
+    ["APP_ACCESS_KEY", accessKey],
+    ["CODEX_BINARY", codexBinary],
+    ["CODEX_WORKDIR", path.resolve(workdir)],
+    ["CODEX_PROJECTS_BASE_DIR", path.resolve(projectsBaseDir)],
+    ["DEFAULT_EXECUTION_MODE", env.get("DEFAULT_EXECUTION_MODE") || "auto"],
+  ]);
+
+  console.log(`Updated ${ENV_PATH}`);
+
+  if (installDepsAnswer.startsWith("y")) {
+    printHeader("Installing Dependencies");
+    if (!runCommand("npm", ["install"])) {
+      process.exitCode = 1;
+      return;
+    }
   }
-  const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), 5000);
-  try {
-    const response = await fetch(`https://api.telegram.org/bot${token}/getMe`, {
-      method: "GET",
-      signal: controller.signal,
-    });
-    const body = await response.json().catch(() => ({}));
-    return Boolean(body?.ok);
-  } catch {
-    return false;
-  } finally {
-    clearTimeout(timeout);
+
+  if (installLaunchdAnswer.startsWith("y")) {
+    printHeader("Installing Launchd Service");
+    if (!runCommand("npm", ["run", "launchd:install:all"])) {
+      process.exitCode = 1;
+      return;
+    }
   }
+
+  printHeader("Install Complete");
+  console.log("Next: npm run dev:all");
+}
+
+async function runBootstrap() {
+  printHeader("Talkeby Bootstrap");
+
+  if (!nodeVersionOk()) {
+    console.error(`Node ${process.versions.node} detected; require >=20.19.`);
+    process.exitCode = 1;
+    return;
+  }
+
+  ensureEnvFile();
+  const env = readEnvFile();
+  const updates = [];
+
+  const port = String(env.get("PORT") || "").trim();
+  if (!port) {
+    updates.push(["PORT", "3000"]);
+  }
+
+  const workdir = String(env.get("CODEX_WORKDIR") || "").trim();
+  if (!workdir || isPlaceholderPath(workdir)) {
+    updates.push(["CODEX_WORKDIR", ROOT_DIR]);
+  }
+
+  const projectsBaseDir = String(env.get("CODEX_PROJECTS_BASE_DIR") || "").trim();
+  if (!projectsBaseDir || isPlaceholderPath(projectsBaseDir)) {
+    updates.push(["CODEX_PROJECTS_BASE_DIR", path.dirname(ROOT_DIR)]);
+  }
+
+  const currentBinary = String(env.get("CODEX_BINARY") || "").trim();
+  const resolvedBinary = which("codex");
+  if (resolvedBinary && (!currentBinary || currentBinary === "codex" || isPlaceholderPath(currentBinary))) {
+    updates.push(["CODEX_BINARY", resolvedBinary]);
+  }
+
+  if (!String(env.get("DEFAULT_EXECUTION_MODE") || "").trim()) {
+    updates.push(["DEFAULT_EXECUTION_MODE", "auto"]);
+  }
+
+  if (updates.length > 0) {
+    upsertEnvValues(ENV_PATH, updates);
+  }
+
+  printHeader("Installing Dependencies");
+  if (!runCommand("npm", ["install"])) {
+    process.exitCode = 1;
+    return;
+  }
+
+  printHeader("Bootstrap Complete");
+  console.log(`Environment file: ${ENV_PATH}`);
+  console.log("Next steps:");
+  console.log("1) Run `npm run setup` to confirm access key and project paths.");
+  console.log("2) Run `npm start` for the backend.");
+  console.log("3) Run `npm run web:dev` in another terminal for the PWA.");
 }
 
 async function runDoctor() {
@@ -389,8 +363,6 @@ async function runDoctor() {
     );
   }
 
-  const token = String(env.get("TELEGRAM_BOT_TOKEN") || "").trim();
-  const allowedChats = String(env.get("TELEGRAM_ALLOWED_CHAT_IDS") || "").trim();
   const workdir = String(env.get("CODEX_WORKDIR") || "").trim();
   const projectsBaseDir = String(env.get("CODEX_PROJECTS_BASE_DIR") || path.dirname(ROOT_DIR)).trim();
   const selectedProvider = String(env.get("AI_PROVIDER") || "codex").trim().toLowerCase();
@@ -404,27 +376,8 @@ async function runDoctor() {
   const dataDir = String(env.get("DATA_DIR") || path.join(ROOT_DIR, "data")).trim();
   const databaseFile = String(env.get("DATABASE_FILE") || "").trim() || path.join(dataDir, "talkeby.db");
   const appAccessKey = String(env.get("APP_ACCESS_KEY") || "").trim();
-  const ownerChatId = String(env.get("OWNER_CHAT_ID") || "").trim();
   const port = parseInteger(env.get("PORT") || "3000", 3000);
   const webPort = parseInteger(env.get("WEB_PORT") || "5173", 5173);
-
-  if (!token) {
-    addWarning(
-      "TELEGRAM_BOT_TOKEN is missing. Telegram control is disabled.",
-      "Set TELEGRAM_BOT_TOKEN in .env and rerun doctor.",
-    );
-  } else if (!isLikelyTelegramToken(token)) {
-    addFailure(
-      "TELEGRAM_BOT_TOKEN has invalid format.",
-      "Update TELEGRAM_BOT_TOKEN in .env with a valid BotFather token.",
-    );
-  }
-  if (!allowedChats) {
-    addWarning(
-      "TELEGRAM_ALLOWED_CHAT_IDS is missing.",
-      "Set TELEGRAM_ALLOWED_CHAT_IDS=<your_chat_id> in .env.",
-    );
-  }
 
   const providerRequirements = [
     { id: "codex", binary: binaries.codex, binaryEnv: "CODEX_BINARY", apiEnv: "", builtInAuth: true },
@@ -539,24 +492,11 @@ async function runDoctor() {
     addFailure("Web dependencies missing.", "npm run web:install");
   }
 
-  if (token && isLikelyTelegramToken(token)) {
-    const telegramOk = await checkTelegramToken(token);
-    if (!telegramOk) {
-      addWarning(
-        "Telegram token validation failed (token invalid or no internet access).",
-        "Verify TELEGRAM_BOT_TOKEN and retry when internet is available.",
-      );
-    }
-  }
-
   if (!appAccessKey) {
     addWarning(
-      "APP_ACCESS_KEY is missing. Public web exposure is not protected.",
+      "APP_ACCESS_KEY is missing. Remote web access is not protected.",
       "Set APP_ACCESS_KEY=<long-random-secret> in .env.",
     );
-  }
-  if (!ownerChatId) {
-    addInfo("OWNER_CHAT_ID not set. Web clients must provide chatId explicitly.");
   }
 
   const cloudflaredBinary = which("cloudflared");
@@ -592,23 +532,16 @@ async function runDoctor() {
     addInfo("Background service checks are currently available only on macOS launchd.");
   }
 
-  // eslint-disable-next-line no-console
   console.log(`Node version: ${process.versions.node}`);
-  // eslint-disable-next-line no-console
   console.log(`Platform: ${process.platform} ${os.release()}`);
-  // eslint-disable-next-line no-console
   console.log(`Env file: ${envExists ? "OK" : "MISSING"}`);
-  // eslint-disable-next-line no-console
   console.log(`Provider: ${selectedProvider}`);
-  // eslint-disable-next-line no-console
   console.log(`Database: ${databaseFile}`);
-  // eslint-disable-next-line no-console
   console.log(`Ports: backend=${port} web=${webPort}`);
 
   if (warnings.length > 0) {
     printHeader("Warnings");
     for (const warning of warnings) {
-      // eslint-disable-next-line no-console
       console.log(`- ${warning}`);
     }
   }
@@ -616,7 +549,6 @@ async function runDoctor() {
   if (infos.length > 0) {
     printHeader("Info");
     for (const info of infos) {
-      // eslint-disable-next-line no-console
       console.log(`- ${info}`);
     }
   }
@@ -624,7 +556,6 @@ async function runDoctor() {
   if (suggestions.length > 0) {
     printHeader("Suggested Fixes");
     for (const suggestion of suggestions) {
-      // eslint-disable-next-line no-console
       console.log(`- ${suggestion}`);
     }
   }
@@ -632,18 +563,15 @@ async function runDoctor() {
   if (failures.length > 0) {
     printHeader("Failures");
     for (const failure of failures) {
-      // eslint-disable-next-line no-console
       console.log(`- ${failure}`);
     }
     printHeader("Doctor Failed");
-    // eslint-disable-next-line no-console
     console.log(`Failures: ${failures.length}, Warnings: ${warnings.length}`);
     process.exitCode = 1;
     return;
   }
 
   printHeader("Doctor Passed");
-  // eslint-disable-next-line no-console
   console.log(`Environment looks healthy. Warnings: ${warnings.length}`);
 }
 
@@ -651,7 +579,6 @@ async function main() {
   const command = String(process.argv[2] || "").trim().toLowerCase();
 
   if (!command || command === "help" || command === "--help" || command === "-h") {
-    // eslint-disable-next-line no-console
     console.log("Usage: node scripts/talkeby-cli.mjs <install|bootstrap|doctor>");
     return;
   }
@@ -669,13 +596,11 @@ async function main() {
     return;
   }
 
-  // eslint-disable-next-line no-console
   console.error(`Unknown command: ${command}`);
   process.exitCode = 1;
 }
 
 main().catch((error) => {
-  // eslint-disable-next-line no-console
   console.error(error?.message || error);
   process.exitCode = 1;
 });

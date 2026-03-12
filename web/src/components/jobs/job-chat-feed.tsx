@@ -1,8 +1,8 @@
 import { useEffect, useRef, useState } from "react";
 import Markdown from "react-markdown";
 
-import { Button } from "@/components/ui/button";
 import { JobContextInspector } from "@/components/jobs/job-context-inspector";
+import { Button } from "@/components/ui/button";
 import type { Job } from "@/lib/types";
 import {
   isSoundsEnabled,
@@ -119,9 +119,11 @@ function formatElapsed(ms: number): string {
 function TypingIndicator({
   startedAt,
   jobId,
+  threadId,
 }: {
   startedAt?: string | null;
   jobId: string;
+  threadId?: string | null;
 }) {
   const [elapsed, setElapsed] = useState(0);
   const [dots, setDots] = useState(0);
@@ -134,33 +136,41 @@ function TypingIndicator({
 
     const timer = setInterval(() => {
       setElapsed(Date.now() - startMs);
-      setDots((d) => (d + 1) % 4);
+      setDots((value) => (value + 1) % 4);
     }, 500);
 
     return () => clearInterval(timer);
   }, [startedAt]);
 
-  // SSE live output
   useEffect(() => {
     if (!jobId) return;
-    const es = new EventSource(`/api/jobs/${encodeURIComponent(jobId)}/stream`);
-    es.onmessage = (event) => {
+
+    const params = new URLSearchParams();
+    if (threadId) {
+      params.set("threadId", threadId);
+    }
+    const query = params.toString();
+    const source = new EventSource(
+      `/api/jobs/${encodeURIComponent(jobId)}/stream${query ? `?${query}` : ""}`,
+    );
+
+    source.onmessage = (event) => {
       try {
-        const data = JSON.parse(event.data);
+        const data = JSON.parse(event.data) as { line?: string };
         if (data.line) {
-          setLines((prev) => {
-            const next = [...prev, data.line];
+          setLines((current) => {
+            const next = [...current, data.line || ""];
             return next.length > 50 ? next.slice(-50) : next;
           });
         }
       } catch {
-        // ignore parse errors
+        // Ignore malformed lines and keep the stream alive.
       }
     };
-    return () => es.close();
-  }, [jobId]);
 
-  // Auto-scroll live output
+    return () => source.close();
+  }, [jobId, threadId]);
+
   useEffect(() => {
     if (scrollRef.current) {
       scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
@@ -177,7 +187,6 @@ function TypingIndicator({
   const phraseIndex = Math.floor(elapsed / 4000) % thinkingPhrases.length;
   const phrase = thinkingPhrases[phraseIndex];
   const dotStr = ".".repeat(dots + 1);
-
   const visibleLines = lines.slice(-8);
 
   return (
@@ -203,15 +212,14 @@ function TypingIndicator({
         </span>
       </div>
 
-      {/* Live output stream */}
       {visibleLines.length > 0 && (
         <div
           ref={scrollRef}
           className="mt-2 max-h-32 overflow-y-auto rounded-lg bg-black/20 border border-violet-500/10 p-2 font-mono text-[11px] text-violet-300/80 leading-relaxed scrollbar-none"
         >
-          {visibleLines.map((line, i) => (
+          {visibleLines.map((line, index) => (
             <div
-              key={i}
+              key={`${index}:${line}`}
               className="animate-in fade-in slide-in-from-bottom-1 duration-200"
             >
               {line}
@@ -231,7 +239,6 @@ function TypingIndicator({
   );
 }
 
-/** Timeline dot + connector between messages */
 function TimelineConnector({ duration }: { duration: string }) {
   if (!duration) return null;
   return (
@@ -242,14 +249,14 @@ function TimelineConnector({ duration }: { duration: string }) {
         <div className="w-px h-2 bg-border" />
       </div>
       <span className="text-[10px] text-muted-foreground font-mono">
-        ⏱ {duration}
+        {duration}
       </span>
     </div>
   );
 }
 
 type JobChatFeedProps = {
-  chatId: string;
+  threadId: string;
   jobs: Job[];
   approvingJobId?: string;
   denyingJobId?: string;
@@ -262,7 +269,7 @@ type JobChatFeedProps = {
 };
 
 export function JobChatFeed({
-  chatId,
+  threadId,
   jobs,
   approvingJobId,
   denyingJobId,
@@ -282,18 +289,19 @@ export function JobChatFeed({
     node.scrollTop = node.scrollHeight;
   }, [jobs]);
 
-  // Sound effects on status change
   useEffect(() => {
     if (!isSoundsEnabled()) return;
-    const prev = prevStatusesRef.current;
+
+    const previous = prevStatusesRef.current;
     for (const job of jobs) {
-      const old = prev[job.id];
-      if (old && old !== job.status) {
+      const oldStatus = previous[job.id];
+      if (oldStatus && oldStatus !== job.status) {
         if (job.status === "completed") playCompleted();
         else if (job.status === "failed") playFailed();
         else if (job.status === "pending_approval") playNeedsApproval();
       }
     }
+
     const next: Record<string, string> = {};
     for (const job of jobs) {
       next[job.id] = job.status;
@@ -311,10 +319,10 @@ export function JobChatFeed({
 
   const ordered = jobs
     .slice()
-    .sort((a, b) => {
-      const aTime = Date.parse(String(a.createdAt || ""));
-      const bTime = Date.parse(String(b.createdAt || ""));
-      return aTime - bTime;
+    .sort((left, right) => {
+      const leftTime = Date.parse(String(left.createdAt || ""));
+      const rightTime = Date.parse(String(right.createdAt || ""));
+      return leftTime - rightTime;
     })
     .slice(-30);
 
@@ -324,17 +332,13 @@ export function JobChatFeed({
       className="h-[52vh] min-h-[320px] max-h-[620px] overflow-y-auto pr-1 space-y-1"
     >
       {ordered.map((job, index) => {
-        const msg = assistantMessage(job);
+        const message = assistantMessage(job);
         const isWorking = job.status === "running" || job.status === "queued";
-
-        // Timeline: duration from previous job's completion to this one
-        const prevJob = index > 0 ? ordered[index - 1] : null;
+        const previousJob = index > 0 ? ordered[index - 1] : null;
         const gap =
-          prevJob?.completedAt && job.createdAt
-            ? durationBetween(prevJob.completedAt, job.createdAt)
+          previousJob?.completedAt && job.createdAt
+            ? durationBetween(previousJob.completedAt, job.createdAt)
             : "";
-
-        // Duration the agent took on this job
         const agentDuration =
           job.startedAt && job.completedAt
             ? durationBetween(job.startedAt, job.completedAt)
@@ -342,11 +346,9 @@ export function JobChatFeed({
 
         return (
           <div key={job.id}>
-            {/* Timeline gap between messages */}
             {gap && <TimelineConnector duration={gap} />}
 
             <div className="space-y-3 py-1">
-              {/* User message */}
               <div className="theme-muted-surface ml-8 rounded-2xl p-4 shadow-sm border border-white/5 transition-all hover:bg-muted/60">
                 <div className="flex items-center justify-between">
                   <p className="text-xs font-medium text-muted-foreground">
@@ -361,7 +363,6 @@ export function JobChatFeed({
                 </p>
               </div>
 
-              {/* Agent message */}
               <div
                 className={`theme-surface mr-8 rounded-2xl border p-4 shadow-md backdrop-blur-md transition-all ${
                   isWorking
@@ -398,7 +399,7 @@ export function JobChatFeed({
                 </div>
 
                 {isWorking ? (
-                  <TypingIndicator startedAt={job.startedAt} jobId={job.id} />
+                  <TypingIndicator startedAt={job.startedAt} jobId={job.id} threadId={threadId} />
                 ) : (
                   <div className="mt-1.5 text-sm text-foreground/90 leading-relaxed prose prose-sm prose-invert max-w-none prose-p:my-1 prose-headings:my-2 prose-ul:my-1 prose-ol:my-1 prose-li:my-0 prose-pre:my-2 prose-pre:bg-black/30 prose-pre:border prose-pre:border-white/5 prose-pre:rounded-lg prose-code:text-violet-300 prose-code:text-xs prose-a:text-primary prose-a:no-underline hover:prose-a:underline">
                     <Markdown
@@ -411,13 +412,12 @@ export function JobChatFeed({
                         code: ({ className, children, ...props }) => {
                           const isBlock = className?.startsWith("language-");
                           if (isBlock) {
-                            const lang =
-                              className?.replace("language-", "") || "";
+                            const language = className?.replace("language-", "") || "";
                             return (
                               <div>
-                                {lang && (
+                                {language && (
                                   <span className="text-[9px] uppercase tracking-wider text-muted-foreground/50 font-mono">
-                                    {lang}
+                                    {language}
                                   </span>
                                 )}
                                 <code className={className} {...props}>
@@ -437,7 +437,7 @@ export function JobChatFeed({
                         },
                       }}
                     >
-                      {msg ?? ""}
+                      {message ?? ""}
                     </Markdown>
                   </div>
                 )}
@@ -445,9 +445,8 @@ export function JobChatFeed({
                 <p className="mt-2 text-[11px] text-muted-foreground">
                   {tokenUsageLine(job)}
                 </p>
-                <JobContextInspector chatId={chatId} jobId={job.id} />
+                <JobContextInspector jobId={job.id} />
 
-                {/* Inline approve/deny for pending jobs */}
                 {job.status === "pending_approval" && onApprove && onDeny && (
                   <div className="mt-3 flex gap-2">
                     <Button
@@ -470,7 +469,7 @@ export function JobChatFeed({
                   </div>
                 )}
 
-                {(job.status === "failed") && onResumeError && (
+                {job.status === "failed" && onResumeError && (
                   <div className="mt-3 flex gap-2">
                     <Button
                       size="sm"

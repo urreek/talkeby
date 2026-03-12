@@ -42,16 +42,6 @@ function buildRunningUpdate(job, startedAtMs) {
   ].join("\n");
 }
 
-function buildRuntimeApprovalChatNotice(record) {
-  const kind = String(record.kind || "runtime action");
-  const risk = String(record.riskLevel || "medium");
-  return [
-    `Approval needed for job ${record.jobId}.`,
-    `${kind} · risk: ${risk}`,
-    "Open the web app Runtime Approvals to approve or deny.",
-  ].join("\n");
-}
-
 function isFreeTierExhaustedError(error) {
   const message = String(error?.message || "").toLowerCase();
   if (!message) {
@@ -68,11 +58,10 @@ function isFreeTierExhaustedError(error) {
 }
 
 export class JobRunner {
-  constructor({ config, state, eventBus, sendChatText, repository }) {
+  constructor({ config, state, eventBus, repository }) {
     this.config = config;
     this.state = state;
     this.eventBus = eventBus;
-    this.sendChatText = sendChatText;
     this.repository = repository;
 
     this.runningJobId = "";
@@ -85,10 +74,10 @@ export class JobRunner {
     return this.runningJobId || null;
   }
 
-  stop({ chatId, jobId }) {
+  stop({ jobId }) {
     const job = this.state.getJobById(jobId);
-    if (!job || String(job.chatId) !== String(chatId)) {
-      return { error: `Job ${jobId} was not found in this chat.` };
+    if (!job) {
+      return { error: `Job ${jobId} was not found.` };
     }
 
     const status = String(job.status || "").toLowerCase();
@@ -111,7 +100,7 @@ export class JobRunner {
         message: "Job cancelled by user.",
         payload: { cancelledAt },
       });
-      this.state.markPendingConsumed(job.chatId, job.id);
+      this.state.markPendingConsumed(job.id);
       this.enqueuedJobIds.delete(job.id);
       return { ok: true };
     }
@@ -245,22 +234,11 @@ export class JobRunner {
       },
     });
 
-    if (this.config.runtimePolicy?.telegramApprovalNotifications) {
-      try {
-        await this.sendChatText({
-          chatId: job.chatId,
-          text: buildRuntimeApprovalChatNotice(pending),
-        });
-      } catch {
-        // Non-critical.
-      }
-    }
-
     const decision = await this.state.waitForRuntimeApprovalDecision(pending.id);
     const resolved = this.state.resolveRuntimeApproval({
       id: pending.id,
       status: decision === "approve" ? "approved" : "denied",
-      resolvedByChatId: job.chatId,
+      resolvedByChatId: this.state.getOwnerId(),
     });
 
     this.eventBus.publish({
@@ -340,21 +318,8 @@ export class JobRunner {
           },
         });
 
-        try {
-          await this.sendChatText({
-            chatId: activeJob.chatId,
-            text: [
-              `Job ${activeJob.id} started.`,
-              `Project: ${activeJob.projectName}`,
-              `Path: ${activeJob.workdir}`,
-            ].join("\n"),
-          });
-        } catch (error) {
-          console.error(`[job:${activeJob.id}] failed to send running notification`, error);
-        }
-
         let progressTimer = null;
-        if (this.config.telegram.progressUpdates) {
+        if (this.config.app?.progressUpdates) {
           progressTimer = setInterval(() => {
             const message = buildRunningUpdate(activeJob, startedAtMs);
             this.eventBus.publish({
@@ -366,13 +331,7 @@ export class JobRunner {
                 elapsedMs: Date.now() - startedAtMs,
               },
             });
-            this.sendChatText({
-              chatId: activeJob.chatId,
-              text: message,
-            }).catch((error) => {
-              console.error(`[job:${activeJob.id}] failed to send progress update`, error);
-            });
-          }, this.config.telegram.progressUpdateSeconds * 1000);
+          }, this.config.app.progressUpdateSeconds * 1000);
 
           if (typeof progressTimer.unref === "function") {
             progressTimer.unref();
@@ -723,21 +682,6 @@ export class JobRunner {
               completedAt,
             },
           });
-
-          try {
-            await this.sendChatText({
-              chatId: activeJob.chatId,
-              text: [
-                `Job ${activeJob.id} complete`,
-                `Project: ${activeJob.projectName}`,
-                `Request: ${truncate(activeJob.request, 140)}`,
-                "",
-                truncate(result.message, 3000),
-              ].join("\n"),
-            });
-          } catch (error) {
-            console.error(`[job:${activeJob.id}] completed but failed to notify Telegram`, error);
-          }
         } catch (error) {
           const wasCancelled = abortController.signal.aborted
             || String(error?.message || "").toLowerCase().includes("cancelled");
@@ -817,21 +761,12 @@ export class JobRunner {
               [wasCancelled ? "cancelledAt" : "failedAt"]: failedAt,
             },
           });
-
-          try {
-            await this.sendChatText({
-              chatId: activeJob.chatId,
-              text: failureMessage,
-            });
-          } catch (notifyError) {
-            console.error(`[job:${activeJob.id}] failed and notification also failed`, notifyError);
-          }
         } finally {
           this.abortControllers.delete(activeJob.id);
           if (progressTimer) {
             clearInterval(progressTimer);
           }
-          this.state.markPendingConsumed(activeJob.chatId, activeJob.id);
+          this.state.markPendingConsumed(activeJob.id);
           this.runningJobId = "";
           // Free streaming output buffer
           clearJobOutput(activeJob.id);

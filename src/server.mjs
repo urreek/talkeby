@@ -8,7 +8,6 @@ import { registerSecurityHooks } from "./http/security.mjs";
 import { EventBus } from "./services/event-bus.mjs";
 import { JobRunner } from "./services/job-runner.mjs";
 import { RuntimeState } from "./services/runtime-state.mjs";
-import { createTelegramMessenger, pollTelegramForever } from "./telegram/worker.mjs";
 
 function safeList(items) {
   if (!items || items.length === 0) {
@@ -30,14 +29,28 @@ async function start() {
   state.hydrate();
 
   const eventBus = new EventBus(repository);
-  const sendChatText = createTelegramMessenger(config);
   const jobRunner = new JobRunner({
     config,
     state,
     eventBus,
-    sendChatText,
     repository,
   });
+  const startupRecovery = state.consumeStartupRecovery();
+  for (const job of startupRecovery.failedJobs) {
+    eventBus.publish({
+      jobId: job.id,
+      chatId: job.chatId,
+      eventType: "job_failed",
+      message: String(job.error || "Talkeby restarted while this job was running."),
+      payload: {
+        failedAt: job.completedAt,
+        reason: "startup_recovery",
+      },
+    });
+  }
+  for (const job of startupRecovery.queuedJobs) {
+    jobRunner.enqueue(job);
+  }
 
   const app = fastify({
     logger: true,
@@ -63,25 +76,12 @@ async function start() {
     host: "0.0.0.0",
   });
 
-  app.log.info(`Allowed chats: ${state.safeAllowedChats()}`);
-  app.log.info(`Default execution mode: ${config.telegram.defaultExecutionMode}`);
+  app.log.info(`Default execution mode: ${config.app.defaultExecutionMode}`);
   app.log.info(`Codex default project: ${config.codex.defaultProjectName}`);
   app.log.info(`Codex projects: ${safeList(state.availableProjectNames())}`);
   app.log.info(`Codex workdir: ${config.codex.workdir}`);
   app.log.info(`Database file: ${config.storage.databaseFile}`);
   app.log.info(`App access key: ${config.security.ownerKey ? "enabled" : "disabled"}`);
-
-  pollTelegramForever({
-    config,
-    app,
-    state,
-    eventBus,
-    jobRunner,
-    sendChatText,
-  }).catch((error) => {
-    app.log.error({ err: error }, "Fatal Telegram worker error");
-    process.exitCode = 1;
-  });
 }
 
 start().catch((error) => {
