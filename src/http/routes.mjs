@@ -1,12 +1,15 @@
-import { execFile, execFileSync } from "node:child_process";
+import { execFile } from "node:child_process";
 import crypto from "node:crypto";
 import fs from "node:fs";
-import os from "node:os";
 import path from "node:path";
 import { promisify } from "node:util";
 
+import {
+  getCodexNativeContinuityCheck,
+} from "../services/codex-native-continuity.mjs";
 import { getJobOutput, subscribeJobOutput } from "../services/job-output.mjs";
 import { buildObservabilitySummary } from "../services/observability.mjs";
+import { deleteCodexSessionFiles } from "../services/codex-sessions.mjs";
 import {
   getProviderMeta,
   supportedProviderText,
@@ -153,6 +156,15 @@ function summarizeHealth({
   config,
   state,
 }) {
+  const codexParityMode = config.codex?.parityMode !== false;
+  const codexSessionResumeEnabled = config.codex?.disableSessionResume !== true;
+  const runtimePolicyEnabled = config.runtimePolicy?.enabled !== false;
+  const nativeContinuity = getCodexNativeContinuityCheck({
+    parityMode: codexParityMode,
+    sessionResumeEnabled: codexSessionResumeEnabled,
+    runtimePolicyEnabled,
+  });
+
   return {
     ok: true,
     runningJobId: jobRunner.getRunningJobId(),
@@ -164,6 +176,11 @@ function summarizeHealth({
     projectsBaseDir: config.codex.projectsBaseDir,
     workdir: config.codex.workdir,
     databaseFile: config.storage.databaseFile,
+    codexParityMode,
+    codexSessionResumeEnabled,
+    runtimePolicyEnabled,
+    codexNativeContinuityReady: nativeContinuity.ok,
+    codexNativeContinuityMessage: nativeContinuity.message,
   };
 }
 
@@ -385,6 +402,18 @@ export function registerRoutes({
           ? ""
           : "Set CODEX_DISABLE_SESSION_RESUME=false to keep native Codex thread continuity.",
       });
+      const nativeContinuity = getCodexNativeContinuityCheck({
+        parityMode: codexParityMode,
+        sessionResumeEnabled: codexSessionResumeEnabled,
+        runtimePolicyEnabled: config.runtimePolicy?.enabled !== false,
+      });
+      addCheck({
+        id: "codex_native_continuity",
+        ok: nativeContinuity.ok,
+        severity: nativeContinuity.severity,
+        message: nativeContinuity.message,
+        fix: nativeContinuity.fix,
+      });
     }
 
     const active = providerChecks.find((entry) => entry.active);
@@ -545,22 +574,7 @@ export function registerRoutes({
     }
 
     if (thread.cliSessionId) {
-      try {
-        const sessionsDir = path.join(os.homedir(), ".codex", "sessions");
-        const result = execFileSync("find", [sessionsDir, "-name", `*${thread.cliSessionId}.jsonl`], {
-          timeout: 5000,
-          encoding: "utf8",
-        }).trim();
-        if (result) {
-          for (const sessionFile of result.split("\n")) {
-            if (sessionFile.trim()) {
-              fs.unlinkSync(sessionFile.trim());
-            }
-          }
-        }
-      } catch {
-        // Best-effort local session cleanup.
-      }
+      await deleteCodexSessionFiles(thread.cliSessionId);
     }
 
     repository.deleteThread(threadId);
@@ -986,3 +1000,4 @@ export function registerRoutes({
 
   registerEventRoute(app, eventBus);
 }
+

@@ -36,6 +36,15 @@ That memory includes:
 Open the same thread URL on another device and you land on the same backend thread memory.
 Different devices can browse different threads independently.
 
+In native Codex parity mode, Talkeby does not replay thread history back into prompts.
+To preserve whole-thread native Codex memory, use:
+
+- `CODEX_PARITY_MODE=true`
+- `CODEX_DISABLE_SESSION_RESUME=false`
+- `RUNTIME_POLICY_ENABLED=false`
+
+If a parity-mode thread loses its native Codex session, start a new thread.
+
 ## Prerequisites
 
 - Node.js `>=20.19` (Node 22 LTS recommended)
@@ -139,6 +148,8 @@ Talkeby supports two execution modes:
 
 Runtime policy approvals are separate from execution mode. They protect risky operations such as file changes, depending on your policy settings.
 
+When using native Codex parity mode, Talkeby runtime policy interception must be disabled or native Codex thread continuity will be refused.
+
 ## Always-On macOS Services
 
 Install backend only:
@@ -204,6 +215,7 @@ Run repository checks:
 
 ```bash
 npm run check
+npm test
 npm run web:check
 ```
 
@@ -241,3 +253,4 @@ npm run web:install
 ```
 
 Then restart services.
+

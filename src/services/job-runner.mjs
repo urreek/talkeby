@@ -6,13 +6,19 @@ import { estimateTokens } from "./token-budget.mjs";
 import { buildBudgetAwarePrompt } from "./prompt-trim.mjs";
 import { buildThreadHistoryContext } from "./thread-context.mjs";
 import {
+  buildCodexNativeContinuityError,
+  countPriorExecutedThreadJobs,
+  isCodexNativeThreadMode,
+} from "./codex-native-continuity.mjs";
+import { appendJobOutput, clearJobOutput } from "./job-output.mjs";
+import { validateCodexSession } from "./codex-sessions.mjs";
+import {
   evaluateRuntimeApprovalRequest,
 } from "./runtime-policy.mjs";
-import { appendJobOutput, clearJobOutput } from "./job-output.mjs";
 
 function truncate(input, max) {
   const value = String(input ?? "").trim();
-  return value.length <= max ? value : `${value.slice(0, max - 1)}…`;
+  return value.length <= max ? value : `${value.slice(0, max - 1)}...`;
 }
 
 function formatDuration(ms) {
@@ -54,6 +60,19 @@ function isFreeTierExhaustedError(error) {
     message.includes("billing") ||
     message.includes("free tier")
   );
+}
+
+function publishThreadContinuityError({ eventBus, job, message, payload = {} }) {
+  eventBus.publish({
+    jobId: job.id,
+    chatId: job.chatId,
+    eventType: "thread_continuity_error",
+    message,
+    payload: {
+      threadId: job.threadId || "",
+      ...payload,
+    },
+  });
 }
 
 export class JobRunner {
@@ -352,8 +371,14 @@ export class JobRunner {
           const reasoningEffort = this.state.getReasoningEffort();
           const planMode = this.state.getPlanMode();
           const codexParityMode = provider === "codex" && this.config.codex?.parityMode !== false;
+          const nativeCodexThreadMode = isCodexNativeThreadMode({
+            provider,
+            parityMode: codexParityMode,
+          });
+          const talkebyRuntimePolicyEnabled = provider === "codex" && this.config.runtimePolicy?.enabled !== false;
+          const codexSessionResumeEnabled = this.config.codex?.disableSessionResume !== true;
+          const shouldUseTalkebyRuntimePolicy = talkebyRuntimePolicyEnabled && !nativeCodexThreadMode;
 
-          // Look up thread's CLI session ID for continuity (all providers)
           let sessionId = null;
           let taskText = activeJob.request;
           let threadAutoTrimContext = this.config.threads?.autoTrimContextDefault !== false;
@@ -365,6 +390,23 @@ export class JobRunner {
           let promptTrimmed = false;
           let promptRemovedSections = [];
           let promptCannotFit = false;
+          let priorExecutedThreadJobs = 0;
+
+          if (nativeCodexThreadMode && talkebyRuntimePolicyEnabled) {
+            const continuityMessage = buildCodexNativeContinuityError({
+              reason: "runtime_policy_interception",
+              threadId: activeJob.threadId,
+            });
+            publishThreadContinuityError({
+              eventBus: this.eventBus,
+              job: activeJob,
+              message: continuityMessage,
+              payload: {
+                reason: "runtime_policy_interception",
+              },
+            });
+            throw new Error(continuityMessage);
+          }
 
           if (activeJob.threadId && this.repository) {
             try {
@@ -378,7 +420,14 @@ export class JobRunner {
               threadTokenBudget = tokenBudget;
               const tokenUsed = toNonNegativeInt(thread?.tokenUsed, 0);
               threadRemainingBudget = Math.max(0, tokenBudget - tokenUsed);
-              // In codex parity mode, preserve runtime session continuity and only trim injected context.
+
+              const threadJobs = nativeCodexThreadMode
+                ? this.repository.listJobsByThread(activeJob.threadId, 5000)
+                : [];
+              priorExecutedThreadJobs = nativeCodexThreadMode
+                ? countPriorExecutedThreadJobs(threadJobs, activeJob.id)
+                : 0;
+
               if (
                 threadAutoTrimContext
                 && tokenBudget > 0
@@ -404,12 +453,54 @@ export class JobRunner {
             }
           }
 
+          if (nativeCodexThreadMode && priorExecutedThreadJobs > 0 && !codexSessionResumeEnabled) {
+            const continuityMessage = buildCodexNativeContinuityError({
+              reason: "session_resume_disabled",
+              threadId: activeJob.threadId,
+            });
+            publishThreadContinuityError({
+              eventBus: this.eventBus,
+              job: activeJob,
+              message: continuityMessage,
+              payload: {
+                reason: "session_resume_disabled",
+              },
+            });
+            throw new Error(continuityMessage);
+          }
+
+          if (nativeCodexThreadMode && priorExecutedThreadJobs > 0) {
+            const validation = await validateCodexSession({
+              sessionId,
+              workdir: activeJob.workdir,
+              minTaskMessages: priorExecutedThreadJobs,
+            });
+            if (!validation.ok) {
+              const continuityMessage = buildCodexNativeContinuityError({
+                reason: validation.reason,
+                threadId: activeJob.threadId,
+              });
+              publishThreadContinuityError({
+                eventBus: this.eventBus,
+                job: activeJob,
+                message: continuityMessage,
+                payload: {
+                  reason: validation.reason,
+                  priorExecutedThreadJobs,
+                  sessionId: sessionId || "",
+                },
+              });
+              throw new Error(continuityMessage);
+            }
+            sessionId = validation.session?.sessionId || sessionId;
+          }
+
           if (provider === "codex" && this.config.codex?.disableSessionResume) {
             sessionId = null;
           }
 
           managedContextDisabled = Boolean(
-            codexParityMode || (provider === "codex" && sessionId),
+            nativeCodexThreadMode || (provider === "codex" && sessionId),
           );
           if (!managedContextDisabled && activeJob.threadId && this.repository) {
             threadContext = buildThreadHistoryContext({
@@ -499,16 +590,17 @@ export class JobRunner {
             timeoutMs: providerConfig.timeoutMs,
             binary: providerConfig.binaries[provider] || provider,
             sessionId,
+            nativeCodexThreadMode,
             persistExtendedHistory: Boolean(this.config.codex?.persistExtendedHistory),
             signal: abortController.signal,
             onLine: (line) => {
               appendJobOutput(activeJob.id, line);
               outputTokenEstimate += estimateTokens(line);
             },
-            onRuntimeApproval: provider === "codex" && this.config.runtimePolicy?.enabled !== false
+            onRuntimeApproval: shouldUseTalkebyRuntimePolicy
               ? (request) => this.resolveRuntimeApprovalRequest(activeJob, request)
               : undefined,
-            onRuntimeEvent: provider === "codex" && this.config.runtimePolicy?.enabled !== false
+            onRuntimeEvent: shouldUseTalkebyRuntimePolicy
               ? (event) => {
                   if (!event?.type) {
                     return;
@@ -529,8 +621,7 @@ export class JobRunner {
               : undefined,
           });
 
-          // Save new session ID to thread for future resumes
-          if (result.newSessionId && activeJob.threadId && this.repository) {
+          if (result.newSessionId && activeJob.threadId && this.repository && !shouldUseTalkebyRuntimePolicy) {
             try {
               this.repository.updateThread(activeJob.threadId, {
                 cliSessionId: result.newSessionId,
@@ -730,3 +821,4 @@ export class JobRunner {
       });
   }
 }
+

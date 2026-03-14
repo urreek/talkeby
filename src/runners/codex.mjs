@@ -5,13 +5,19 @@ import path from "node:path";
 import { runCodexWithRuntimeApprovals } from "../codex-app-server.mjs";
 import { spawnCompat } from "../lib/spawn-compat.mjs";
 import {
+  extractCodexSessionIdFromText,
+  findNewTalkebySession,
+} from "../services/codex-sessions.mjs";
+import {
   extractCodexTotalUsageFromEvent,
   extractCodexUsageFromEvent,
 } from "../services/usage-parser.mjs";
 
-const CODEX_SESSIONS_DIR = path.join(os.homedir(), ".codex", "sessions");
+let spawnCompatImpl = spawnCompat;
 
-// Lines from Codex stderr that are just startup noise, not real errors
+export function setCodexSpawnCompatForTests(spawnFn) {
+  spawnCompatImpl = typeof spawnFn === "function" ? spawnFn : spawnCompat;
+}
 const NOISE_PATTERNS = [
   /^OpenAI Codex v/,
   /^workdir:/,
@@ -40,7 +46,7 @@ const NOISE_PATTERNS = [
 function isNoiseLine(line) {
   const trimmed = line.trim();
   if (!trimmed) return true;
-  return NOISE_PATTERNS.some((p) => p.test(trimmed));
+  return NOISE_PATTERNS.some((pattern) => pattern.test(trimmed));
 }
 
 /**
@@ -49,14 +55,13 @@ function isNoiseLine(line) {
  */
 function extractMeaningfulError(rawOutput) {
   const lines = rawOutput.split("\n");
-  const meaningful = lines.filter((l) => !isNoiseLine(l));
+  const meaningful = lines.filter((line) => !isNoiseLine(line));
 
   if (meaningful.length > 0) {
     return meaningful.join("\n").trim();
   }
 
-  // If everything was filtered, look for ERROR: lines specifically
-  const errorLine = lines.find((l) => l.trim().startsWith("ERROR:"));
+  const errorLine = lines.find((line) => line.trim().startsWith("ERROR:"));
   if (errorLine) return errorLine.trim();
 
   return rawOutput.trim().slice(0, 300);
@@ -156,11 +161,11 @@ async function readLastMessageOrFallback({ outputPath, stdout }) {
  * @param {number} opts.timeoutMs
  * @param {string} opts.outputPath
  * @param {function} [opts.onLine] - called with each stdout/stderr line
- * @returns {Promise<{message: string, stderr: string}>}
+ * @returns {Promise<{message: string, stderr: string, nativeSessionId: string}>}
  */
 function runCodexSpawn({ binary, args, workdir, timeoutMs, outputPath, onLine, signal }) {
   return new Promise((resolve, reject) => {
-    const child = spawnCompat(binary, args, {
+    const child = spawnCompatImpl(binary, args, {
       cwd: workdir,
       stdio: ["pipe", "pipe", "pipe"],
       env: { ...process.env },
@@ -169,6 +174,7 @@ function runCodexSpawn({ binary, args, workdir, timeoutMs, outputPath, onLine, s
     let stdout = "";
     let stderr = "";
     let killed = false;
+    let detectedSessionId = "";
 
     const timeout = setTimeout(() => {
       killed = true;
@@ -177,10 +183,14 @@ function runCodexSpawn({ binary, args, workdir, timeoutMs, outputPath, onLine, s
     }, timeoutMs);
 
     child.stdout?.on("data", (chunk) => {
-      const text = chunk.toString();
-      stdout += text;
+      const textChunk = chunk.toString();
+      stdout += textChunk;
+      detectedSessionId = detectedSessionId
+        || extractCodexSessionIdFromText(textChunk)
+        || extractCodexSessionIdFromText(stdout)
+        || extractCodexSessionIdFromText(stderr);
       if (onLine) {
-        const lines = text.split("\n");
+        const lines = textChunk.split("\n");
         for (const line of lines) {
           if (line.trim() && !isNoiseLine(line)) onLine(line);
         }
@@ -188,10 +198,14 @@ function runCodexSpawn({ binary, args, workdir, timeoutMs, outputPath, onLine, s
     });
 
     child.stderr?.on("data", (chunk) => {
-      const text = chunk.toString();
-      stderr += text;
+      const textChunk = chunk.toString();
+      stderr += textChunk;
+      detectedSessionId = detectedSessionId
+        || extractCodexSessionIdFromText(textChunk)
+        || extractCodexSessionIdFromText(stderr)
+        || extractCodexSessionIdFromText(stdout);
       if (onLine) {
-        const lines = text.split("\n");
+        const lines = textChunk.split("\n");
         for (const line of lines) {
           if (line.trim() && !isNoiseLine(line)) onLine(`[stderr] ${line}`);
         }
@@ -205,23 +219,27 @@ function runCodexSpawn({ binary, args, workdir, timeoutMs, outputPath, onLine, s
         return;
       }
       if (code !== 0 && code !== null) {
-        const err = new Error(stderr.trim() || `Codex exited with code ${code}`);
-        err.stderr = stderr;
-        err.stdout = stdout;
-        reject(err);
+        const error = new Error(stderr.trim() || `Codex exited with code ${code}`);
+        error.stderr = stderr;
+        error.stdout = stdout;
+        reject(error);
         return;
       }
       try {
         const message = await readLastMessageOrFallback({ outputPath, stdout });
-        resolve({ message, stderr: stderr.trim() });
-      } catch (e) {
-        reject(e);
+        resolve({
+          message,
+          stderr: stderr.trim(),
+          nativeSessionId: detectedSessionId,
+        });
+      } catch (error) {
+        reject(error);
       }
     });
 
-    child.on("error", (err) => {
+    child.on("error", (error) => {
       clearTimeout(timeout);
-      reject(err);
+      reject(error);
     });
 
     if (signal) {
@@ -240,53 +258,8 @@ function runCodexSpawn({ binary, args, workdir, timeoutMs, outputPath, onLine, s
       }, { once: true });
     }
 
-    // Close stdin immediately
     child.stdin?.end();
   });
-}
-
-/**
- * Find the newest session file created after `afterMs` timestamp.
- * Returns the session UUID or null.
- */
-async function findNewestSessionId(afterMs) {
-  try {
-    const now = new Date(afterMs);
-    const dayDir = path.join(
-      CODEX_SESSIONS_DIR,
-      String(now.getFullYear()),
-      String(now.getMonth() + 1).padStart(2, "0"),
-      String(now.getDate()).padStart(2, "0"),
-    );
-
-    let files = [];
-    try {
-      files = await fs.readdir(dayDir);
-    } catch {
-      return null;
-    }
-
-    let newest = null;
-    let newestMtime = 0;
-    for (const f of files) {
-      if (!f.endsWith(".jsonl")) continue;
-      const fPath = path.join(dayDir, f);
-      const stat = await fs.stat(fPath);
-      if (stat.mtimeMs > afterMs && stat.mtimeMs > newestMtime) {
-        newestMtime = stat.mtimeMs;
-        newest = f;
-      }
-    }
-
-    if (!newest) return null;
-
-    const match = newest.match(
-      /([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})\.jsonl$/i,
-    );
-    return match ? match[1] : null;
-  } catch {
-    return null;
-  }
 }
 
 function buildResumeArgs({ config, outputPath, sessionId, prompt }) {
@@ -405,7 +378,7 @@ async function runWithRuntimeApprovals(config) {
   return {
     message: result.message,
     stderr: result.stderr || "",
-    newSessionId: result.threadId || "",
+    appServerThreadId: result.threadId || "",
     usage,
   };
 }
@@ -429,27 +402,48 @@ export async function run(config) {
   const onLine = config.onLine || null;
 
   try {
+    if (config.nativeCodexThreadMode && typeof config.onRuntimeApproval === "function") {
+      throw new Error(
+        "Native Codex thread continuity cannot run through Talkeby runtime approval interception. Disable RUNTIME_POLICY_ENABLED to preserve Codex thread memory.",
+      );
+    }
+
     if (typeof config.onRuntimeApproval === "function") {
       return await runWithRuntimeApprovals(config);
     }
 
-    // Try resuming specific session (no automatic fallback retry)
     if (config.sessionId) {
       const args = buildResumeArgs({ config, outputPath, sessionId: config.sessionId, prompt });
-        return await runCodexSpawn({
-          binary: config.binary, args, workdir: config.workdir,
-          timeoutMs: config.timeoutMs, outputPath, onLine, signal: config.signal,
-        });
+      const result = await runCodexSpawn({
+        binary: config.binary,
+        args,
+        workdir: config.workdir,
+        timeoutMs: config.timeoutMs,
+        outputPath,
+        onLine,
+        signal: config.signal,
+      });
+      if (!result.nativeSessionId) {
+        result.newSessionId = String(config.sessionId || "").trim();
       }
+      return result;
+    }
 
-    // No session ID — start fresh (don't use --last, it might grab another thread's session)
     const args = buildFreshArgs({ config, outputPath, prompt });
     const result = await runCodexSpawn({
-      binary: config.binary, args, workdir: config.workdir,
-      timeoutMs: config.timeoutMs, outputPath, onLine, signal: config.signal,
+      binary: config.binary,
+      args,
+      workdir: config.workdir,
+      timeoutMs: config.timeoutMs,
+      outputPath,
+      onLine,
+      signal: config.signal,
     });
 
-    const newSessionId = await findNewestSessionId(startTime);
+    const newSessionId = result.nativeSessionId || (await findNewTalkebySession({
+      afterMs: startTime,
+      workdir: config.workdir,
+    }))?.sessionId || "";
     if (newSessionId) {
       result.newSessionId = newSessionId;
     }
@@ -465,3 +459,5 @@ export async function run(config) {
     await fs.rm(outputPath, { force: true });
   }
 }
+
+

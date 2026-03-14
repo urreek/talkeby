@@ -17,14 +17,15 @@
     "setup:guided": "node scripts/talkeby-cli.mjs install",
     "doctor": "node scripts/talkeby-cli.mjs doctor",
     "secrets:check": "node scripts/secrets-check.mjs",
-    "check": "npm run secrets:check && node --check scripts/ensure-native.mjs && node --check scripts/talkeby-cli.mjs && node --check src/server.mjs && node --check src/http/routes.mjs && node --check src/http/jobs-routes.mjs && node --check src/http/events-route.mjs && node --check src/http/shared.mjs && node --check src/http/security.mjs && node --check src/http/serializers.mjs && node --check src/services/job-runner.mjs && node --check src/services/runtime-state.mjs",
+    "check": "npm run secrets:check && node --check scripts/ensure-native.mjs && node --check scripts/talkeby-cli.mjs && node --check src/server.mjs && node --check src/http/routes.mjs && node --check src/http/jobs-routes.mjs && node --check src/http/events-route.mjs && node --check src/http/shared.mjs && node --check src/http/security.mjs && node --check src/http/serializers.mjs && node --check src/runners/codex.mjs && node --check src/services/codex-native-continuity.mjs && node --check src/services/codex-sessions.mjs && node --check src/services/job-runner.mjs && node --check src/services/runtime-state.mjs",
     "launchd:install": "bash ./scripts/install-launchd.sh",
     "launchd:uninstall": "bash ./scripts/uninstall-launchd.sh",
     "launchd:web:install": "bash ./scripts/install-launchd-web.sh",
     "launchd:web:uninstall": "bash ./scripts/uninstall-launchd-web.sh",
     "launchd:install:all": "npm run launchd:install && npm run launchd:web:install",
     "launchd:uninstall:all": "npm run launchd:web:uninstall && npm run launchd:uninstall",
-    "tunnel:cloudflare": "bash ./scripts/cloudflare-tunnel.sh"
+    "tunnel:cloudflare": "bash ./scripts/cloudflare-tunnel.sh",
+    "test": "node --test --test-isolation=none \"test/*.test.mjs\""
   },
   "engines": {
     "node": ">=20.19.0"
