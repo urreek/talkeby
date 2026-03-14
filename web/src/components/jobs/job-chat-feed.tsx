@@ -53,6 +53,9 @@ function formatTokenCount(value: number | null | undefined): string {
 
 function tokenUsageLine(job: Job): string {
   const source = (job.tokenSource || "estimate").toString().toLowerCase();
+  if (source === "internal") {
+    return "Answered from visible thread history (no provider tokens used).";
+  }
   if (source === "provider_unavailable") {
     return "Tokens unavailable from provider for this run.";
   }

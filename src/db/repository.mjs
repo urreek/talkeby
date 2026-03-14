@@ -524,6 +524,17 @@ export class TalkebyRepository {
     return rows.reverse();
   }
 
+  getFirstJobByThread(threadId) {
+    if (!threadId) return null;
+    return this.db
+      .select()
+      .from(jobsTable)
+      .where(eq(jobsTable.threadId, String(threadId)))
+      .orderBy(asc(jobsTable.createdAt))
+      .limit(1)
+      .get();
+  }
+
   deleteThread(threadId) {
     if (!threadId) return;
     // Delete associated jobs first

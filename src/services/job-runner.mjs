@@ -5,7 +5,7 @@ import { isFreeModelAllowed } from "../providers/catalog.mjs";
 import { estimateTokens } from "./token-budget.mjs";
 import { buildBudgetAwarePrompt } from "./prompt-trim.mjs";
 import { buildThreadHistoryContext } from "./thread-context.mjs";
-import { buildConversationMetaContext } from "./conversation-meta-context.mjs";
+import { buildConversationMetaReply } from "./conversation-meta-reply.mjs";
 import { buildContextInspectorPayload } from "./context-inspector.mjs";
 import {
   evaluateRuntimeApprovalRequest,
@@ -347,6 +347,40 @@ export class JobRunner {
         this.abortControllers.set(activeJob.id, abortController);
 
         try {
+          const conversationMetaReply = activeJob.threadId && this.repository
+            ? buildConversationMetaReply({
+              repository: this.repository,
+              threadId: activeJob.threadId,
+              currentJobId: activeJob.id,
+              userTask: activeJob.request,
+            })
+            : "";
+          if (conversationMetaReply) {
+            const completedAt = new Date().toISOString();
+            this.state.patchJob(activeJob.id, {
+              status: "completed",
+              completedAt,
+              summary: conversationMetaReply,
+              error: "",
+              tokenSource: "internal",
+              tokenInput: 0,
+              tokenOutput: 0,
+              tokenTotal: 0,
+              providerCostUsd: null,
+            });
+            this.eventBus.publish({
+              jobId: activeJob.id,
+              chatId: activeJob.chatId,
+              eventType: "job_completed",
+              message: "Job completed from visible thread history.",
+              payload: {
+                completedAt,
+                internal: true,
+              },
+            });
+            return;
+          }
+
           const provider = providerForRun;
           const providerConfig = this.config.runner;
           const runner = getRunner(provider);
@@ -365,7 +399,6 @@ export class JobRunner {
           let bootstrapShouldApply = false;
           let resumeContext = "";
           let threadContext = "";
-          let conversationMetaContext = "";
           let managedContextDisabled = false;
           let promptTrimmed = false;
           let promptRemovedSections = [];
@@ -417,15 +450,6 @@ export class JobRunner {
             sessionId = null;
           }
 
-          if (activeJob.threadId && this.repository) {
-            conversationMetaContext = buildConversationMetaContext({
-              repository: this.repository,
-              threadId: activeJob.threadId,
-              currentJobId: activeJob.id,
-              userTask: activeJob.request,
-            });
-          }
-
           managedContextDisabled = Boolean(
             codexParityMode || (provider === "codex" && sessionId),
           );
@@ -446,12 +470,9 @@ export class JobRunner {
           const effectiveBootstrapPrompt = managedContextDisabled ? "" : bootstrapPrompt;
           const effectiveResumeContext = managedContextDisabled ? "" : resumeContext;
           const effectiveThreadContext = managedContextDisabled ? "" : threadContext;
-          const effectiveUserTask = conversationMetaContext
-            ? `${conversationMetaContext}\n\nCurrent user request:\n${activeJob.request}`
-            : activeJob.request;
           const budgetEnabled = threadTokenBudget > 0 && !managedContextDisabled;
           const prepared = buildBudgetAwarePrompt({
-            userTask: effectiveUserTask,
+            userTask: activeJob.request,
             bootstrapPrompt: effectiveBootstrapPrompt,
             resumeContext: effectiveResumeContext,
             threadContext: effectiveThreadContext,
@@ -494,7 +515,7 @@ export class JobRunner {
             tokenBudget: threadTokenBudget,
             remainingBudget: threadRemainingBudget,
             autoTrimContext: threadAutoTrimContext,
-            userTask: effectiveUserTask,
+            userTask: activeJob.request,
             bootstrapPrompt: effectiveBootstrapPrompt,
             resumeContext: effectiveResumeContext,
             threadContext: effectiveThreadContext,
