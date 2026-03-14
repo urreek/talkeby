@@ -13,10 +13,6 @@ import {
   SUPPORTED_PROVIDERS,
 } from "../providers/catalog.mjs";
 import { buildProviderCatalogWithDiscovery } from "../providers/discovery.mjs";
-import {
-  normalizeAgentProfileInput,
-  resolveAgentProfile,
-} from "../services/agent-profile.mjs";
 import { registerEventRoute } from "./events-route.mjs";
 import { registerJobRoutes } from "./jobs-routes.mjs";
 import {
@@ -250,20 +246,6 @@ export function registerRoutes({
     return {
       token: issued.token,
       expiresAt: new Date(issued.expiresAt).toISOString(),
-    };
-  });
-
-  app.get("/api/agent-profile", async () => ({
-    profile: resolveAgentProfile(repository.getAgentProfile()),
-  }));
-
-  app.post("/api/agent-profile", async (request) => {
-    const profile = normalizeAgentProfileInput(request.body?.profile || "");
-    repository.setAgentProfile(profile);
-
-    return {
-      ok: true,
-      profile: resolveAgentProfile(profile),
     };
   });
 
@@ -522,12 +504,10 @@ export function registerRoutes({
     }
 
     const id = crypto.randomUUID();
-    const bootstrapPrompt = resolveAgentProfile(repository.getAgentProfile());
     const thread = repository.createThread({
       id,
       projectName: resolvedProjectName,
       title: title || "New thread",
-      bootstrapPrompt,
       tokenBudget: config.threads?.defaultTokenBudget ?? 12000,
       autoTrimContext: config.threads?.autoTrimContextDefault !== false,
     });

@@ -14,7 +14,7 @@ It runs on one primary machine, keeps Codex-style thread memory on that machine,
 - Real-time updates with SSE
 - Local SQLite persistence for jobs, events, approvals, and threads
 - Provider support for `codex`, `claude`, `gemini`, `groq`, and `openrouter`
-- Observability dashboard and per-job context inspector
+- Observability dashboard
 
 ## Architecture
 
@@ -32,8 +32,6 @@ That memory includes:
 
 - persisted Talkeby job history for the thread
 - the persisted Codex session resume id for the thread
-- thread-scoped token budgeting and auto-trim state
-- thread bootstrap prompt state
 
 Open the same thread URL on another device and you land on the same backend thread memory.
 Different devices can browse different threads independently.

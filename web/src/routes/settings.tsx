@@ -16,7 +16,6 @@ import {
 } from "@/components/ui/card";
 import {
   addProject,
-  fetchAgentProfile,
   fetchMode,
   fetchProviderCatalog,
   fetchProjects,
@@ -24,7 +23,6 @@ import {
   fetchSessionStatus,
   logout,
   selectProject,
-  setAgentProfile,
   setMode,
   setProvider,
 } from "@/lib/api";
@@ -68,11 +66,6 @@ function SettingsScreen() {
     queryFn: fetchProviderCatalog,
   });
 
-  const agentProfileQuery = useQuery({
-    queryKey: ["agent-profile"],
-    queryFn: fetchAgentProfile,
-  });
-
   const modeMutation = useMutation({
     mutationFn: (mode: ExecutionMode) => setMode({ mode }),
     onSuccess: () => {
@@ -108,13 +101,6 @@ function SettingsScreen() {
     },
   });
 
-  const agentProfileMutation = useMutation({
-    mutationFn: (profile: string) => setAgentProfile({ profile }),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["agent-profile"] });
-    },
-  });
-
   const logoutMutation = useMutation({
     mutationFn: logout,
     onSuccess: () => {
@@ -129,9 +115,7 @@ function SettingsScreen() {
     getErrorMessage(providerMutation.error) ||
     getErrorMessage(projectMutation.error) ||
     getErrorMessage(addProjectMutation.error) ||
-    getErrorMessage(agentProfileMutation.error) ||
     getErrorMessage(providerCatalogQuery.error) ||
-    getErrorMessage(agentProfileQuery.error) ||
     getErrorMessage(projectsQuery.error) ||
     getErrorMessage(modeQuery.error) ||
     "";
@@ -173,12 +157,8 @@ function SettingsScreen() {
         projects={projects}
         projectsBasePath={projectsBasePath}
         theme={theme}
-        initialAgentProfile={agentProfileQuery.data?.profile ?? ""}
         showLogout={Boolean(sessionQuery.data?.required)}
         onLogout={() => logoutMutation.mutate()}
-        onSaveAgentProfile={async (profile) => {
-          await agentProfileMutation.mutateAsync(profile);
-        }}
         onChangeTheme={setTheme}
         onChangeMode={(mode) => modeMutation.mutate(mode)}
         onChangeProvider={(provider) => providerMutation.mutate(provider)}
@@ -207,7 +187,6 @@ function SettingsScreen() {
         isUpdatingProvider={providerMutation.isPending}
         isUpdatingProject={projectMutation.isPending}
         isAddingProject={addProjectMutation.isPending}
-        isSavingAgentProfile={agentProfileMutation.isPending}
         isLoggingOut={logoutMutation.isPending}
       />
     </div>

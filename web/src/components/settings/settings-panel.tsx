@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 
 import { Button } from "@/components/ui/button";
 import {
@@ -16,7 +16,6 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Textarea } from "@/components/ui/textarea";
 import type { ThemePreference } from "@/lib/storage";
 import type {
   AIProvider,
@@ -39,10 +38,8 @@ type SettingsPanelProps = {
   projects: ProjectInfo[];
   projectsBasePath: string;
   theme: ThemePreference;
-  initialAgentProfile: string;
   showLogout: boolean;
   onLogout: () => void;
-  onSaveAgentProfile: (profile: string) => Promise<void>;
   onChangeTheme: (theme: ThemePreference) => void;
   onChangeMode: (mode: ExecutionMode) => void;
   onChangeProvider: (provider: AIProvider) => void;
@@ -58,7 +55,6 @@ type SettingsPanelProps = {
   isUpdatingProvider: boolean;
   isUpdatingProject: boolean;
   isAddingProject: boolean;
-  isSavingAgentProfile: boolean;
   isLoggingOut: boolean;
 };
 
@@ -75,10 +71,8 @@ export function SettingsPanel({
   projects,
   projectsBasePath,
   theme,
-  initialAgentProfile,
   showLogout,
   onLogout,
-  onSaveAgentProfile,
   onChangeTheme,
   onChangeMode,
   onChangeProvider,
@@ -91,10 +85,8 @@ export function SettingsPanel({
   isUpdatingProvider,
   isUpdatingProject,
   isAddingProject,
-  isSavingAgentProfile,
   isLoggingOut,
 }: SettingsPanelProps) {
-  const [agentProfile, setAgentProfile] = useState(initialAgentProfile);
   const [newProjectName, setNewProjectName] = useState("");
   const [newProjectPath, setNewProjectPath] = useState("");
 
@@ -114,51 +106,13 @@ export function SettingsPanel({
     && codexConfigKnown
     && codexParityMode === true
     && codexSessionResumeEnabled === true;
-  const hideAgentProfile = provider === "codex" && codexParityMode === true;
-  const agentProfileDescription = provider === "codex"
-    ? (codexParityMode === false
-      ? "Applied once on the first run of each new thread. Codex parity is off, so this profile is injected into Codex prompts."
-      : "Codex parity threads ignore this so Talkeby matches native Codex. It still applies to non-Codex providers.")
-    : "Applied once on the first run of each new thread.";
 
   const modelValue = model || "__default__";
   const supportsReasoning = Boolean(activeProvider?.supportsReasoningEffort);
   const supportsPlan = Boolean(activeProvider?.supportsPlanMode);
 
-  useEffect(() => {
-    setAgentProfile(initialAgentProfile);
-  }, [initialAgentProfile]);
-
   return (
     <div className="space-y-4">
-      {!hideAgentProfile ? (
-        <Card className="theme-surface">
-          <CardHeader>
-            <CardTitle>Agent Profile (New Threads)</CardTitle>
-            <CardDescription>
-              {agentProfileDescription}
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-3">
-            <Textarea
-              className="min-h-[140px] bg-background"
-              value={agentProfile}
-              onChange={(event) => setAgentProfile(event.target.value)}
-              placeholder="Define how the agent should behave on the first message in new threads."
-            />
-            <Button
-              className="w-full"
-              disabled={isSavingAgentProfile}
-              onClick={async () => {
-                await onSaveAgentProfile(agentProfile);
-              }}
-            >
-              {isSavingAgentProfile ? "Saving Profile..." : "Save Agent Profile"}
-            </Button>
-          </CardContent>
-        </Card>
-      ) : null}
-
       <Card className="theme-surface">
         <CardHeader>
           <CardTitle>Appearance</CardTitle>

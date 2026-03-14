@@ -14,13 +14,6 @@ import {
   CardHeader,
 } from "@/components/ui/card";
 import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
-import {
   approveJob,
   approveRuntimeApproval,
   createJob,
@@ -36,7 +29,6 @@ import {
   renameThread,
   resumeJobFromError,
   selectProject,
-  setThreadAutoTrimContext,
   stopJob,
 } from "@/lib/api";
 import type { Thread } from "@/lib/types";
@@ -259,14 +251,6 @@ function JobsScreen() {
     },
   });
 
-  const threadAutoTrimMutation = useMutation({
-    mutationFn: (input: { threadId: string; autoTrimContext: boolean }) =>
-      setThreadAutoTrimContext(input.threadId, input.autoTrimContext),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["threads", activeProject] });
-    },
-  });
-
   const createJobErrorMessage = createJobMutation.isError
     ? readErrorMessage(
       createJobMutation.error,
@@ -277,7 +261,6 @@ function JobsScreen() {
   const threadTotalTokens = Number(activeThread?.tokenUsed || 0);
   const threadExactTokens = Number(activeThread?.tokenUsedExact || 0);
   const threadEstimatedTokens = Number(activeThread?.tokenUsedEstimated || 0);
-  const autoTrimValue = Boolean(activeThread?.autoTrimContext) ? "on" : "off";
 
   return (
     <div className="space-y-4">
@@ -386,28 +369,6 @@ function JobsScreen() {
                 <p className="text-[11px] text-muted-foreground">
                   Thread total: {threadTotalTokens} tokens (exact {threadExactTokens} / estimated {threadEstimatedTokens})
                 </p>
-                <div className="flex flex-wrap gap-2">
-                  <div className="flex items-center gap-2">
-                    <span className="text-xs text-muted-foreground">Auto-Trim</span>
-                    <Select
-                      value={autoTrimValue}
-                      onValueChange={(value) => {
-                        threadAutoTrimMutation.mutate({
-                          threadId: activeThread.id,
-                          autoTrimContext: value === "on",
-                        });
-                      }}
-                    >
-                      <SelectTrigger className="h-8 w-[110px]">
-                        <SelectValue placeholder="Auto-Trim" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="on">On</SelectItem>
-                        <SelectItem value="off">Off</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
-                </div>
               </div>
             </CardHeader>
             <CardContent>

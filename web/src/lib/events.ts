@@ -20,7 +20,6 @@ const EVENT_TYPES = [
   "job_skipped_duplicate",
   "thread_token_usage",
   "thread_context_trimmed",
-  "job_context_prepared",
   "runtime_approval_requested",
   "runtime_approval_resolved",
   "runtime_approval_user_approved",

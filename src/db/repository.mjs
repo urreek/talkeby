@@ -1,4 +1,4 @@
-import { and, asc, desc, eq, gt, sql } from "drizzle-orm";
+import { and, desc, eq, gt, sql } from "drizzle-orm";
 
 import {
   appSettingsTable,
@@ -376,7 +376,6 @@ export class TalkebyRepository {
     id,
     projectName,
     title,
-    bootstrapPrompt = "",
     tokenBudget = 12000,
     autoTrimContext = true,
   }) {
@@ -386,8 +385,6 @@ export class TalkebyRepository {
       projectName: String(projectName),
       title: String(title),
       status: "active",
-      bootstrapPrompt: String(bootstrapPrompt || ""),
-      bootstrapAppliedAt: null,
       autoTrimContext: autoTrimContext ? 1 : 0,
       tokenBudget: Math.max(0, Number.parseInt(String(tokenBudget || 0), 10) || 0),
       tokenUsed: 0,
@@ -406,8 +403,6 @@ export class TalkebyRepository {
     if ("title" in patch) update.title = patch.title;
     if ("status" in patch) update.status = patch.status;
     if ("cliSessionId" in patch) update.cliSessionId = patch.cliSessionId;
-    if ("bootstrapPrompt" in patch) update.bootstrapPrompt = patch.bootstrapPrompt || "";
-    if ("bootstrapAppliedAt" in patch) update.bootstrapAppliedAt = patch.bootstrapAppliedAt || null;
     if ("autoTrimContext" in patch) update.autoTrimContext = patch.autoTrimContext ? 1 : 0;
     if ("tokenBudget" in patch) {
       const parsed = Number.parseInt(String(patch.tokenBudget || 0), 10);
@@ -499,19 +494,6 @@ export class TalkebyRepository {
     return this.getAppSetting(normalizedKey);
   }
 
-  getAgentProfile() {
-    const row = this.getAppSetting("agent_profile");
-    return row ? String(row.value || "") : "";
-  }
-
-  setAgentProfile(value) {
-    const row = this.setAppSetting({
-      key: "agent_profile",
-      value: String(value || ""),
-    });
-    return row ? String(row.value || "") : "";
-  }
-
   listJobsByThread(threadId, limit = 100) {
     if (!threadId) return [];
     const rows = this.db
@@ -522,17 +504,6 @@ export class TalkebyRepository {
       .limit(limit)
       .all();
     return rows.reverse();
-  }
-
-  getFirstJobByThread(threadId) {
-    if (!threadId) return null;
-    return this.db
-      .select()
-      .from(jobsTable)
-      .where(eq(jobsTable.threadId, String(threadId)))
-      .orderBy(asc(jobsTable.createdAt))
-      .limit(1)
-      .get();
   }
 
   deleteThread(threadId) {

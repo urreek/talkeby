@@ -1,7 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import Markdown from "react-markdown";
 
-import { JobContextInspector } from "@/components/jobs/job-context-inspector";
 import { Button } from "@/components/ui/button";
 import type { Job } from "@/lib/types";
 import {
@@ -448,7 +447,6 @@ export function JobChatFeed({
                 <p className="mt-2 text-[11px] text-muted-foreground">
                   {tokenUsageLine(job)}
                 </p>
-                <JobContextInspector jobId={job.id} />
 
                 {job.status === "pending_approval" && onApprove && onDeny && (
                   <div className="mt-3 flex gap-2">

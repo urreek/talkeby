@@ -15,10 +15,6 @@ export interface Thread {
   title: string;
   status: string;
   latestJobStatus: string | null;
-  bootstrapPrompt?: string | null;
-  bootstrapAppliedAt?: string | null;
-  autoTrimContext?: number | boolean;
-  tokenBudget?: number;
   tokenUsed?: number;
   tokenUsedExact?: number;
   tokenUsedEstimated?: number;
@@ -53,43 +49,6 @@ export interface Job {
   providerCostUsd?: string | null;
   summary: string | null;
   error: string | null;
-}
-
-export interface ContextInspectorSection {
-  id: string;
-  label: string;
-  removed: boolean;
-  included: boolean;
-  chars: number;
-  estimatedTokens: number;
-  preview: string;
-}
-
-export interface JobContextInspector {
-  provider: string;
-  model: string;
-  reasoningEffort: string;
-  planMode: boolean;
-  parityMode: boolean;
-  threadId: string;
-  sessionId: string;
-  tokenBudget: number;
-  remainingBudget: number;
-  autoTrimContext: boolean;
-  trimmed: boolean;
-  cannotFit: boolean;
-  removedSections: string[];
-  promptChars: number;
-  promptEstimatedTokens: number;
-  promptPreview: string;
-  sections: ContextInspectorSection[];
-}
-
-export interface JobContextResponse {
-  jobId: string;
-  eventId: number | null;
-  createdAt: string | null;
-  context: JobContextInspector | null;
 }
 
 export interface JobEvent {
@@ -203,10 +162,6 @@ export interface AuthSessionResponse {
 export interface AuthLoginResponse extends AuthSessionResponse {
   ok: true;
   expiresAt?: string;
-}
-
-export interface AgentProfileResponse {
-  profile: string;
 }
 
 export type RuntimeApprovalStatus =

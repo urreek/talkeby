@@ -1,12 +1,10 @@
 import type {
-  AgentProfileResponse,
   AuthLoginResponse,
   AuthSessionResponse,
   DoctorResponse,
   ExecutionMode,
   ImportProjectsResponse,
   Job,
-  JobContextResponse,
   JobEvent,
   ObservabilitySummary,
   ProjectsResponse,
@@ -130,17 +128,6 @@ export async function logout() {
   return result;
 }
 
-export async function fetchAgentProfile(): Promise<AgentProfileResponse> {
-  return requestJson<AgentProfileResponse>("/api/agent-profile");
-}
-
-export async function setAgentProfile(input: { profile: string }) {
-  return requestJson<{ ok: true; profile: string }>("/api/agent-profile", {
-    method: "POST",
-    body: JSON.stringify({ profile: input.profile }),
-  });
-}
-
 export async function fetchJobs(params: {
   status?: string;
   limit?: number;
@@ -162,12 +149,6 @@ export async function fetchJob(id: string) {
 export async function fetchJobEvents(jobId: string, limit = 250) {
   return requestJson<JobEvent[]>(
     `/api/jobs/${encodeURIComponent(jobId)}/events?limit=${limit}`,
-  );
-}
-
-export async function fetchJobContext(jobId: string) {
-  return requestJson<JobContextResponse>(
-    `/api/jobs/${encodeURIComponent(jobId)}/context`,
   );
 }
 
@@ -382,20 +363,6 @@ export async function renameThread(threadId: string, title: string) {
   return requestJson<{ thread: Thread }>(`/api/threads/${encodeURIComponent(threadId)}`, {
     method: "PATCH",
     body: JSON.stringify({ title }),
-  });
-}
-
-export async function setThreadBudget(threadId: string, tokenBudget: number) {
-  return requestJson<{ thread: Thread }>(`/api/threads/${encodeURIComponent(threadId)}`, {
-    method: "PATCH",
-    body: JSON.stringify({ tokenBudget }),
-  });
-}
-
-export async function setThreadAutoTrimContext(threadId: string, autoTrimContext: boolean) {
-  return requestJson<{ thread: Thread }>(`/api/threads/${encodeURIComponent(threadId)}`, {
-    method: "PATCH",
-    body: JSON.stringify({ autoTrimContext }),
   });
 }
 

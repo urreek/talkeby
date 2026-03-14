@@ -5,8 +5,6 @@ import { isFreeModelAllowed } from "../providers/catalog.mjs";
 import { estimateTokens } from "./token-budget.mjs";
 import { buildBudgetAwarePrompt } from "./prompt-trim.mjs";
 import { buildThreadHistoryContext } from "./thread-context.mjs";
-import { buildConversationMetaReply } from "./conversation-meta-reply.mjs";
-import { buildContextInspectorPayload } from "./context-inspector.mjs";
 import {
   evaluateRuntimeApprovalRequest,
 } from "./runtime-policy.mjs";
@@ -347,40 +345,6 @@ export class JobRunner {
         this.abortControllers.set(activeJob.id, abortController);
 
         try {
-          const conversationMetaReply = activeJob.threadId && this.repository
-            ? buildConversationMetaReply({
-              repository: this.repository,
-              threadId: activeJob.threadId,
-              currentJobId: activeJob.id,
-              userTask: activeJob.request,
-            })
-            : "";
-          if (conversationMetaReply) {
-            const completedAt = new Date().toISOString();
-            this.state.patchJob(activeJob.id, {
-              status: "completed",
-              completedAt,
-              summary: conversationMetaReply,
-              error: "",
-              tokenSource: "internal",
-              tokenInput: 0,
-              tokenOutput: 0,
-              tokenTotal: 0,
-              providerCostUsd: null,
-            });
-            this.eventBus.publish({
-              jobId: activeJob.id,
-              chatId: activeJob.chatId,
-              eventType: "job_completed",
-              message: "Job completed from visible thread history.",
-              payload: {
-                completedAt,
-                internal: true,
-              },
-            });
-            return;
-          }
-
           const provider = providerForRun;
           const providerConfig = this.config.runner;
           const runner = getRunner(provider);
@@ -395,8 +359,6 @@ export class JobRunner {
           let threadAutoTrimContext = this.config.threads?.autoTrimContextDefault !== false;
           let threadTokenBudget = toNonNegativeInt(this.config.threads?.defaultTokenBudget, 0);
           let threadRemainingBudget = 0;
-          let bootstrapPrompt = "";
-          let bootstrapShouldApply = false;
           let resumeContext = "";
           let threadContext = "";
           let managedContextDisabled = false;
@@ -437,10 +399,6 @@ export class JobRunner {
                   },
                 });
               }
-              if (thread?.bootstrapPrompt && !thread?.bootstrapAppliedAt) {
-                bootstrapPrompt = String(thread.bootstrapPrompt);
-                bootstrapShouldApply = true;
-              }
             } catch {
               // non-critical
             }
@@ -467,13 +425,12 @@ export class JobRunner {
             }
           }
 
-          const effectiveBootstrapPrompt = managedContextDisabled ? "" : bootstrapPrompt;
           const effectiveResumeContext = managedContextDisabled ? "" : resumeContext;
           const effectiveThreadContext = managedContextDisabled ? "" : threadContext;
           const budgetEnabled = threadTokenBudget > 0 && !managedContextDisabled;
           const prepared = buildBudgetAwarePrompt({
             userTask: activeJob.request,
-            bootstrapPrompt: effectiveBootstrapPrompt,
+            bootstrapPrompt: "",
             resumeContext: effectiveResumeContext,
             threadContext: effectiveThreadContext,
             remainingBudget: threadRemainingBudget,
@@ -485,9 +442,6 @@ export class JobRunner {
           promptTrimmed = Boolean(prepared.trimmed);
           promptRemovedSections = Array.isArray(prepared.removed) ? prepared.removed : [];
           promptCannotFit = Boolean(prepared.cannotFit);
-          if (codexParityMode) {
-            bootstrapShouldApply = false;
-          }
           if (prepared.trimmed) {
             this.eventBus.publish({
               jobId: activeJob.id,
@@ -503,34 +457,6 @@ export class JobRunner {
               },
             });
           }
-
-          const contextPayload = buildContextInspectorPayload({
-            provider,
-            model,
-            reasoningEffort,
-            planMode,
-            parityMode: codexParityMode,
-            threadId: activeJob.threadId || "",
-            sessionId: sessionId || "",
-            tokenBudget: threadTokenBudget,
-            remainingBudget: threadRemainingBudget,
-            autoTrimContext: threadAutoTrimContext,
-            userTask: activeJob.request,
-            bootstrapPrompt: effectiveBootstrapPrompt,
-            resumeContext: effectiveResumeContext,
-            threadContext: effectiveThreadContext,
-            finalPrompt: taskText,
-            removedSections: promptRemovedSections,
-            trimmed: promptTrimmed,
-            cannotFit: promptCannotFit,
-          });
-          this.eventBus.publish({
-            jobId: activeJob.id,
-            chatId: activeJob.chatId,
-            eventType: "job_context_prepared",
-            message: "Execution context prepared.",
-            payload: contextPayload,
-          });
 
           if (!isFreeModelAllowed({
             providerName: provider,
@@ -602,27 +528,6 @@ export class JobRunner {
                 }
               : undefined,
           });
-
-          if (bootstrapShouldApply && activeJob.threadId && this.repository) {
-            try {
-              const appliedAt = new Date().toISOString();
-              this.repository.updateThread(activeJob.threadId, {
-                bootstrapAppliedAt: appliedAt,
-              });
-              this.eventBus.publish({
-                jobId: activeJob.id,
-                chatId: activeJob.chatId,
-                eventType: "thread_bootstrap_applied",
-                message: "Thread bootstrap instructions applied for first run.",
-                payload: {
-                  threadId: activeJob.threadId,
-                  appliedAt,
-                },
-              });
-            } catch {
-              // non-critical
-            }
-          }
 
           // Save new session ID to thread for future resumes
           if (result.newSessionId && activeJob.threadId && this.repository) {
