@@ -68,7 +68,18 @@ function extractMeaningfulError(rawOutput) {
 }
 
 function buildPrompt(transcript) {
-  return transcript;
+  const userRequest = String(transcript || "").trim();
+  if (!userRequest) {
+    return "";
+  }
+  return [
+    "Treat the quoted text below as the end-user's message for this turn.",
+    "When answering questions about thread history or prior user messages, ignore Codex bootstrap/context entries such as AGENTS.md instructions, permissions instructions, and <environment_context> blocks.",
+    "User request:",
+    '"""',
+    userRequest,
+    '"""',
+  ].join("\n");
 }
 
 function subtractUsageTotals(current, baseline) {
