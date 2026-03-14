@@ -1,7 +1,7 @@
 import { spawn } from "node:child_process";
 import path from "node:path";
 
-function shouldUseWindowsShell(command) {
+function isWindowsCommandScript(command) {
   if (process.platform !== "win32") {
     return false;
   }
@@ -9,19 +9,43 @@ function shouldUseWindowsShell(command) {
   return base.endsWith(".cmd") || base.endsWith(".bat");
 }
 
-export function spawnCompat(command, args, options = {}) {
-  const cmd = String(command || "").trim();
-  const normalizedArgs = Array.isArray(args)
+function normalizeArgs(args) {
+  return Array.isArray(args)
     ? args
       .filter((value) => value !== undefined && value !== null)
       .map((value) => String(value))
     : [];
+}
 
-  const shell = options.shell ?? shouldUseWindowsShell(cmd);
+export function resolveSpawnCompat(command, args = [], options = {}) {
+  const cmd = String(command || "").trim();
+  const normalizedArgs = normalizeArgs(args);
 
-  return spawn(cmd, normalizedArgs, {
-    ...options,
-    shell,
-    windowsHide: options.windowsHide ?? true,
+  if (isWindowsCommandScript(cmd)) {
+    return {
+      command: process.env.ComSpec || "cmd.exe",
+      args: ["/d", "/c", path.normalize(cmd), ...normalizedArgs],
+      options: {
+        ...options,
+        shell: false,
+      },
+    };
+  }
+
+  return {
+    command: cmd,
+    args: normalizedArgs,
+    options: {
+      ...options,
+      shell: options.shell ?? false,
+    },
+  };
+}
+
+export function spawnCompat(command, args, options = {}) {
+  const resolved = resolveSpawnCompat(command, args, options);
+  return spawn(resolved.command, resolved.args, {
+    ...resolved.options,
+    windowsHide: resolved.options.windowsHide ?? true,
   });
 }
