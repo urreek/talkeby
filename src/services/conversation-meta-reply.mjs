@@ -45,22 +45,6 @@ function detectRequestKind(task) {
       ],
     },
     {
-      kind: "first_assistant_message",
-      patterns: [
-        /\bwhat(?:'s|\s+is|\s+was)\s+your\s+first\s+(?:message|reply|response)\b/,
-        /\bwhat\s+did\s+you\s+say\s+first\b/,
-        /\byour\s+first\s+(?:message|reply|response)\b/,
-      ],
-    },
-    {
-      kind: "last_assistant_message",
-      patterns: [
-        /\bwhat(?:'s|\s+is|\s+was)\s+your\s+(?:last|previous|prior)\s+(?:message|reply|response)\b/,
-        /\bwhat\s+did\s+you\s+(?:just\s+)?say\b/,
-        /\byour\s+(?:last|previous|prior)\s+(?:message|reply|response)\b/,
-      ],
-    },
-    {
       kind: "conversation_summary",
       patterns: [
         /\beverything\s+we\s+(?:talked|discussed)\s+about\b/,
@@ -140,20 +124,6 @@ export function buildConversationMetaReply({
     return lastJob?.request
       ? `Your last visible message before this one was: ${JSON.stringify(String(lastJob.request))}`
       : "I could not find your last visible message in this thread.";
-  }
-
-  if (kind === "first_assistant_message") {
-    const firstAssistant = buildAssistantReply(firstJob);
-    return firstAssistant
-      ? `My first visible reply in this thread was: ${JSON.stringify(firstAssistant)}`
-      : "I could not find my first visible reply in this thread.";
-  }
-
-  if (kind === "last_assistant_message") {
-    const lastAssistant = buildAssistantReply(lastJob);
-    return lastAssistant
-      ? `My last visible reply before this one was: ${JSON.stringify(lastAssistant)}`
-      : "I could not find my last visible reply in this thread.";
   }
 
   if (kind === "conversation_summary") {
