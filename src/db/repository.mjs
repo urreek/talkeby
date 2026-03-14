@@ -352,6 +352,16 @@ export class TalkebyRepository {
       .all();
   }
 
+  listRecentThreads(limit = 50) {
+    const safeLimit = Math.max(1, Math.min(Number(limit) || 50, 200));
+    return this.db
+      .select()
+      .from(threadsTable)
+      .orderBy(desc(threadsTable.updatedAt))
+      .limit(safeLimit)
+      .all();
+  }
+
   getThread(threadId) {
     if (!threadId) return null;
     return this.db

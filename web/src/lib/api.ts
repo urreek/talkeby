@@ -344,6 +344,11 @@ export async function fetchThreads(projectName: string) {
   return requestJson<ThreadsResponse>(`/api/threads?project=${encodeURIComponent(projectName)}`);
 }
 
+export async function fetchRecentThreads(limit = 12) {
+  const safeLimit = Math.max(1, Math.min(limit, 50));
+  return requestJson<ThreadsResponse>(`/api/threads?limit=${safeLimit}`);
+}
+
 export async function createThread(input: { projectName: string; title?: string }) {
   return requestJson<{ thread: Thread }>("/api/threads", {
     method: "POST",

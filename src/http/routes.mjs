@@ -464,16 +464,19 @@ export function registerRoutes({
 
   app.get("/api/threads", async (request) => {
     const projectName = textValue(request.query?.project || "");
-    if (!projectName) {
-      return { threads: [] };
-    }
+    const limitInput = Number.parseInt(String(request.query?.limit || 50), 10);
+    const limit = Number.isFinite(limitInput) ? Math.max(1, Math.min(limitInput, 200)) : 50;
+    const threads = (() => {
+      if (!projectName) {
+        return repository.listRecentThreads(limit);
+      }
 
-    const resolvedProjectName = state.resolveProjectName(projectName);
-    if (!resolvedProjectName) {
-      return { threads: [] };
-    }
-
-    const threads = repository.listThreadsByProject(resolvedProjectName);
+      const resolvedProjectName = state.resolveProjectName(projectName);
+      if (!resolvedProjectName) {
+        return [];
+      }
+      return repository.listThreadsByProject(resolvedProjectName);
+    })();
     const enriched = threads.map((thread) => {
       const jobs = repository.listJobsByThread(thread.id, 1);
       const latestJob = jobs.length > 0 ? jobs[jobs.length - 1] : null;

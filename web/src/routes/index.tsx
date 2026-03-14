@@ -31,6 +31,7 @@ import {
   denyRuntimeApproval,
   fetchObservability,
   fetchProjects,
+  fetchRecentThreads,
   fetchRuntimeApprovals,
   fetchThreadJobs,
   fetchThreads,
@@ -75,6 +76,29 @@ function readErrorMessage(error: unknown, fallback: string) {
     return error.trim();
   }
   return fallback;
+}
+
+function formatRelativeTimestamp(value: string) {
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) {
+    return "";
+  }
+
+  const diffMs = Date.now() - date.getTime();
+  const diffMinutes = Math.floor(diffMs / 60_000);
+  if (diffMinutes < 1) {
+    return "just now";
+  }
+  if (diffMinutes < 60) {
+    return `${diffMinutes}m ago`;
+  }
+
+  const diffHours = Math.floor(diffMinutes / 60);
+  if (diffHours < 24) {
+    return `${diffHours}h ago`;
+  }
+
+  return `${Math.floor(diffHours / 24)}d ago`;
 }
 
 function buildThreadShareUrl(projectName: string, threadId: string) {
@@ -167,6 +191,14 @@ function JobsScreen() {
     queryKey: ["runtimeApprovals"],
     queryFn: () => fetchRuntimeApprovals({ status: "pending", limit: 100 }),
     refetchInterval: 3000,
+  });
+  const recentThreadsQuery = useQuery({
+    queryKey: ["threads", "recent"],
+    queryFn: () => fetchRecentThreads(12),
+    refetchInterval: 5000,
+  });
+  const recentThreads = (recentThreadsQuery.data?.threads ?? []).filter((thread) => {
+    return Boolean(thread.id);
   });
 
   useEffect(() => {
@@ -345,6 +377,57 @@ function JobsScreen() {
         onApprove={(id) => approveRuntimeMutation.mutate(id)}
         onDeny={(id) => denyRuntimeMutation.mutate(id)}
       />
+
+      {recentThreads.length > 0 && (
+        <Card className="theme-surface border-border/50 shadow-md">
+          <CardHeader className="pb-3">
+            <div className="flex items-start justify-between gap-3">
+              <div>
+                <EditableSectionTitle title="Shared Threads" />
+                <CardDescription>
+                  Recent conversations from this Talkeby host. Click one on any device and continue.
+                </CardDescription>
+              </div>
+            </div>
+          </CardHeader>
+          <CardContent className="space-y-2">
+            {recentThreads.map((thread) => {
+              const isSelected = thread.id === activeThread?.id;
+              return (
+                <button
+                  key={thread.id}
+                  type="button"
+                  onClick={() => {
+                    selectProjectMutation.mutate(thread.projectName);
+                    void navigate({
+                      search: (previous) => ({
+                        ...previous,
+                        project: thread.projectName,
+                        thread: thread.id,
+                      }),
+                    });
+                  }}
+                  className={`flex w-full items-start justify-between gap-3 rounded-xl border px-4 py-3 text-left transition-all ${
+                    isSelected
+                      ? "border-primary/40 bg-primary/10"
+                      : "border-border/60 bg-background/40 hover:border-primary/25 hover:bg-background/70"
+                  }`}
+                >
+                  <div className="min-w-0">
+                    <p className="truncate text-sm font-semibold text-foreground">{thread.title}</p>
+                    <p className="mt-1 text-xs text-muted-foreground">
+                      {thread.projectName} · {thread.latestJobStatus || "idle"} · {formatRelativeTimestamp(thread.updatedAt)}
+                    </p>
+                  </div>
+                  <div className="shrink-0 text-xs font-medium text-primary">
+                    Open
+                  </div>
+                </button>
+              );
+            })}
+          </CardContent>
+        </Card>
+      )}
 
       {projects.length > 0 && (
         <div className="animate-in fade-in slide-in-from-bottom-2 duration-300 fill-mode-both">
@@ -584,6 +667,10 @@ function ThreadLinkCard({
       <p className="mt-2 text-[11px] text-muted-foreground">{statusText}</p>
     </div>
   );
+}
+
+function EditableSectionTitle({ title }: { title: string }) {
+  return <p className="text-sm font-semibold text-foreground">{title}</p>;
 }
 
 function ThreadPill({
