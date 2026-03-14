@@ -270,9 +270,7 @@ test("native Codex parity resumes validated sessions without injecting managed t
       assert.equal(logged.args[3], "resume");
       assert.equal(logged.args[4], sessionId);
       assert.equal(logged.args.at(-1), "-");
-      assert.match(logged.prompt, /Treat the quoted text below as the end-user's message for this turn\./);
-      assert.equal(logged.prompt.includes("User request:"), true);
-      assert.equal(logged.prompt.includes(queuedJob.request), true);
+      assert.equal(logged.prompt, `${queuedJob.request}\n`);
       assert.equal(logged.prompt.includes("Thread context:"), false);
       assert.equal(logged.prompt.includes("Previous error context:"), false);
       assert.equal(repository.getThread(thread.id)?.cliSessionId, sessionId);

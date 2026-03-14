@@ -37,9 +37,6 @@ const NOISE_PATTERNS = [
   /^FILES:/,
   /^NEXT:/,
   /^You are (Codex|Claude|Gemini)/,
-  /^Treat the quoted text/,
-  /^User request:/,
-  /^"""/,
   /^$/,
 ];
 
@@ -68,18 +65,7 @@ function extractMeaningfulError(rawOutput) {
 }
 
 function buildPrompt(transcript) {
-  const userRequest = String(transcript || "").trim();
-  if (!userRequest) {
-    return "";
-  }
-  return [
-    "Treat the quoted text below as the end-user's message for this turn.",
-    "When answering questions about thread history or prior user messages, ignore Codex bootstrap/context entries such as AGENTS.md instructions, permissions instructions, and <environment_context> blocks.",
-    "User request:",
-    '"""',
-    userRequest,
-    '"""',
-  ].join("\n");
+  return String(transcript || "").trim();
 }
 
 function subtractUsageTotals(current, baseline) {
