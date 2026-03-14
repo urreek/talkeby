@@ -6,6 +6,7 @@ import { CreateJobForm } from "@/components/jobs/create-job-form";
 import { JobChatFeed } from "@/components/jobs/job-chat-feed";
 import { ObservabilityDashboard } from "@/components/jobs/observability-dashboard";
 import { RuntimeApprovalCards } from "@/components/jobs/runtime-approval-cards";
+import { Button } from "@/components/ui/button";
 import { useConfirmDialog } from "@/components/ui/confirm-dialog";
 import {
   Card,
@@ -76,11 +77,51 @@ function readErrorMessage(error: unknown, fallback: string) {
   return fallback;
 }
 
+function buildThreadShareUrl(projectName: string, threadId: string) {
+  if (typeof window === "undefined" || !projectName || !threadId) {
+    return "";
+  }
+
+  const url = new URL(window.location.href);
+  url.pathname = "/";
+  url.search = "";
+  url.hash = "";
+  url.searchParams.set("project", projectName);
+  url.searchParams.set("thread", threadId);
+  return url.toString();
+}
+
+async function copyText(value: string) {
+  if (!value) {
+    return;
+  }
+
+  if (typeof navigator !== "undefined" && navigator.clipboard?.writeText) {
+    await navigator.clipboard.writeText(value);
+    return;
+  }
+
+  if (typeof document === "undefined") {
+    throw new Error("Clipboard unavailable.");
+  }
+
+  const input = document.createElement("textarea");
+  input.value = value;
+  input.setAttribute("readonly", "");
+  input.style.position = "absolute";
+  input.style.left = "-9999px";
+  document.body.appendChild(input);
+  input.select();
+  document.execCommand("copy");
+  document.body.removeChild(input);
+}
+
 function JobsScreen() {
   const navigate = jobsRoute.useNavigate();
   const search = jobsRoute.useSearch();
   const queryClient = useQueryClient();
   const { confirm, ConfirmDialog } = useConfirmDialog();
+  const [threadLinkState, setThreadLinkState] = useState<"idle" | "copied" | "error">("idle");
 
   const projectsQuery = useQuery({
     queryKey: ["projects"],
@@ -278,6 +319,20 @@ function JobsScreen() {
   const threadExactTokens = Number(activeThread?.tokenUsedExact || 0);
   const threadEstimatedTokens = Number(activeThread?.tokenUsedEstimated || 0);
   const autoTrimValue = Boolean(activeThread?.autoTrimContext) ? "on" : "off";
+  const threadShareUrl = activeThread
+    ? buildThreadShareUrl(activeProject, activeThread.id)
+    : "";
+
+  useEffect(() => {
+    if (threadLinkState === "idle") {
+      return undefined;
+    }
+
+    const timeout = window.setTimeout(() => {
+      setThreadLinkState("idle");
+    }, 2200);
+    return () => window.clearTimeout(timeout);
+  }, [threadLinkState]);
 
   return (
     <div className="space-y-4">
@@ -408,6 +463,21 @@ function JobsScreen() {
                     </Select>
                   </div>
                 </div>
+                <ThreadLinkCard
+                  projectName={activeProject}
+                  threadId={activeThread.id}
+                  threadTitle={activeThread.title}
+                  threadUrl={threadShareUrl}
+                  state={threadLinkState}
+                  onCopy={async () => {
+                    try {
+                      await copyText(threadShareUrl);
+                      setThreadLinkState("copied");
+                    } catch {
+                      setThreadLinkState("error");
+                    }
+                  }}
+                />
               </div>
             </CardHeader>
             <CardContent>
@@ -461,6 +531,57 @@ function JobsScreen() {
       )}
 
       {ConfirmDialog}
+    </div>
+  );
+}
+
+function ThreadLinkCard({
+  projectName,
+  threadId,
+  threadTitle,
+  threadUrl,
+  state,
+  onCopy,
+}: {
+  projectName: string;
+  threadId: string;
+  threadTitle: string;
+  threadUrl: string;
+  state: "idle" | "copied" | "error";
+  onCopy: () => void | Promise<void>;
+}) {
+  const statusText = state === "copied"
+    ? "Link copied."
+    : state === "error"
+      ? "Copy failed. Use the URL directly."
+      : "Open this exact link on another device after login to continue the same thread.";
+
+  return (
+    <div className="rounded-lg border border-border/60 bg-background/40 p-3">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+        <div className="min-w-0 space-y-1">
+          <p className="text-[11px] font-medium text-foreground">Cross-Device Thread Link</p>
+          <p className="text-[11px] text-muted-foreground">
+            {projectName} · {threadTitle}
+          </p>
+          <p className="break-all font-mono text-[10px] text-muted-foreground">
+            {threadUrl || `/?project=${encodeURIComponent(projectName)}&thread=${encodeURIComponent(threadId)}`}
+          </p>
+        </div>
+        <Button
+          type="button"
+          size="sm"
+          variant="outline"
+          className="shrink-0"
+          onClick={() => {
+            void onCopy();
+          }}
+          disabled={!threadUrl}
+        >
+          {state === "copied" ? "Copied" : "Copy Link"}
+        </Button>
+      </div>
+      <p className="mt-2 text-[11px] text-muted-foreground">{statusText}</p>
     </div>
   );
 }
