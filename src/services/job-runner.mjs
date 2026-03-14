@@ -5,6 +5,7 @@ import { isFreeModelAllowed } from "../providers/catalog.mjs";
 import { estimateTokens } from "./token-budget.mjs";
 import { buildBudgetAwarePrompt } from "./prompt-trim.mjs";
 import { buildThreadHistoryContext } from "./thread-context.mjs";
+import { buildConversationMetaContext } from "./conversation-meta-context.mjs";
 import { buildContextInspectorPayload } from "./context-inspector.mjs";
 import {
   evaluateRuntimeApprovalRequest,
@@ -364,6 +365,7 @@ export class JobRunner {
           let bootstrapShouldApply = false;
           let resumeContext = "";
           let threadContext = "";
+          let conversationMetaContext = "";
           let managedContextDisabled = false;
           let promptTrimmed = false;
           let promptRemovedSections = [];
@@ -415,6 +417,15 @@ export class JobRunner {
             sessionId = null;
           }
 
+          if (activeJob.threadId && this.repository) {
+            conversationMetaContext = buildConversationMetaContext({
+              repository: this.repository,
+              threadId: activeJob.threadId,
+              currentJobId: activeJob.id,
+              userTask: activeJob.request,
+            });
+          }
+
           managedContextDisabled = Boolean(
             codexParityMode || (provider === "codex" && sessionId),
           );
@@ -435,9 +446,12 @@ export class JobRunner {
           const effectiveBootstrapPrompt = managedContextDisabled ? "" : bootstrapPrompt;
           const effectiveResumeContext = managedContextDisabled ? "" : resumeContext;
           const effectiveThreadContext = managedContextDisabled ? "" : threadContext;
+          const effectiveUserTask = conversationMetaContext
+            ? `${conversationMetaContext}\n\nCurrent user request:\n${activeJob.request}`
+            : activeJob.request;
           const budgetEnabled = threadTokenBudget > 0 && !managedContextDisabled;
           const prepared = buildBudgetAwarePrompt({
-            userTask: activeJob.request,
+            userTask: effectiveUserTask,
             bootstrapPrompt: effectiveBootstrapPrompt,
             resumeContext: effectiveResumeContext,
             threadContext: effectiveThreadContext,
@@ -480,7 +494,7 @@ export class JobRunner {
             tokenBudget: threadTokenBudget,
             remainingBudget: threadRemainingBudget,
             autoTrimContext: threadAutoTrimContext,
-            userTask: activeJob.request,
+            userTask: effectiveUserTask,
             bootstrapPrompt: effectiveBootstrapPrompt,
             resumeContext: effectiveResumeContext,
             threadContext: effectiveThreadContext,
