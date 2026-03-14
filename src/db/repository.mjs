@@ -1,4 +1,4 @@
-import { and, desc, eq, gt, sql } from "drizzle-orm";
+import { and, asc, desc, eq, gt, sql } from "drizzle-orm";
 
 import {
   appSettingsTable,
@@ -687,3 +687,4 @@ export class TalkebyRepository {
     return pending.length;
   }
 }
+
