@@ -601,8 +601,15 @@ export async function runCodexWithRuntimeApprovals({
           ...threadStartBaseParams,
           threadId: codexConfig.sessionId,
         });
-      } catch {
-        threadStart = null;
+      } catch (error) {
+        const detail = toSafeString(error?.message);
+        throw new Error(
+          [
+            `Failed to resume Codex thread ${codexConfig.sessionId}.`,
+            "Talkeby refused to start a fresh Codex thread because that would lose conversation continuity.",
+            detail,
+          ].filter(Boolean).join(" "),
+        );
       }
     }
     if (!threadStart) {
