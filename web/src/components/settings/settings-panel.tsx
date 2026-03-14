@@ -114,6 +114,7 @@ export function SettingsPanel({
     && codexConfigKnown
     && codexParityMode === true
     && codexSessionResumeEnabled === true;
+  const hideAgentProfile = provider === "codex" && codexParityMode === true;
   const agentProfileDescription = provider === "codex"
     ? (codexParityMode === false
       ? "Applied once on the first run of each new thread. Codex parity is off, so this profile is injected into Codex prompts."
@@ -130,31 +131,33 @@ export function SettingsPanel({
 
   return (
     <div className="space-y-4">
-      <Card className="theme-surface">
-        <CardHeader>
-          <CardTitle>Agent Profile (New Threads)</CardTitle>
-          <CardDescription>
-            {agentProfileDescription}
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-3">
-          <Textarea
-            className="min-h-[140px] bg-background"
-            value={agentProfile}
-            onChange={(event) => setAgentProfile(event.target.value)}
-            placeholder="Define how the agent should behave on the first message in new threads."
-          />
-          <Button
-            className="w-full"
-            disabled={isSavingAgentProfile}
-            onClick={async () => {
-              await onSaveAgentProfile(agentProfile);
-            }}
-          >
-            {isSavingAgentProfile ? "Saving Profile..." : "Save Agent Profile"}
-          </Button>
-        </CardContent>
-      </Card>
+      {!hideAgentProfile ? (
+        <Card className="theme-surface">
+          <CardHeader>
+            <CardTitle>Agent Profile (New Threads)</CardTitle>
+            <CardDescription>
+              {agentProfileDescription}
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-3">
+            <Textarea
+              className="min-h-[140px] bg-background"
+              value={agentProfile}
+              onChange={(event) => setAgentProfile(event.target.value)}
+              placeholder="Define how the agent should behave on the first message in new threads."
+            />
+            <Button
+              className="w-full"
+              disabled={isSavingAgentProfile}
+              onClick={async () => {
+                await onSaveAgentProfile(agentProfile);
+              }}
+            >
+              {isSavingAgentProfile ? "Saving Profile..." : "Save Agent Profile"}
+            </Button>
+          </CardContent>
+        </Card>
+      ) : null}
 
       <Card className="theme-surface">
         <CardHeader>
