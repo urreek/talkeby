@@ -16,6 +16,7 @@ export function AppShell({ children }: PropsWithChildren) {
     select: (state) => state.location.pathname,
   });
   const [keyboardInset, setKeyboardInset] = useState(0);
+  const isWorkspaceRoute = pathname === "/";
 
   useEffect(() => {
     if (typeof window === "undefined") {
@@ -106,12 +107,25 @@ export function AppShell({ children }: PropsWithChildren) {
     };
   }, []);
 
+  const shellStyle = {
+    "--talkeby-keyboard-inset": `${keyboardInset}px`,
+    "--talkeby-nav-gap": "1.5rem",
+    "--talkeby-nav-height": "5.5rem",
+    "--talkeby-nav-offset":
+      "calc(env(safe-area-inset-bottom, 0px) + var(--talkeby-nav-gap) + var(--talkeby-keyboard-inset))",
+    "--talkeby-bottom-clearance":
+      "calc(var(--talkeby-nav-offset) + var(--talkeby-nav-height))",
+  } as CSSProperties;
+
   const navStyle: CSSProperties = {
-    bottom: `calc(env(safe-area-inset-bottom, 0px) + 1.5rem + ${keyboardInset}px)`,
+    bottom: "var(--talkeby-nav-offset)",
   };
 
   return (
-    <div className="talkeby-app mx-auto flex min-h-dvh min-h-screen w-full max-w-xl flex-col bg-slate-950 pb-28 relative">
+    <div
+      className="talkeby-app relative mx-auto flex min-h-dvh min-h-screen w-full max-w-xl flex-col bg-slate-950"
+      style={shellStyle}
+    >
       <div className="fixed inset-0 z-0 pointer-events-none overflow-hidden">
         <img
           alt=""
@@ -122,7 +136,7 @@ export function AppShell({ children }: PropsWithChildren) {
         <div className="absolute inset-0 bg-slate-950/60 dark:bg-background/40 backdrop-blur-[12px]"></div>
       </div>
 
-      <header className="theme-header sticky top-0 z-20 border-b border-foreground/5 dark:border-white/5 px-4 py-4 backdrop-blur-xl transition-all duration-300">
+      <header className="theme-header sticky top-0 z-20 shrink-0 border-b border-foreground/5 px-4 py-4 backdrop-blur-xl transition-all duration-300 dark:border-white/5">
         <div className="flex items-start justify-between gap-3">
           <div>
             <h1 className="bg-gradient-to-r from-white to-white/70 bg-clip-text text-lg font-bold tracking-tight text-transparent drop-shadow-md">
@@ -136,7 +150,12 @@ export function AppShell({ children }: PropsWithChildren) {
         </div>
       </header>
 
-      <main className="flex-1 px-4 py-6 animate-in fade-in slide-in-from-bottom-4 duration-500 fill-mode-both">
+      <main
+        className={cn(
+          "flex min-h-0 flex-1 flex-col px-4 pb-[calc(var(--talkeby-bottom-clearance)+1rem)] pt-4 animate-in fade-in slide-in-from-bottom-4 duration-500 fill-mode-both",
+          isWorkspaceRoute && "overflow-hidden",
+        )}
+      >
         {children}
       </main>
 

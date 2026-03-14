@@ -2,13 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 
 import { Button } from "@/components/ui/button";
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 import {
   Select,
   SelectContent,
@@ -97,18 +91,9 @@ export function CreateJobForm({
   };
 
   return (
-    <Card className="theme-surface relative overflow-hidden transition-all duration-300 hover:shadow-lg hover:shadow-primary/5 hover:border-primary/20">
-      <div
-        className="absolute inset-0 bg-gradient-to-br from-primary/5 via-transparent to-transparent opacity-50"
-        pointer-events="none"
-      />
-      <CardHeader className="relative z-10 pb-4">
-        <CardTitle className="text-lg font-bold">New Task</CardTitle>
-        <CardDescription className="text-muted-foreground/80">
-          Speak to text on your phone, paste here, run remotely.
-        </CardDescription>
-      </CardHeader>
-      <CardContent className="relative z-10">
+    <Card className="theme-surface relative overflow-hidden rounded-[1.75rem] border border-white/10 shadow-2xl shadow-black/20">
+      <div className="pointer-events-none absolute inset-0 bg-gradient-to-br from-primary/10 via-transparent to-transparent opacity-80" />
+      <CardContent className="relative z-10 p-4 sm:p-5">
         <form
           className="space-y-4"
           onSubmit={async (event) => {
@@ -128,15 +113,28 @@ export function CreateJobForm({
             }
           }}
         >
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+            <div>
+              <p className="text-sm font-semibold text-foreground">Reply in this thread</p>
+              <p className="text-xs text-muted-foreground">
+                Keep typing here while the conversation stays scrollable above.
+              </p>
+            </div>
+            <div className="rounded-full border border-white/10 bg-background/40 px-3 py-1 text-[11px] font-medium text-muted-foreground">
+              Project: {resolvedProjectValue || "No project selected"}
+            </div>
+          </div>
+
           <Textarea
-            placeholder="Example: add optimistic update to the jobs list and write tests"
+            placeholder="Describe the change you want, the files involved, and any constraints."
             value={task}
-            className="min-h-[100px] resize-none bg-background/50 font-medium placeholder:text-muted-foreground/50 focus-visible:ring-primary focus-visible:ring-offset-2"
+            className="min-h-[112px] max-h-[240px] resize-y rounded-[1.5rem] border-white/10 bg-background/70 px-4 py-3 text-sm font-medium shadow-inner placeholder:text-muted-foreground/50 focus-visible:ring-2 focus-visible:ring-primary/70 focus-visible:ring-offset-0"
             onChange={(event) => setTask(event.target.value)}
           />
-          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
+
+          <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
             <Select value={provider} onValueChange={handleProviderChange}>
-              <SelectTrigger className="h-10 bg-background/50 text-sm font-medium text-foreground transition-colors hover:bg-background/80 focus:ring-primary focus:ring-offset-2">
+              <SelectTrigger className="h-11 rounded-xl border-white/10 bg-background/60 text-sm font-medium text-foreground transition-colors hover:bg-background/80 focus:ring-primary focus:ring-offset-0">
                 <SelectValue
                   className="text-foreground"
                   placeholder="Provider"
@@ -154,8 +152,9 @@ export function CreateJobForm({
                 ))}
               </SelectContent>
             </Select>
+
             <Select value={currentModelValue} onValueChange={handleModelChange}>
-              <SelectTrigger className="h-10 bg-background/50 text-sm font-medium text-foreground transition-colors hover:bg-background/80 focus:ring-primary focus:ring-offset-2">
+              <SelectTrigger className="h-11 rounded-xl border-white/10 bg-background/60 text-sm font-medium text-foreground transition-colors hover:bg-background/80 focus:ring-primary focus:ring-offset-0">
                 <SelectValue className="text-foreground" placeholder="Model" />
               </SelectTrigger>
               <SelectContent className="border-white/10 bg-popover/95 text-popover-foreground backdrop-blur-xl">
@@ -170,12 +169,13 @@ export function CreateJobForm({
                 ))}
               </SelectContent>
             </Select>
+
             <Select
               value={currentReasoningEffort}
               disabled={!supportsReasoning}
               onValueChange={handleReasoningEffortChange}
             >
-              <SelectTrigger className="h-10 bg-background/50 text-sm font-medium text-foreground transition-colors hover:bg-background/80 focus:ring-primary focus:ring-offset-2">
+              <SelectTrigger className="h-11 rounded-xl border-white/10 bg-background/60 text-sm font-medium text-foreground transition-colors hover:bg-background/80 focus:ring-primary focus:ring-offset-0">
                 <SelectValue
                   className="text-foreground"
                   placeholder={supportsReasoning ? "Reasoning" : "Reasoning (n/a)"}
@@ -209,14 +209,21 @@ export function CreateJobForm({
               </SelectContent>
             </Select>
           </div>
-          <Button
-            type="submit"
-            className="w-full h-12 rounded-xl text-base font-bold shadow-lg shadow-primary/20 transition-all active:scale-95"
-            disabled={isSubmitting || !task.trim()}
-          >
-            {isSubmitting ? "Submitting..." : "Run Task"}
-            <span className="ml-2 opacity-70">-&gt;</span>
-          </Button>
+
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+            <div className="text-xs text-muted-foreground">
+              {task.trim().length > 0 ? `${task.trim().length} chars ready` : "Add task details to enable run"}
+            </div>
+            <Button
+              type="submit"
+              className="h-12 w-full rounded-xl px-6 text-base font-bold shadow-lg shadow-primary/20 transition-all active:scale-95 sm:w-auto sm:min-w-[11rem]"
+              disabled={isSubmitting || !task.trim()}
+            >
+              {isSubmitting ? "Submitting..." : "Run Task"}
+              <span className="ml-2 opacity-70">-&gt;</span>
+            </Button>
+          </div>
+
           {submitError ? (
             <p className="text-sm font-medium text-destructive">{submitError}</p>
           ) : null}

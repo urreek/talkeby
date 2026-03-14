@@ -2,13 +2,9 @@ import { useEffect, useRef, useState } from "react";
 import Markdown from "react-markdown";
 
 import { Button } from "@/components/ui/button";
+import { isSoundsEnabled, playCompleted, playFailed, playNeedsApproval } from "@/lib/sounds";
 import type { Job } from "@/lib/types";
-import {
-  isSoundsEnabled,
-  playCompleted,
-  playFailed,
-  playNeedsApproval,
-} from "@/lib/sounds";
+import { cn } from "@/lib/utils";
 
 function formatTimestamp(value: string) {
   const date = new Date(value);
@@ -208,7 +204,7 @@ function TypingIndicator({
             style={{ animationDelay: "300ms", animationDuration: "1s" }}
           />
         </div>
-        <span className="text-sm text-violet-400 font-medium">
+        <span className="text-sm font-medium text-violet-400">
           {phrase}
           <span className="inline-block w-4 text-left">{dotStr}</span>
         </span>
@@ -217,7 +213,7 @@ function TypingIndicator({
       {visibleLines.length > 0 && (
         <div
           ref={scrollRef}
-          className="mt-2 max-h-32 overflow-y-auto rounded-lg bg-black/20 border border-violet-500/10 p-2 font-mono text-[11px] text-violet-300/80 leading-relaxed scrollbar-none"
+          className="mt-2 max-h-32 overflow-y-auto rounded-lg border border-violet-500/10 bg-black/20 p-2 font-mono text-[11px] leading-relaxed text-violet-300/80 scrollbar-none"
         >
           {visibleLines.map((line, index) => (
             <div
@@ -230,11 +226,11 @@ function TypingIndicator({
         </div>
       )}
 
-      <div className="flex items-center gap-2 text-[10px] text-muted-foreground font-mono">
+      <div className="flex items-center gap-2 font-mono text-[10px] text-muted-foreground">
         <span className="inline-block h-1.5 w-1.5 rounded-full bg-violet-500 animate-pulse" />
         <span>{formatElapsed(elapsed)} elapsed</span>
         {lines.length > 0 && (
-          <span className="text-violet-400/50">· {lines.length} lines</span>
+          <span className="text-violet-400/50">- {lines.length} lines</span>
         )}
       </div>
     </div>
@@ -244,13 +240,13 @@ function TypingIndicator({
 function TimelineConnector({ duration }: { duration: string }) {
   if (!duration) return null;
   return (
-    <div className="flex items-center gap-2 pl-4 py-0.5">
+    <div className="flex items-center gap-2 py-0.5 pl-4">
       <div className="flex flex-col items-center">
-        <div className="w-px h-2 bg-border" />
+        <div className="h-2 w-px bg-border" />
         <div className="h-1.5 w-1.5 rounded-full bg-muted-foreground/30" />
-        <div className="w-px h-2 bg-border" />
+        <div className="h-2 w-px bg-border" />
       </div>
-      <span className="text-[10px] text-muted-foreground font-mono">
+      <span className="font-mono text-[10px] text-muted-foreground">
         {duration}
       </span>
     </div>
@@ -260,6 +256,7 @@ function TimelineConnector({ duration }: { duration: string }) {
 type JobChatFeedProps = {
   threadId: string;
   jobs: Job[];
+  className?: string;
   approvingJobId?: string;
   denyingJobId?: string;
   resumingJobId?: string;
@@ -273,6 +270,7 @@ type JobChatFeedProps = {
 export function JobChatFeed({
   threadId,
   jobs,
+  className,
   approvingJobId,
   denyingJobId,
   resumingJobId,
@@ -313,9 +311,16 @@ export function JobChatFeed({
 
   if (jobs.length === 0) {
     return (
-      <p className="text-sm text-muted-foreground text-center py-8">
-        No messages yet. Send a task to start.
-      </p>
+      <section
+        ref={scrollRef}
+        className={cn("flex min-h-0 flex-1 items-center justify-center", className)}
+      >
+        <div className="theme-muted-surface w-full rounded-[1.75rem] border border-white/5 px-6 py-12 text-center shadow-sm">
+          <p className="text-sm text-muted-foreground">
+            No messages yet. Send a task to start.
+          </p>
+        </div>
+      </section>
     );
   }
 
@@ -331,7 +336,10 @@ export function JobChatFeed({
   return (
     <section
       ref={scrollRef}
-      className="h-[52vh] min-h-[320px] max-h-[620px] overflow-y-auto pr-1 space-y-1"
+      className={cn(
+        "min-h-0 flex-1 space-y-1 overflow-y-auto pr-1 scrollbar-none",
+        className,
+      )}
     >
       {ordered.map((job, index) => {
         const message = assistantMessage(job);
@@ -350,40 +358,40 @@ export function JobChatFeed({
           <div key={job.id}>
             {gap && <TimelineConnector duration={gap} />}
 
-            <div className="space-y-3 py-1">
-              <div className="theme-muted-surface ml-8 rounded-2xl p-4 shadow-sm border border-white/5 transition-all hover:bg-muted/60">
-                <div className="flex items-center justify-between">
+            <div className="space-y-3 py-2">
+              <div className="theme-muted-surface ml-auto max-w-[90%] rounded-[1.75rem] border border-white/5 p-4 shadow-sm transition-all hover:bg-muted/60">
+                <div className="flex items-center justify-between gap-3">
                   <p className="text-xs font-medium text-muted-foreground">
-                    You · {formatTimestamp(job.createdAt)}
+                    You | {formatTimestamp(job.createdAt)}
                   </p>
                   <span className="text-[10px] text-muted-foreground/60">
                     {relativeTime(job.createdAt)}
                   </span>
                 </div>
-                <p className="mt-1.5 text-sm text-foreground leading-relaxed">
+                <p className="mt-1.5 text-sm leading-relaxed text-foreground">
                   {job.request}
                 </p>
               </div>
 
               <div
-                className={`theme-surface mr-8 rounded-2xl border p-4 shadow-md backdrop-blur-md transition-all ${
+                className={`theme-surface mr-auto max-w-[94%] rounded-[1.75rem] border p-4 shadow-md backdrop-blur-md transition-all ${
                   isWorking
                     ? "border-violet-500/30 bg-gradient-to-br from-card to-violet-500/5"
                     : "border-primary/20 bg-gradient-to-br from-card to-primary/5"
                 }`}
               >
-                <div className="flex items-center justify-between">
+                <div className="flex items-center justify-between gap-3">
                   <p className="text-xs font-semibold text-primary/80">
-                    Agent · {job.projectName}
+                    Agent | {job.projectName}
                   </p>
                   <div className="flex items-center gap-2">
                     {agentDuration && (
-                      <span className="text-[10px] text-muted-foreground font-mono">
+                      <span className="font-mono text-[10px] text-muted-foreground">
                         {agentDuration}
                       </span>
                     )}
                     <span
-                      className={`text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full ${
+                      className={`rounded-full px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider ${
                         job.status === "completed"
                           ? "bg-emerald-500/10 text-emerald-500"
                           : job.status === "running"
@@ -401,9 +409,13 @@ export function JobChatFeed({
                 </div>
 
                 {isWorking ? (
-                  <TypingIndicator startedAt={job.startedAt} jobId={job.id} threadId={threadId} />
+                  <TypingIndicator
+                    startedAt={job.startedAt}
+                    jobId={job.id}
+                    threadId={threadId}
+                  />
                 ) : (
-                  <div className="mt-1.5 text-sm text-foreground/90 leading-relaxed prose prose-sm prose-invert max-w-none prose-p:my-1 prose-headings:my-2 prose-ul:my-1 prose-ol:my-1 prose-li:my-0 prose-pre:my-2 prose-pre:bg-black/30 prose-pre:border prose-pre:border-white/5 prose-pre:rounded-lg prose-code:text-violet-300 prose-code:text-xs prose-a:text-primary prose-a:no-underline hover:prose-a:underline">
+                  <div className="prose prose-invert prose-sm mt-1.5 max-w-none text-sm leading-relaxed text-foreground/90 prose-headings:my-2 prose-li:my-0 prose-ol:my-1 prose-p:my-1 prose-pre:my-2 prose-pre:rounded-lg prose-pre:border prose-pre:border-white/5 prose-pre:bg-black/30 prose-code:text-xs prose-code:text-violet-300 prose-a:text-primary prose-a:no-underline prose-ul:my-1 hover:prose-a:underline">
                     <Markdown
                       components={{
                         pre: ({ children }) => (
@@ -411,18 +423,18 @@ export function JobChatFeed({
                             {children}
                           </pre>
                         ),
-                        code: ({ className, children, ...props }) => {
-                          const isBlock = className?.startsWith("language-");
+                        code: ({ className: markdownClassName, children, ...props }) => {
+                          const isBlock = markdownClassName?.startsWith("language-");
                           if (isBlock) {
-                            const language = className?.replace("language-", "") || "";
+                            const language = markdownClassName?.replace("language-", "") || "";
                             return (
                               <div>
                                 {language && (
-                                  <span className="text-[9px] uppercase tracking-wider text-muted-foreground/50 font-mono">
+                                  <span className="font-mono text-[9px] uppercase tracking-wider text-muted-foreground/50">
                                     {language}
                                   </span>
                                 )}
-                                <code className={className} {...props}>
+                                <code className={markdownClassName} {...props}>
                                   {children}
                                 </code>
                               </div>
@@ -444,7 +456,7 @@ export function JobChatFeed({
                   </div>
                 )}
 
-                <p className="mt-2 text-[11px] text-muted-foreground">
+                <p className="mt-3 text-[11px] text-muted-foreground">
                   {tokenUsageLine(job)}
                 </p>
 
@@ -484,19 +496,22 @@ export function JobChatFeed({
                   </div>
                 )}
 
-                {(job.status === "running" || job.status === "queued" || job.status === "pending_approval") && onStop && (
-                  <div className="mt-3 flex gap-2">
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      className="flex-1"
-                      disabled={stoppingJobId === job.id}
-                      onClick={() => onStop(job.id)}
-                    >
-                      {stoppingJobId === job.id ? "Stopping..." : "Stop"}
-                    </Button>
-                  </div>
-                )}
+                {(job.status === "running"
+                  || job.status === "queued"
+                  || job.status === "pending_approval")
+                  && onStop && (
+                    <div className="mt-3 flex gap-2">
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        className="flex-1"
+                        disabled={stoppingJobId === job.id}
+                        onClick={() => onStop(job.id)}
+                      >
+                        {stoppingJobId === job.id ? "Stopping..." : "Stop"}
+                      </Button>
+                    </div>
+                  )}
               </div>
             </div>
           </div>

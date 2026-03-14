@@ -7,12 +7,7 @@ import { JobChatFeed } from "@/components/jobs/job-chat-feed";
 import { ObservabilityDashboard } from "@/components/jobs/observability-dashboard";
 import { RuntimeApprovalCards } from "@/components/jobs/runtime-approval-cards";
 import { useConfirmDialog } from "@/components/ui/confirm-dialog";
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-} from "@/components/ui/card";
+import { Card, CardContent, CardDescription, CardHeader } from "@/components/ui/card";
 import {
   approveJob,
   approveRuntimeApproval,
@@ -263,116 +258,170 @@ function JobsScreen() {
   const threadEstimatedTokens = Number(activeThread?.tokenUsedEstimated || 0);
 
   return (
-    <div className="space-y-4">
-      <ObservabilityDashboard summary={observabilityQuery.data ?? null} />
+    <div className="flex min-h-0 flex-1 flex-col gap-4">
+      <div className="max-h-[34vh] shrink-0 space-y-4 overflow-y-auto pr-1 scrollbar-none">
+        <ObservabilityDashboard summary={observabilityQuery.data ?? null} />
 
-      <RuntimeApprovalCards
-        approvals={runtimeApprovalsQuery.data?.approvals ?? []}
-        approvingId={approveRuntimeMutation.variables ?? ""}
-        denyingId={denyRuntimeMutation.variables ?? ""}
-        onApprove={(id) => approveRuntimeMutation.mutate(id)}
-        onDeny={(id) => denyRuntimeMutation.mutate(id)}
-      />
+        <RuntimeApprovalCards
+          approvals={runtimeApprovalsQuery.data?.approvals ?? []}
+          approvingId={approveRuntimeMutation.variables ?? ""}
+          denyingId={denyRuntimeMutation.variables ?? ""}
+          onApprove={(id) => approveRuntimeMutation.mutate(id)}
+          onDeny={(id) => denyRuntimeMutation.mutate(id)}
+        />
 
-      {projects.length > 0 && (
-        <div className="animate-in fade-in slide-in-from-bottom-2 duration-300 fill-mode-both">
-          <div className="flex gap-2 overflow-x-auto pb-1 scrollbar-none">
-            {projects.map((project) => (
-              <button
-                key={project.name}
-                type="button"
-                onClick={() => {
-                  selectProjectMutation.mutate(project.name);
-                  void navigate({
-                    search: (previous) => ({
-                      ...previous,
-                      project: project.name,
-                      thread: undefined,
-                    }),
-                  });
-                }}
-                className={`shrink-0 rounded-lg px-4 py-2 text-xs font-semibold transition-all ${
-                  project.name === activeProject
-                    ? "bg-primary text-primary-foreground shadow-md shadow-primary/20"
-                    : "bg-muted/50 text-muted-foreground hover:bg-muted hover:text-foreground border border-border/50"
-                }`}
-              >
-                {project.name}
-              </button>
-            ))}
-          </div>
-        </div>
-      )}
+        {projects.length > 0 && (
+          <Card className="theme-surface animate-in border-border/50 shadow-sm fade-in slide-in-from-bottom-2 duration-300 fill-mode-both">
+            <CardContent className="space-y-3 p-4">
+              <div className="flex items-center justify-between gap-3">
+                <div>
+                  <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-muted-foreground">
+                    Projects
+                  </p>
+                  <p className="text-sm text-foreground">
+                    Choose a workspace before sending the next task.
+                  </p>
+                </div>
+                {activeProject ? (
+                  <div className="rounded-full border border-primary/20 bg-primary/10 px-3 py-1 text-[11px] font-medium text-primary">
+                    Active: {activeProject}
+                  </div>
+                ) : null}
+              </div>
 
-      {activeProject && (
-        <div className="animate-in fade-in slide-in-from-bottom-4 duration-400 fill-mode-both">
-          <div className="flex items-center gap-2 overflow-x-auto pb-1 scrollbar-none">
-            {threads.map((thread) => (
-              <ThreadPill
-                key={thread.id}
-                thread={thread}
-                isActive={thread.id === activeThread?.id}
-                onClick={() => {
-                  void navigate({
-                    search: (previous) => ({
-                      ...previous,
-                      project: activeProject,
-                      thread: thread.id,
-                    }),
-                  });
-                }}
-                onDelete={async () => {
-                  const confirmed = await confirm({
-                    title: `Delete "${thread.title}"?`,
-                    description:
-                      "This permanently removes the thread and its Codex resume session from disk.",
-                    confirmLabel: "Delete",
-                    variant: "destructive",
-                  });
-                  if (confirmed) {
-                    deleteThreadMutation.mutate(thread.id);
-                  }
-                }}
-              />
-            ))}
-            <button
-              type="button"
-              onClick={() => createThreadMutation.mutate()}
-              disabled={createThreadMutation.isPending}
-              className="shrink-0 rounded-full px-3 py-1.5 text-xs font-medium border border-dashed border-border/60 text-muted-foreground hover:border-primary/40 hover:text-primary transition-all"
-            >
-              + New Thread
-            </button>
-          </div>
-        </div>
-      )}
+              <div className="flex gap-2 overflow-x-auto pb-1 scrollbar-none">
+                {projects.map((project) => (
+                  <button
+                    key={project.name}
+                    type="button"
+                    onClick={() => {
+                      selectProjectMutation.mutate(project.name);
+                      void navigate({
+                        search: (previous) => ({
+                          ...previous,
+                          project: project.name,
+                          thread: undefined,
+                        }),
+                      });
+                    }}
+                    className={`shrink-0 rounded-full px-4 py-2 text-xs font-semibold transition-all ${
+                      project.name === activeProject
+                        ? "bg-primary text-primary-foreground shadow-md shadow-primary/20"
+                        : "border border-border/50 bg-muted/40 text-muted-foreground hover:bg-muted hover:text-foreground"
+                    }`}
+                  >
+                    {project.name}
+                  </button>
+                ))}
+              </div>
+            </CardContent>
+          </Card>
+        )}
 
-      <div className="animate-in fade-in slide-in-from-bottom-6 duration-500 fill-mode-both">
+        {activeProject && (
+          <Card className="theme-surface animate-in border-border/50 shadow-sm fade-in slide-in-from-bottom-4 duration-400 fill-mode-both">
+            <CardContent className="space-y-3 p-4">
+              <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                <div>
+                  <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-muted-foreground">
+                    Threads
+                  </p>
+                  <p className="text-sm text-foreground">
+                    {threads.length > 0
+                      ? "Switch conversations or start a new one."
+                      : "Start the first thread for this project."}
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => createThreadMutation.mutate()}
+                  disabled={createThreadMutation.isPending}
+                  className="shrink-0 rounded-full border border-dashed border-border/60 px-3 py-2 text-xs font-medium text-muted-foreground transition-all hover:border-primary/40 hover:text-primary"
+                >
+                  + New Thread
+                </button>
+              </div>
+
+              <div className="flex items-center gap-2 overflow-x-auto pb-1 scrollbar-none">
+                {threads.map((thread) => (
+                  <ThreadPill
+                    key={thread.id}
+                    thread={thread}
+                    isActive={thread.id === activeThread?.id}
+                    onClick={() => {
+                      void navigate({
+                        search: (previous) => ({
+                          ...previous,
+                          project: activeProject,
+                          thread: thread.id,
+                        }),
+                      });
+                    }}
+                    onDelete={async () => {
+                      const confirmed = await confirm({
+                        title: `Delete "${thread.title}"?`,
+                        description:
+                          "This permanently removes the thread and its Codex resume session from disk.",
+                        confirmLabel: "Delete",
+                        variant: "destructive",
+                      });
+                      if (confirmed) {
+                        deleteThreadMutation.mutate(thread.id);
+                      }
+                    }}
+                  />
+                ))}
+
+                {threads.length === 0 ? (
+                  <p className="text-sm text-muted-foreground">
+                    No threads yet for this project.
+                  </p>
+                ) : null}
+              </div>
+            </CardContent>
+          </Card>
+        )}
+      </div>
+
+      <div className="min-h-0 flex flex-1 flex-col gap-4">
         {activeThread ? (
-          <Card className="theme-surface relative overflow-hidden border-border/50 shadow-md">
+          <Card className="theme-surface animate-in relative flex min-h-0 flex-1 flex-col overflow-hidden border-border/50 shadow-md fade-in slide-in-from-bottom-6 duration-500 fill-mode-both">
             <div className="absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-primary/30 to-transparent" />
-            <CardHeader className="pb-2">
-              <EditableTitle
-                title={activeThread.title}
-                onSave={(title) =>
-                  renameThreadMutation.mutate({
-                    threadId: activeThread.id,
-                    title,
-                  })
-                }
-              />
-              <CardDescription className="text-xs text-muted-foreground">
-                {activeProject} · {threadJobs.length} message
-                {threadJobs.length !== 1 ? "s" : ""} · tokens burned {threadTotalTokens}
-              </CardDescription>
-              <div className="pt-1 space-y-2">
-                <p className="text-[11px] text-muted-foreground">
-                  Thread total: {threadTotalTokens} tokens (exact {threadExactTokens} / estimated {threadEstimatedTokens})
-                </p>
+            <CardHeader className="shrink-0 border-b border-border/30 pb-4">
+              <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+                <div className="min-w-0 space-y-2">
+                  <EditableTitle
+                    title={activeThread.title}
+                    onSave={(title) =>
+                      renameThreadMutation.mutate({
+                        threadId: activeThread.id,
+                        title,
+                      })
+                    }
+                  />
+                  <CardDescription className="text-xs text-muted-foreground">
+                    {activeProject} | {threadJobs.length} message
+                    {threadJobs.length !== 1 ? "s" : ""} | tokens burned {threadTotalTokens}
+                  </CardDescription>
+                </div>
+
+                <div className="rounded-2xl border border-white/10 bg-background/40 px-4 py-3 text-left shadow-sm sm:min-w-[13rem] sm:text-right">
+                  <p className="text-[10px] uppercase tracking-[0.22em] text-muted-foreground">
+                    Thread tokens
+                  </p>
+                  <p className="mt-1 text-lg font-semibold text-foreground">
+                    {threadTotalTokens}
+                  </p>
+                  <p className="mt-1 text-[11px] text-muted-foreground">
+                    Exact {threadExactTokens} / est {threadEstimatedTokens}
+                  </p>
+                </div>
               </div>
             </CardHeader>
-            <CardContent>
+
+            <CardContent className="min-h-0 flex-1 p-3 sm:p-4">
               <JobChatFeed
+                className="h-full"
                 threadId={activeThread.id}
                 jobs={threadJobs}
                 approvingJobId={approveMutation.variables ?? ""}
@@ -388,38 +437,41 @@ function JobsScreen() {
           </Card>
         ) : (
           <Card
-            className="theme-surface cursor-pointer transition-all hover:border-primary/30 hover:shadow-md"
+            className="theme-surface flex flex-1 cursor-pointer items-center justify-center transition-all hover:border-primary/30 hover:shadow-md"
             onClick={() => {
               if (activeProject) {
                 createThreadMutation.mutate();
               }
             }}
           >
-            <CardContent className="py-12 text-center">
-              <p className="text-sm text-muted-foreground">
+            <CardContent className="px-6 py-14 text-center">
+              <p className="text-base font-semibold text-foreground">
+                {!activeProject ? "Select a project to start chatting." : "No thread selected."}
+              </p>
+              <p className="mt-2 text-sm text-muted-foreground">
                 {!activeProject
-                  ? "Select a project or add one in Settings."
-                  : "No threads yet. Click here to start one."}
+                  ? "Choose a project above or add one in Settings."
+                  : "Create a new thread to keep the composer docked and ready at the bottom."}
               </p>
             </CardContent>
           </Card>
         )}
-      </div>
 
-      {activeThread && (
-        <div className="animate-in fade-in slide-in-from-bottom-8 duration-700 delay-75 fill-mode-both">
-          <CreateJobForm
-            projects={projects}
-            activeProject={activeProject}
-            isSubmitting={createJobMutation.isPending}
-            submitError={createJobErrorMessage}
-            onSubmit={async (input) => {
-              createJobMutation.reset();
-              await createJobMutation.mutateAsync(input);
-            }}
-          />
-        </div>
-      )}
+        {activeThread && (
+          <div className="shrink-0 animate-in fade-in slide-in-from-bottom-8 duration-700 delay-75 fill-mode-both">
+            <CreateJobForm
+              projects={projects}
+              activeProject={activeProject}
+              isSubmitting={createJobMutation.isPending}
+              submitError={createJobErrorMessage}
+              onSubmit={async (input) => {
+                createJobMutation.reset();
+                await createJobMutation.mutateAsync(input);
+              }}
+            />
+          </div>
+        )}
+      </div>
 
       {ConfirmDialog}
     </div>
@@ -460,35 +512,30 @@ function ThreadPill({
         : "";
 
   return (
-    <button
-      type="button"
-      onClick={onClick}
-      className={`group flex items-center gap-2 shrink-0 rounded-full px-4 py-1.5 text-xs font-medium transition-all ${highlight} ${
+    <div
+      className={`group flex shrink-0 items-center gap-1 rounded-full border transition-all ${highlight} ${
         isActive
-          ? "bg-primary/15 text-primary border border-primary/30 shadow-sm"
-          : "bg-muted/30 text-muted-foreground hover:bg-muted/60 hover:text-foreground border border-transparent"
+          ? "border-primary/30 bg-primary/15 text-primary shadow-sm"
+          : "border-transparent bg-muted/30 text-muted-foreground hover:bg-muted/60 hover:text-foreground"
       }`}
     >
-      <span className={`inline-block h-1.5 w-1.5 rounded-full ${dotClass}`} />
-      <span>{truncate(thread.title, 25)}</span>
-      <span
-        role="button"
-        tabIndex={0}
-        onClick={(event) => {
-          event.stopPropagation();
-          onDelete();
-        }}
-        onKeyDown={(event) => {
-          if (event.key === "Enter") {
-            event.stopPropagation();
-            onDelete();
-          }
-        }}
-        className="ml-0.5 opacity-0 group-hover:opacity-60 hover:!opacity-100 transition-opacity text-xs"
+      <button
+        type="button"
+        onClick={onClick}
+        className="flex min-w-0 items-center gap-2 px-4 py-2 text-xs font-medium"
+      >
+        <span className={`inline-block h-1.5 w-1.5 rounded-full ${dotClass}`} />
+        <span>{truncate(thread.title, 25)}</span>
+      </button>
+      <button
+        type="button"
+        onClick={onDelete}
+        className="rounded-full px-2 py-2 text-xs opacity-50 transition-opacity hover:opacity-100 focus-visible:opacity-100"
+        aria-label={`Delete ${thread.title}`}
       >
         x
-      </span>
-    </button>
+      </button>
+    </div>
   );
 }
 
@@ -505,7 +552,7 @@ function EditableTitle({
   if (!editing) {
     return (
       <h3
-        className="text-base font-bold cursor-pointer hover:text-primary transition-colors"
+        className="cursor-pointer text-base font-bold transition-colors hover:text-primary"
         title="Click to rename"
         onClick={() => {
           setDraft(title);
@@ -521,7 +568,7 @@ function EditableTitle({
     <input
       type="text"
       autoFocus
-      className="text-base font-bold bg-transparent border-b border-primary outline-none w-full"
+      className="w-full border-b border-primary bg-transparent text-base font-bold outline-none"
       value={draft}
       onChange={(event) => setDraft(event.target.value)}
       onBlur={() => {
