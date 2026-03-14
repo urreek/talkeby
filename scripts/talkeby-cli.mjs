@@ -512,7 +512,9 @@ async function runDoctor() {
       }),
     );
   } else if (!cloudflareToken) {
-    addInfo("CLOUDFLARE_TUNNEL_TOKEN not set. Tunnel helper will use temporary trycloudflare URL.");
+    addInfo(
+      "CLOUDFLARE_TUNNEL_TOKEN not set for Talkeby's built-in tunnel helper. Existing Cloudflare tunnel/service setups still work.",
+    );
   }
 
   const workerService = launchdStatus("com.talkeby.worker");

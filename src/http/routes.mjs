@@ -361,12 +361,14 @@ export function registerRoutes({
     });
     addCheck({
       id: "cloudflare_tunnel_token",
-      ok: tunnelTokenSet,
-      severity: tunnelTokenSet ? "info" : "warning",
+      ok: true,
+      severity: "info",
       message: tunnelTokenSet
         ? "CLOUDFLARE_TUNNEL_TOKEN is set."
-        : "CLOUDFLARE_TUNNEL_TOKEN is not set (ephemeral tunnel mode only).",
-      fix: tunnelTokenSet ? "" : "Set CLOUDFLARE_TUNNEL_TOKEN for stable tunnel URL.",
+        : "CLOUDFLARE_TUNNEL_TOKEN is not set for Talkeby's built-in tunnel helper.",
+      fix: tunnelTokenSet
+        ? ""
+        : "Optional: set CLOUDFLARE_TUNNEL_TOKEN only if you want Talkeby to launch a persistent Cloudflare tunnel itself.",
     });
 
     const backendPort = parseInteger(process.env.PORT, 3000);
