@@ -514,13 +514,14 @@ export class TalkebyRepository {
 
   listJobsByThread(threadId, limit = 100) {
     if (!threadId) return [];
-    return this.db
+    const rows = this.db
       .select()
       .from(jobsTable)
       .where(eq(jobsTable.threadId, String(threadId)))
-      .orderBy(asc(jobsTable.createdAt))
+      .orderBy(desc(jobsTable.createdAt))
       .limit(limit)
       .all();
+    return rows.reverse();
   }
 
   deleteThread(threadId) {

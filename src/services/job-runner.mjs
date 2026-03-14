@@ -364,6 +364,7 @@ export class JobRunner {
           let bootstrapShouldApply = false;
           let resumeContext = "";
           let threadContext = "";
+          let managedContextDisabled = false;
           let promptTrimmed = false;
           let promptRemovedSections = [];
           let promptCannotFit = false;
@@ -405,34 +406,43 @@ export class JobRunner {
                 bootstrapPrompt = String(thread.bootstrapPrompt);
                 bootstrapShouldApply = true;
               }
-              threadContext = buildThreadHistoryContext({
-                repository: this.repository,
-                threadId: activeJob.threadId,
-                currentJobId: activeJob.id,
-              });
             } catch {
               // non-critical
-            }
-          }
-
-          if (activeJob.resumedFromJobId && this.repository) {
-            const original = this.repository.getJobById(activeJob.resumedFromJobId);
-            if (original?.error) {
-              resumeContext = String(original.error);
             }
           }
 
           if (provider === "codex" && this.config.codex?.disableSessionResume) {
             sessionId = null;
           }
-          const effectiveBootstrapPrompt = codexParityMode ? "" : bootstrapPrompt;
+
+          managedContextDisabled = Boolean(
+            codexParityMode || (provider === "codex" && sessionId),
+          );
+          if (!managedContextDisabled && activeJob.threadId && this.repository) {
+            threadContext = buildThreadHistoryContext({
+              repository: this.repository,
+              threadId: activeJob.threadId,
+              currentJobId: activeJob.id,
+            });
+          }
+          if (!managedContextDisabled && activeJob.resumedFromJobId && this.repository) {
+            const original = this.repository.getJobById(activeJob.resumedFromJobId);
+            if (original?.error) {
+              resumeContext = String(original.error);
+            }
+          }
+
+          const effectiveBootstrapPrompt = managedContextDisabled ? "" : bootstrapPrompt;
+          const effectiveResumeContext = managedContextDisabled ? "" : resumeContext;
+          const effectiveThreadContext = managedContextDisabled ? "" : threadContext;
+          const budgetEnabled = threadTokenBudget > 0 && !managedContextDisabled;
           const prepared = buildBudgetAwarePrompt({
             userTask: activeJob.request,
             bootstrapPrompt: effectiveBootstrapPrompt,
-            resumeContext,
-            threadContext,
+            resumeContext: effectiveResumeContext,
+            threadContext: effectiveThreadContext,
             remainingBudget: threadRemainingBudget,
-            budgetEnabled: threadTokenBudget > 0,
+            budgetEnabled,
             autoTrimContext: threadAutoTrimContext,
           });
           taskText = prepared.prompt;
@@ -472,8 +482,8 @@ export class JobRunner {
             autoTrimContext: threadAutoTrimContext,
             userTask: activeJob.request,
             bootstrapPrompt: effectiveBootstrapPrompt,
-            resumeContext,
-            threadContext,
+            resumeContext: effectiveResumeContext,
+            threadContext: effectiveThreadContext,
             finalPrompt: taskText,
             removedSections: promptRemovedSections,
             trimmed: promptTrimmed,
@@ -694,7 +704,7 @@ export class JobRunner {
             3000,
           );
           const provider = providerForRun || this.state.getProvider();
-          const useEstimatedFailureUsage = provider !== "codex";
+          const useEstimatedFailureUsage = true;
           const estimatedFailureOutput = outputTokenEstimate + estimateTokens(failureMessage);
           const totalEstimate = inputTokenEstimate + estimatedFailureOutput;
           const failureUsageSource = useEstimatedFailureUsage ? "estimate" : "provider_unavailable";
