@@ -501,6 +501,11 @@ async function runDoctor() {
 
   const cloudflaredBinary = which("cloudflared");
   const cloudflareToken = String(env.get("CLOUDFLARE_TUNNEL_TOKEN") || process.env.CLOUDFLARE_TUNNEL_TOKEN || "").trim();
+  const codexParityMode = parseBoolean(env.get("CODEX_PARITY_MODE") ?? process.env.CODEX_PARITY_MODE, true);
+  const codexSessionResumeEnabled = !parseBoolean(
+    env.get("CODEX_DISABLE_SESSION_RESUME") ?? process.env.CODEX_DISABLE_SESSION_RESUME,
+    !codexParityMode,
+  );
   if (!cloudflaredBinary) {
     addWarning(
       "cloudflared binary not found (internet tunnel helper unavailable).",
@@ -514,6 +519,22 @@ async function runDoctor() {
   } else if (!cloudflareToken) {
     addInfo(
       "CLOUDFLARE_TUNNEL_TOKEN not set for Talkeby's built-in tunnel helper. Existing Cloudflare tunnel/service setups still work.",
+    );
+  }
+  if (codexParityMode) {
+    addInfo("CODEX_PARITY_MODE enabled. Talkeby will avoid injecting managed thread context into Codex prompts.");
+  } else {
+    addWarning(
+      "CODEX_PARITY_MODE disabled. Talkeby may inject managed context into Codex prompts.",
+      "Set CODEX_PARITY_MODE=true for native Codex-style thread behavior.",
+    );
+  }
+  if (codexSessionResumeEnabled) {
+    addInfo("CODEX session resume enabled. Talkeby will reuse the saved Codex thread per Talkeby thread.");
+  } else {
+    addWarning(
+      "CODEX session resume disabled. Each Codex run will start a fresh session.",
+      "Set CODEX_DISABLE_SESSION_RESUME=false for cross-device Codex thread continuity.",
     );
   }
 

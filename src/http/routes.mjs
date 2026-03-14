@@ -270,6 +270,8 @@ export function registerRoutes({
   app.get("/api/doctor", async () => {
     const activeProvider = state.getProvider();
     const binaries = config.runner?.binaries || {};
+    const codexParityMode = config.codex?.parityMode !== false;
+    const codexSessionResumeEnabled = config.codex?.disableSessionResume !== true;
 
     const providerChecks = await Promise.all(
       SUPPORTED_PROVIDERS.map(async (provider) => {
@@ -380,6 +382,28 @@ export function registerRoutes({
       message: `Configured ports: backend=${backendPort}, web=${webPort}`,
       fix: backendPort > 0 && webPort > 0 ? "" : "Set valid PORT and WEB_PORT integers in .env.",
     });
+    if (activeProvider === "codex") {
+      addCheck({
+        id: "codex_parity_mode",
+        ok: codexParityMode,
+        severity: codexParityMode ? "info" : "warning",
+        message: codexParityMode
+          ? "Codex parity mode is enabled."
+          : "Codex parity mode is disabled; Talkeby will inject managed context into Codex prompts.",
+        fix: codexParityMode ? "" : "Set CODEX_PARITY_MODE=true to match native Codex thread behavior.",
+      });
+      addCheck({
+        id: "codex_session_resume",
+        ok: codexSessionResumeEnabled,
+        severity: codexSessionResumeEnabled ? "info" : "warning",
+        message: codexSessionResumeEnabled
+          ? "Codex session resume is enabled."
+          : "Codex session resume is disabled; each run starts a fresh Codex session.",
+        fix: codexSessionResumeEnabled
+          ? ""
+          : "Set CODEX_DISABLE_SESSION_RESUME=false to keep native Codex thread continuity.",
+      });
+    }
 
     const active = providerChecks.find((entry) => entry.active);
     const failureCount = checks.filter((check) => check.severity === "error" && !check.ok).length;
@@ -625,6 +649,8 @@ export function registerRoutes({
     model: state.getModel(),
     reasoningEffort: state.getReasoningEffort(),
     planMode: state.getPlanMode(),
+    codexParityMode: config.codex?.parityMode !== false,
+    codexSessionResumeEnabled: config.codex?.disableSessionResume !== true,
     supported: SUPPORTED_PROVIDERS,
   }));
 
@@ -686,6 +712,8 @@ export function registerRoutes({
       model: state.getModel(),
       reasoningEffort: state.getReasoningEffort(),
       planMode: state.getPlanMode(),
+      codexParityMode: config.codex?.parityMode !== false,
+      codexSessionResumeEnabled: config.codex?.disableSessionResume !== true,
     };
   });
 

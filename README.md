@@ -195,6 +195,7 @@ Doctor checks:
 
 - Node version
 - provider binaries and API keys
+- Codex parity and session-resume state
 - writable data and database directories
 - backend and web ports
 - access key presence

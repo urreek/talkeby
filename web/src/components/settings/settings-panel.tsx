@@ -32,6 +32,8 @@ type SettingsPanelProps = {
   model: string;
   reasoningEffort: ReasoningEffort;
   planMode: boolean;
+  codexParityMode?: boolean;
+  codexSessionResumeEnabled?: boolean;
   providerCatalog: ProviderCatalogItem[];
   activeProject: string;
   projects: ProjectInfo[];
@@ -66,6 +68,8 @@ export function SettingsPanel({
   model,
   reasoningEffort,
   planMode,
+  codexParityMode,
+  codexSessionResumeEnabled,
   providerCatalog,
   activeProject,
   projects,
@@ -104,6 +108,17 @@ export function SettingsPanel({
     () => providerCatalog.find((item) => item.id === provider) || providerCatalog[0],
     [providerCatalog, provider],
   );
+  const codexConfigKnown = typeof codexParityMode === "boolean"
+    && typeof codexSessionResumeEnabled === "boolean";
+  const codexNativeMode = provider === "codex"
+    && codexConfigKnown
+    && codexParityMode === true
+    && codexSessionResumeEnabled === true;
+  const agentProfileDescription = provider === "codex"
+    ? (codexParityMode === false
+      ? "Applied once on the first run of each new thread. Codex parity is off, so this profile is injected into Codex prompts."
+      : "Codex parity threads ignore this so Talkeby matches native Codex. It still applies to non-Codex providers.")
+    : "Applied once on the first run of each new thread.";
 
   const modelValue = model || "__default__";
   const supportsReasoning = Boolean(activeProvider?.supportsReasoningEffort);
@@ -119,7 +134,7 @@ export function SettingsPanel({
         <CardHeader>
           <CardTitle>Agent Profile (New Threads)</CardTitle>
           <CardDescription>
-            Applied once on the first run of each new thread.
+            {agentProfileDescription}
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-3">
@@ -234,6 +249,28 @@ export function SettingsPanel({
           </Select>
 
           <div className="mt-3 space-y-3">
+            {provider === "codex" && codexConfigKnown ? (
+              <div
+                className={`rounded-lg border px-3 py-2 text-xs ${
+                  codexNativeMode
+                    ? "border-emerald-500/30 bg-emerald-500/10 text-emerald-700 dark:text-emerald-300"
+                    : "border-amber-500/40 bg-amber-500/10 text-amber-700 dark:text-amber-300"
+                }`}
+              >
+                {codexNativeMode
+                  ? "Native Codex thread mode is active. Talkeby resumes the same Codex session per thread and does not inject managed thread summaries into prompts."
+                  : [
+                    "Native Codex thread mode is not fully active.",
+                    codexParityMode === false
+                      ? "CODEX_PARITY_MODE is off, so Talkeby may inject managed thread context."
+                      : "",
+                    codexSessionResumeEnabled === false
+                      ? "CODEX_DISABLE_SESSION_RESUME is on, so each run starts a fresh Codex session."
+                      : "",
+                  ].filter(Boolean).join(" ")}
+              </div>
+            ) : null}
+
             <div>
               <p className="mb-1.5 text-xs font-medium text-muted-foreground">
                 Model

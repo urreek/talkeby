@@ -139,6 +139,8 @@ export interface ProviderResponse {
   model: string;
   reasoningEffort: ReasoningEffort;
   planMode: boolean;
+  codexParityMode: boolean;
+  codexSessionResumeEnabled: boolean;
   supported: AIProvider[];
 }
 

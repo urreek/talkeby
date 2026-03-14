@@ -166,6 +166,8 @@ function SettingsScreen() {
         model={providerQuery.data?.model ?? ""}
         reasoningEffort={providerQuery.data?.reasoningEffort ?? ""}
         planMode={providerQuery.data?.planMode ?? false}
+        codexParityMode={providerQuery.data?.codexParityMode}
+        codexSessionResumeEnabled={providerQuery.data?.codexSessionResumeEnabled}
         providerCatalog={providerCatalogQuery.data?.providers ?? []}
         activeProject={activeProject}
         projects={projects}
