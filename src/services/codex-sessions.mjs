@@ -4,6 +4,7 @@ import path from "node:path";
 
 const SESSION_ID_PATTERN = /\bsession id:\s*([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})\b/i;
 const SESSION_FILE_PATTERN = /([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})\.jsonl$/i;
+const NATIVE_SESSION_ORIGINATORS = new Set(["talkeby", "codex_exec"]);
 
 function normalizeSessionId(value) {
   const text = String(value || "").trim().toLowerCase();
@@ -13,6 +14,10 @@ function normalizeSessionId(value) {
 function normalizeWorkdir(value) {
   const text = String(value || "").trim();
   return text ? path.resolve(text).toLowerCase() : "";
+}
+
+function isAcceptedNativeOriginator(value) {
+  return NATIVE_SESSION_ORIGINATORS.has(String(value || "").trim().toLowerCase());
 }
 
 function isLikelyTaskMessage(text) {
@@ -186,7 +191,7 @@ export async function validateCodexSession({
       session: null,
     };
   }
-  if (session.originator !== "talkeby") {
+  if (!isAcceptedNativeOriginator(session.originator)) {
     return {
       ok: false,
       reason: "origin_mismatch",
@@ -236,7 +241,7 @@ export async function findNewTalkebySession({
       const sessionId = normalizeSessionId(meta.id || "");
       const metaWorkdir = normalizeWorkdir(meta.cwd || "");
       const originator = String(meta.originator || "").trim().toLowerCase();
-      if (!sessionId || originator !== "talkeby") {
+      if (!sessionId || !isAcceptedNativeOriginator(originator)) {
         return;
       }
       if (expectedWorkdir && metaWorkdir && metaWorkdir !== expectedWorkdir) {

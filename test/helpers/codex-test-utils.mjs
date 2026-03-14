@@ -11,7 +11,7 @@ function timestampParts(date = new Date()) {
   };
 }
 
-function buildSessionRows({ sessionId, workdir, taskMessages }) {
+function buildSessionRows({ sessionId, workdir, taskMessages, originator = "talkeby" }) {
   const now = new Date().toISOString();
   const rows = [
     {
@@ -21,7 +21,7 @@ function buildSessionRows({ sessionId, workdir, taskMessages }) {
         id: sessionId,
         timestamp: now,
         cwd: workdir,
-        originator: "talkeby",
+        originator,
       },
     },
   ];
@@ -66,6 +66,7 @@ export async function createTalkebySessionFile({
   workdir,
   taskMessages = [],
   createdAt = new Date(),
+  originator = "talkeby",
 }) {
   const { year, month, day } = timestampParts(createdAt);
   const sessionsDir = path.join(homeDir, ".codex", "sessions", year, month, day);
@@ -78,6 +79,7 @@ export async function createTalkebySessionFile({
     sessionId,
     workdir,
     taskMessages,
+    originator,
   });
   await fs.writeFile(filePath, `${rows.map((row) => JSON.stringify(row)).join("\n")}\n`);
   await fs.utimes(filePath, createdAt, createdAt);
@@ -115,6 +117,7 @@ export function createMockCodexSpawn() {
           sessionId: process.env.FAKE_CODEX_FALLBACK_SESSION_ID,
           workdir,
           taskMessages: [process.env.FAKE_CODEX_FALLBACK_PROMPT || prompt],
+          originator: process.env.FAKE_CODEX_FALLBACK_ORIGINATOR || "codex_exec",
         });
       }
       if (process.env.FAKE_CODEX_STDOUT) {

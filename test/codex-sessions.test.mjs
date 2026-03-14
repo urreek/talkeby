@@ -53,6 +53,31 @@ test("validateCodexSession rejects files that do not cover prior task history", 
   });
 });
 
+test("validateCodexSession accepts native codex_exec session files", async () => {
+  const tempDir = await fs.mkdtemp(path.join(os.tmpdir(), "talkeby-session-"));
+  const workdir = path.join(tempDir, "workdir");
+  await fs.mkdir(workdir, { recursive: true });
+  const sessionId = "bbbbbbbb-1111-4ccc-8ddd-ffffffffffff";
+
+  await withTemporaryHome(tempDir, async () => {
+    await createTalkebySessionFile({
+      homeDir: tempDir,
+      sessionId,
+      workdir,
+      taskMessages: ["first task"],
+      originator: "codex_exec",
+    });
+
+    const validation = await validateCodexSession({
+      sessionId,
+      workdir,
+      minTaskMessages: 1,
+    });
+    assert.equal(validation.ok, true);
+    assert.equal(validation.session?.originator, "codex_exec");
+  });
+});
+
 test("validateCodexSession prefers the richest matching native session file", async () => {
   const tempDir = await fs.mkdtemp(path.join(os.tmpdir(), "talkeby-session-"));
   const workdir = path.join(tempDir, "workdir");
@@ -85,7 +110,7 @@ test("validateCodexSession prefers the richest matching native session file", as
   });
 });
 
-test("findNewTalkebySession only returns Talkeby sessions created for the current workdir", async () => {
+test("findNewTalkebySession returns native sessions created for the current workdir", async () => {
   const tempDir = await fs.mkdtemp(path.join(os.tmpdir(), "talkeby-session-"));
   const workdir = path.join(tempDir, "workdir");
   const otherWorkdir = path.join(tempDir, "other");
@@ -107,6 +132,7 @@ test("findNewTalkebySession only returns Talkeby sessions created for the curren
       workdir,
       taskMessages: ["matching workdir"],
       createdAt: new Date(before + 200),
+      originator: "codex_exec",
     });
 
     const discovered = await findNewTalkebySession({
