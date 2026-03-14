@@ -34,6 +34,20 @@ function isPreviousAssistantMessageQuestion(task) {
   ].some((pattern) => pattern.test(value));
 }
 
+function isConversationSummaryQuestion(task) {
+  const value = normalizeText(task).toLowerCase();
+  if (!value) {
+    return false;
+  }
+  return [
+    /\beverything\s+we\s+(?:talked|discussed)\s+about\b/,
+    /\b(?:summari[sz]e|recap|review)\b.*\b(?:chat|thread|conversation)\b/,
+    /\bwhat\s+have\s+we\s+(?:talked|discussed|done|covered)\b/,
+    /\bgive\s+me\b.*\b(?:chat|thread|conversation)\b/,
+    /\bwhat(?:'s|\s+is)\s+in\s+this\s+(?:chat|thread|conversation)\b/,
+  ].some((pattern) => pattern.test(value));
+}
+
 function buildAssistantReply(job) {
   const status = String(job?.status || "").toLowerCase();
   if (status === "completed") {
@@ -45,6 +59,57 @@ function buildAssistantReply(job) {
   return normalizeText(job?.summary || "");
 }
 
+function toVisibleTurn(job) {
+  const user = truncate(job?.request || "", 320);
+  const assistant = truncate(buildAssistantReply(job), 420);
+  if (!user && !assistant) {
+    return null;
+  }
+  return { user, assistant };
+}
+
+function serializeVisibleTurns(turns) {
+  const lines = ["Visible Talkeby thread history (oldest -> newest):"];
+  for (let index = 0; index < turns.length; index += 1) {
+    const turn = turns[index];
+    lines.push(`${index + 1}. User: ${turn.user || "(empty)"}`);
+    if (turn.assistant) {
+      lines.push(`   Assistant: ${turn.assistant}`);
+    }
+  }
+  return lines.join("\n");
+}
+
+function buildVisibleThreadHistory(jobs, {
+  maxTurns = 20,
+  maxChars = 10_000,
+} = {}) {
+  const visibleTurns = jobs
+    .map((job) => toVisibleTurn(job))
+    .filter(Boolean);
+  if (visibleTurns.length === 0) {
+    return "";
+  }
+
+  const safeTurns = visibleTurns.slice(-Math.max(1, maxTurns));
+  let block = serializeVisibleTurns(safeTurns);
+  if (block.length <= maxChars) {
+    return block;
+  }
+
+  for (let keep = safeTurns.length - 1; keep >= 1; keep -= 1) {
+    block = serializeVisibleTurns(safeTurns.slice(-keep));
+    if (block.length <= maxChars) {
+      return [
+        `Visible Talkeby history was truncated to the most recent ${keep} turns due to context limits.`,
+        block,
+      ].join("\n");
+    }
+  }
+
+  return truncate(block, maxChars);
+}
+
 export function buildConversationMetaContext({
   repository,
   threadId,
@@ -53,8 +118,9 @@ export function buildConversationMetaContext({
 }) {
   const wantsPreviousUserMessage = isPreviousUserMessageQuestion(userTask);
   const wantsPreviousAssistantMessage = isPreviousAssistantMessageQuestion(userTask);
+  const wantsConversationSummary = isConversationSummaryQuestion(userTask);
 
-  if (!wantsPreviousUserMessage && !wantsPreviousAssistantMessage) {
+  if (!wantsPreviousUserMessage && !wantsPreviousAssistantMessage && !wantsConversationSummary) {
     return "";
   }
   if (!repository || !threadId || typeof repository.listJobsByThread !== "function") {
@@ -93,6 +159,15 @@ export function buildConversationMetaContext({
         ? `Previous visible assistant reply before this one: ${JSON.stringify(previousAssistantMessage)}`
         : "Previous visible assistant reply before this one: unavailable",
     );
+  }
+
+  if (wantsConversationSummary) {
+    const visibleHistory = buildVisibleThreadHistory(jobs);
+    if (visibleHistory) {
+      lines.push(visibleHistory);
+    } else {
+      lines.push("There is no visible Talkeby thread history available to summarize.");
+    }
   }
 
   return lines.join("\n");
