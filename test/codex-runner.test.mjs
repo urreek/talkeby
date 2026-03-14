@@ -98,6 +98,7 @@ test("resumed native Codex runs use codex exec resume <sessionId>", async () => 
         const logged = JSON.parse(await fs.readFile(logPath, "utf8"));
         assert.deepEqual(logged.args.slice(0, 4), ["exec", "--output-last-message", logged.args[2], "resume"]);
         assert.equal(logged.args[4], sessionId);
+        assert.equal(logged.args.at(-1), "-");
         assert.match(logged.prompt, /Treat the quoted text below as the end-user's message for this turn\./);
         assert.equal(logged.prompt.includes("ignore Codex bootstrap/context entries"), true);
         assert.equal(logged.prompt.includes("User request:"), true);
@@ -145,3 +146,4 @@ test("CLI session id output wins over fallback session-file discovery", async ()
     }
   });
 });
+

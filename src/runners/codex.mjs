@@ -174,7 +174,7 @@ async function readLastMessageOrFallback({ outputPath, stdout }) {
  * @param {function} [opts.onLine] - called with each stdout/stderr line
  * @returns {Promise<{message: string, stderr: string, nativeSessionId: string}>}
  */
-function runCodexSpawn({ binary, args, workdir, timeoutMs, outputPath, onLine, signal }) {
+function runCodexSpawn({ binary, args, workdir, timeoutMs, outputPath, onLine, signal, stdinText = "" }) {
   return new Promise((resolve, reject) => {
     const child = spawnCompatImpl(binary, args, {
       cwd: workdir,
@@ -186,6 +186,13 @@ function runCodexSpawn({ binary, args, workdir, timeoutMs, outputPath, onLine, s
     let stderr = "";
     let killed = false;
     let detectedSessionId = "";
+    const stdinPayload = (() => {
+      const value = String(stdinText || "");
+      if (!value) {
+        return "";
+      }
+      return value.endsWith("\n") ? value : `${value}\n`;
+    })();
 
     const timeout = setTimeout(() => {
       killed = true;
@@ -269,11 +276,14 @@ function runCodexSpawn({ binary, args, workdir, timeoutMs, outputPath, onLine, s
       }, { once: true });
     }
 
+    if (stdinPayload && child.stdin?.write) {
+      child.stdin.write(stdinPayload);
+    }
     child.stdin?.end();
   });
 }
 
-function buildResumeArgs({ config, outputPath, sessionId, prompt }) {
+function buildResumeArgs({ config, outputPath, sessionId }) {
   const args = ["exec", "--output-last-message", outputPath, "resume"];
 
   if (sessionId) {
@@ -285,11 +295,11 @@ function buildResumeArgs({ config, outputPath, sessionId, prompt }) {
   if (config.model) args.push("--model", config.model);
   if (config.reasoningEffort) args.push("--reasoning-effort", config.reasoningEffort);
   if (config.planMode) args.push("--plan");
-  args.push("--full-auto", "--skip-git-repo-check", prompt);
+  args.push("--full-auto", "--skip-git-repo-check", "-");
   return args;
 }
 
-function buildFreshArgs({ config, outputPath, prompt }) {
+function buildFreshArgs({ config, outputPath }) {
   const args = [
     "exec",
     "--full-auto",
@@ -303,7 +313,7 @@ function buildFreshArgs({ config, outputPath, prompt }) {
   if (config.model) args.push("--model", config.model);
   if (config.reasoningEffort) args.push("--reasoning-effort", config.reasoningEffort);
   if (config.planMode) args.push("--plan");
-  args.push(prompt);
+  args.push("-");
   return args;
 }
 
@@ -424,7 +434,7 @@ export async function run(config) {
     }
 
     if (config.sessionId) {
-      const args = buildResumeArgs({ config, outputPath, sessionId: config.sessionId, prompt });
+      const args = buildResumeArgs({ config, outputPath, sessionId: config.sessionId });
       const result = await runCodexSpawn({
         binary: config.binary,
         args,
@@ -433,6 +443,7 @@ export async function run(config) {
         outputPath,
         onLine,
         signal: config.signal,
+        stdinText: prompt,
       });
       if (!result.nativeSessionId) {
         result.newSessionId = String(config.sessionId || "").trim();
@@ -440,7 +451,7 @@ export async function run(config) {
       return result;
     }
 
-    const args = buildFreshArgs({ config, outputPath, prompt });
+    const args = buildFreshArgs({ config, outputPath });
     const result = await runCodexSpawn({
       binary: config.binary,
       args,
@@ -449,6 +460,7 @@ export async function run(config) {
       outputPath,
       onLine,
       signal: config.signal,
+      stdinText: prompt,
     });
 
     const newSessionId = result.nativeSessionId || (await findNewTalkebySession({
@@ -470,5 +482,4 @@ export async function run(config) {
     await fs.rm(outputPath, { force: true });
   }
 }
-
 
