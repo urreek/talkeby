@@ -4,7 +4,6 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { createRoute } from "@tanstack/react-router";
 
 import { CreateJobForm } from "@/components/jobs/create-job-form";
-import { EditableThreadTitle } from "@/components/jobs/editable-thread-title";
 import { JobChatFeed } from "@/components/jobs/job-chat-feed";
 import { ObservabilityDashboard } from "@/components/jobs/observability-dashboard";
 import { RuntimeApprovalCards } from "@/components/jobs/runtime-approval-cards";
@@ -14,7 +13,7 @@ import {
 } from "@/components/jobs/workspace-drawer";
 import { Button } from "@/components/ui/button";
 import { useConfirmDialog } from "@/components/ui/confirm-dialog";
-import { Card, CardContent, CardDescription, CardHeader } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 import {
   approveJob,
   approveRuntimeApproval,
@@ -265,8 +264,6 @@ function JobsScreen() {
   const runtimeApprovals = runtimeApprovalsQuery.data?.approvals ?? [];
   const pendingRuntimeApprovalCount = runtimeApprovals.length;
   const threadTotalTokens = Number(activeThread?.tokenUsed || 0);
-  const threadExactTokens = Number(activeThread?.tokenUsedExact || 0);
-  const threadEstimatedTokens = Number(activeThread?.tokenUsedEstimated || 0);
   const jobsScreenStyle = {
     "--talkeby-mobile-composer-space":
       activeThread && !chatHidden && !workspaceDrawerOpen && mobileComposerHeight > 0
@@ -461,38 +458,6 @@ function JobsScreen() {
               )}
             >
               <div className="absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-primary/30 to-transparent" />
-              <CardHeader className="shrink-0 border-b border-border/30 pb-4">
-                <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
-                  <div className="min-w-0 space-y-2">
-                    <EditableThreadTitle
-                      title={activeThread.title}
-                      onSave={(title) =>
-                        renameThreadMutation.mutate({
-                          threadId: activeThread.id,
-                          title,
-                        })
-                      }
-                    />
-                    <CardDescription className="text-xs text-muted-foreground">
-                      {activeProject} | {threadJobs.length} message
-                      {threadJobs.length !== 1 ? "s" : ""} | tokens burned {threadTotalTokens}
-                    </CardDescription>
-                  </div>
-
-                  <div className="rounded-2xl border border-white/10 bg-background/40 px-4 py-3 text-left shadow-sm sm:min-w-[13rem] sm:text-right">
-                    <p className="text-[10px] uppercase tracking-[0.22em] text-muted-foreground">
-                      Thread tokens
-                    </p>
-                    <p className="mt-1 text-lg font-semibold text-foreground">
-                      {threadTotalTokens}
-                    </p>
-                    <p className="mt-1 text-[11px] text-muted-foreground">
-                      Exact {threadExactTokens} / est {threadEstimatedTokens}
-                    </p>
-                  </div>
-                </div>
-              </CardHeader>
-
               <CardContent className="min-h-0 flex-1 p-3 sm:p-4">
                 <JobChatFeed
                   className="h-full"
@@ -543,8 +508,16 @@ function JobsScreen() {
             <CreateJobForm
               projects={projects}
               activeProject={activeProject}
+              threadTitle={activeThread.title}
+              threadTokenCount={threadTotalTokens}
               isSubmitting={createJobMutation.isPending}
               submitError={createJobErrorMessage}
+              onRenameThread={(title) =>
+                renameThreadMutation.mutate({
+                  threadId: activeThread.id,
+                  title,
+                })
+              }
               onSubmit={async (input) => {
                 createJobMutation.reset();
                 await createJobMutation.mutateAsync(input);

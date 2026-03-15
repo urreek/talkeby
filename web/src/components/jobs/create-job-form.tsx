@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 
+import { EditableThreadTitle } from "@/components/jobs/editable-thread-title";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import {
@@ -17,16 +18,22 @@ import type { AIProvider, ProjectInfo } from "@/lib/types";
 type CreateJobFormProps = {
   projects: ProjectInfo[];
   activeProject: string;
+  threadTitle: string;
+  threadTokenCount: number;
   isSubmitting: boolean;
   submitError?: string;
+  onRenameThread: (title: string) => void;
   onSubmit: (input: { task: string; projectName: string }) => Promise<void>;
 };
 
 export function CreateJobForm({
   projects,
   activeProject,
+  threadTitle,
+  threadTokenCount,
   isSubmitting,
   submitError = "",
+  onRenameThread,
   onSubmit,
 }: CreateJobFormProps) {
   const queryClient = useQueryClient();
@@ -114,14 +121,16 @@ export function CreateJobForm({
           }}
         >
           <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-            <div>
-              <p className="text-sm font-semibold text-foreground">Reply in this thread</p>
-              <p className="text-xs text-muted-foreground">
-                Keep typing here while the conversation stays scrollable above.
-              </p>
+            <div className="min-w-0">
+              <EditableThreadTitle title={threadTitle} onSave={onRenameThread} />
             </div>
-            <div className="rounded-full border border-white/10 bg-background/40 px-3 py-1 text-[11px] font-medium text-muted-foreground">
-              Project: {resolvedProjectValue || "No project selected"}
+            <div className="flex flex-wrap items-center gap-2 sm:justify-end">
+              <div className="rounded-full border border-white/10 bg-background/40 px-3 py-1 text-[11px] font-medium text-muted-foreground">
+                {resolvedProjectValue || "No project selected"}
+              </div>
+              <div className="rounded-full border border-white/10 bg-background/40 px-3 py-1 text-[11px] font-medium text-muted-foreground">
+                {threadTokenCount.toLocaleString()} tokens
+              </div>
             </div>
           </div>
 
