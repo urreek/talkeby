@@ -34,7 +34,7 @@ export function ProjectSelector({
       disabled={isUpdating}
       onValueChange={onChangeProject}
     >
-      <SelectTrigger className="h-8 bg-white/10 dark:bg-white/5 border-white/10 text-sm font-medium text-white backdrop-blur-sm">
+      <SelectTrigger className="h-8 border-border/50 bg-card/70 text-sm font-medium text-foreground backdrop-blur-sm dark:border-white/10 dark:bg-white/5">
         <div className="flex items-center gap-2">
           <FolderOpen className="size-4 shrink-0 text-primary/70" />
           <SelectValue placeholder="Select project" />

@@ -25,6 +25,8 @@
     --ring: 215 100% 35%;
     --card-shadow: 0 20px 40px -15px hsla(220, 30%, 10%, 0.1);
     --card-opacity: 0.8;
+    --header-bg: hsla(210, 40%, 98%, 0.82);
+    --header-border: hsla(214, 20%, 84%, 0.7);
   }
 
   .dark,
@@ -51,6 +53,8 @@
     --ring: 268 76% 55%;
     --card-shadow: 0 10px 40px -10px hsla(0, 0%, 0%, 0.4);
     --card-opacity: 0.4;
+    --header-bg: hsla(220, 30%, 10%, 0.4);
+    --header-border: hsla(0, 0%, 100%, 0.06);
   }
 
   * {
@@ -63,7 +67,7 @@
   }
 
   body {
-    background-color: hsl(0 0% 5%);
+    background-color: hsl(var(--background));
     color: hsl(var(--foreground));
     margin: 0;
     min-width: 320px;
@@ -86,7 +90,8 @@
     padding-right: 0 !important;
   }
 
-  body[data-theme="dark"], .dark body {
+  body[data-theme="dark"],
+  .dark body {
     background-color: hsl(0 0% 5%);
   }
 
@@ -115,10 +120,10 @@
 }
 
 .talkeby-app .theme-header {
-  background-color: hsla(220, 30%, 10%, 0.4);
+  background-color: var(--header-bg);
   backdrop-filter: blur(24px) saturate(200%);
   -webkit-backdrop-filter: blur(24px) saturate(200%);
-  border-bottom: 1px solid hsla(0, 0%, 100%, 0.05);
+  border-bottom: 1px solid var(--header-border);
 }
 
 .talkeby-app .theme-muted-surface {

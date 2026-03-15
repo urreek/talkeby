@@ -4,7 +4,6 @@ import { createRoute } from "@tanstack/react-router";
 
 import { CreateJobForm } from "@/components/jobs/create-job-form";
 import { JobChatFeed } from "@/components/jobs/job-chat-feed";
-import { ObservabilityDashboard } from "@/components/jobs/observability-dashboard";
 import { RuntimeApprovalCards } from "@/components/jobs/runtime-approval-cards";
 import {
   WorkspaceDesktopSidebar,
@@ -22,18 +21,15 @@ import {
   deleteThread,
   denyJob,
   denyRuntimeApproval,
-  fetchObservability,
   fetchProjects,
   fetchRuntimeApprovals,
   fetchThreadJobs,
   fetchThreads,
-  renameThread,
   resumeJobFromError,
   selectProject,
   stopJob,
 } from "@/lib/api";
 import type { Thread } from "@/lib/types";
-import { cn } from "@/lib/utils";
 import { rootRoute } from "@/routes/__root";
 
 type JobsSearch = {
@@ -105,12 +101,6 @@ function JobsScreen() {
   });
 
   const threadJobs = threadJobsQuery.data?.jobs ?? [];
-
-  const observabilityQuery = useQuery({
-    queryKey: ["observability"],
-    queryFn: () => fetchObservability(),
-    refetchInterval: 15_000,
-  });
 
   const runtimeApprovalsQuery = useQuery({
     queryKey: ["runtimeApprovals"],
@@ -242,14 +232,6 @@ function JobsScreen() {
     },
   });
 
-  const renameThreadMutation = useMutation({
-    mutationFn: (input: { threadId: string; title: string }) =>
-      renameThread(input.threadId, input.title),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["threads", activeProject] });
-    },
-  });
-
   const createJobErrorMessage = createJobMutation.isError
     ? readErrorMessage(
       createJobMutation.error,
@@ -258,9 +240,21 @@ function JobsScreen() {
     : "";
 
   const runtimeApprovals = runtimeApprovalsQuery.data?.approvals ?? [];
-  const pendingRuntimeApprovalCount = runtimeApprovals.length;
-  const threadTotalTokens = Number(activeThread?.tokenUsed || 0);
 
+  useEffect(() => {
+    if (typeof window === "undefined") {
+      return;
+    }
+
+    const handleOpenWorkspaceDrawer = () => {
+      setWorkspaceDrawerOpen(true);
+    };
+
+    window.addEventListener("talkeby:open-workspace-drawer", handleOpenWorkspaceDrawer);
+    return () => {
+      window.removeEventListener("talkeby:open-workspace-drawer", handleOpenWorkspaceDrawer);
+    };
+  }, []);
   useEffect(() => {
     if (!activeProject || !activeThread) {
       setWorkspaceDrawerOpen(true);
@@ -319,7 +313,6 @@ function JobsScreen() {
         activeThread={activeThread}
         projects={projects}
         threads={threads}
-        pendingApprovalCount={pendingRuntimeApprovalCount}
         creatingThread={createThreadMutation.isPending}
         onOpenChange={setWorkspaceDrawerOpen}
         onSelectProject={handleSelectProject}
@@ -335,7 +328,6 @@ function JobsScreen() {
         activeThread={activeThread}
         projects={projects}
         threads={threads}
-        pendingApprovalCount={pendingRuntimeApprovalCount}
         creatingThread={createThreadMutation.isPending}
         onSelectProject={handleSelectProject}
         onCreateThread={handleCreateThread}
@@ -345,16 +337,10 @@ function JobsScreen() {
         }}
       />
 
-      <div className="min-h-0 flex flex-1 flex-col gap-4">
+      <div className="min-h-0 flex flex-1 flex-col gap-3 lg:gap-4">
         <WorkspaceToolbar
           activeProject={activeProject}
           activeThread={activeThread}
-          messageCount={threadJobs.length}
-          pendingApprovalCount={pendingRuntimeApprovalCount}
-          drawerOpen={workspaceDrawerOpen}
-          creatingThread={createThreadMutation.isPending}
-          onToggleDrawer={() => setWorkspaceDrawerOpen((current) => !current)}
-          onCreateThread={handleCreateThread}
         />
 
         <div className="order-2 space-y-4 lg:order-1">
@@ -365,13 +351,11 @@ function JobsScreen() {
             onApprove={(id) => approveRuntimeMutation.mutate(id)}
             onDeny={(id) => denyRuntimeMutation.mutate(id)}
           />
-
-          <ObservabilityDashboard summary={observabilityQuery.data ?? null} />
         </div>
 
         <div className="order-1 min-h-0 flex flex-1 flex-col lg:order-2">
           {activeThread ? (
-            <Card className="theme-surface relative flex min-h-[min(36rem,calc(100dvh-15rem))] flex-1 flex-col overflow-hidden border-border/50 shadow-md lg:min-h-0">
+            <Card className="theme-surface relative flex h-full min-h-0 flex-1 flex-col overflow-hidden border-border/50 shadow-md">
               <div className="absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-primary/30 to-transparent" />
               <CardContent className="flex min-h-0 flex-1 flex-col p-0">
                 <div className="min-h-0 flex-1 px-3 pt-3 sm:px-4 sm:pt-4 lg:px-5 lg:pt-5">
@@ -390,21 +374,13 @@ function JobsScreen() {
                   />
                 </div>
 
-                <div className="shrink-0 border-t border-white/10 bg-slate-950/35 px-3 py-3 backdrop-blur-xl sm:px-4 sm:py-4 lg:px-5 lg:py-5">
+                <div className="shrink-0 border-t border-border/40 bg-card/70 px-3 pb-[var(--talkeby-bottom-clearance)] pt-3 backdrop-blur-xl dark:border-white/10 dark:bg-slate-950/35 sm:px-4 sm:pt-4 lg:px-5 lg:pb-5 lg:pt-5">
                   <CreateJobForm
                     projects={projects}
                     activeProject={activeProject}
-                    threadTitle={activeThread.title}
-                    threadTokenCount={threadTotalTokens}
                     isSubmitting={createJobMutation.isPending}
                     submitError={createJobErrorMessage}
                     variant="embedded"
-                    onRenameThread={(title) =>
-                      renameThreadMutation.mutate({
-                        threadId: activeThread.id,
-                        title,
-                      })
-                    }
                     onSubmit={async (input) => {
                       createJobMutation.reset();
                       await createJobMutation.mutateAsync(input);
@@ -444,4 +420,10 @@ function JobsScreen() {
     </div>
   );
 }
+
+
+
+
+
+
 

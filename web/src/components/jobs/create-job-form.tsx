@@ -1,7 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 
-import { EditableThreadTitle } from "@/components/jobs/editable-thread-title";
 import { Button } from "@/components/ui/button";
 import {
   Select,
@@ -18,11 +17,8 @@ import { cn } from "@/lib/utils";
 type CreateJobFormProps = {
   projects: ProjectInfo[];
   activeProject: string;
-  threadTitle: string;
-  threadTokenCount: number;
   isSubmitting: boolean;
   submitError?: string;
-  onRenameThread: (title: string) => void;
   onSubmit: (input: { task: string; projectName: string }) => Promise<void>;
   variant?: "card" | "embedded";
 };
@@ -30,11 +26,8 @@ type CreateJobFormProps = {
 export function CreateJobForm({
   projects,
   activeProject,
-  threadTitle,
-  threadTokenCount,
   isSubmitting,
   submitError = "",
-  onRenameThread,
   onSubmit,
   variant = "card",
 }: CreateJobFormProps) {
@@ -106,7 +99,7 @@ export function CreateJobForm({
         "relative overflow-hidden",
         embedded
           ? "rounded-none"
-          : "theme-surface rounded-[1.75rem] border border-white/10 shadow-2xl shadow-black/20",
+          : "theme-surface rounded-[1.75rem] border border-border/40 shadow-2xl shadow-black/20 dark:border-white/10",
       )}
     >
       <div
@@ -135,36 +128,23 @@ export function CreateJobForm({
             }
           }}
         >
-          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-            <div className="min-w-0">
-              <EditableThreadTitle title={threadTitle} onSave={onRenameThread} />
-            </div>
-            <div className="flex flex-wrap items-center gap-2 sm:justify-end">
-              <div className="rounded-full border border-white/10 bg-background/40 px-3 py-1 text-[11px] font-medium text-muted-foreground">
-                {resolvedProjectValue || "No project selected"}
-              </div>
-              <div className="rounded-full border border-white/10 bg-background/40 px-3 py-1 text-[11px] font-medium text-muted-foreground">
-                {threadTokenCount.toLocaleString()} tokens
-              </div>
-            </div>
-          </div>
 
           <Textarea
             placeholder="Describe the change you want, the files involved, and any constraints."
             value={task}
-            className="min-h-[96px] max-h-[240px] resize-y rounded-[1.5rem] border-white/10 bg-background/70 px-4 py-3 text-sm font-medium shadow-inner placeholder:text-muted-foreground/50 focus-visible:ring-2 focus-visible:ring-primary/70 focus-visible:ring-offset-0 sm:min-h-[112px]"
+            className="min-h-[96px] max-h-[240px] resize-y rounded-[1.5rem] border-border/50 bg-background/70 px-4 py-3 text-base font-medium shadow-inner placeholder:text-muted-foreground/50 focus-visible:ring-2 focus-visible:ring-primary/70 focus-visible:ring-offset-0 dark:border-white/10 sm:min-h-[112px] md:text-sm"
             onChange={(event) => setTask(event.target.value)}
           />
 
-          <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
+          <div className="grid grid-cols-[repeat(3,minmax(0,1fr))_auto] items-center gap-2">
             <Select value={provider} onValueChange={handleProviderChange}>
-              <SelectTrigger className="h-9 min-w-0 rounded-lg border-white/10 bg-background/60 px-2 text-xs font-semibold text-foreground transition-colors hover:bg-background/80 focus:ring-primary focus:ring-offset-0">
+              <SelectTrigger className="h-9 min-w-0 rounded-lg border-border/50 bg-background/60 px-2 text-xs font-semibold text-foreground transition-colors hover:bg-background/80 focus:ring-primary focus:ring-offset-0 dark:border-white/10">
                 <SelectValue
                   className="truncate text-foreground"
                   placeholder="Provider"
                 />
               </SelectTrigger>
-              <SelectContent className="border-white/10 bg-popover/95 text-popover-foreground backdrop-blur-xl">
+              <SelectContent className="border-border/40 bg-popover/95 text-popover-foreground backdrop-blur-xl dark:border-white/10">
                 {providerCatalog.map((item) => (
                   <SelectItem
                     className="cursor-pointer transition-colors focus:bg-primary/20 focus:text-primary"
@@ -178,10 +158,10 @@ export function CreateJobForm({
             </Select>
 
             <Select value={currentModelValue} onValueChange={handleModelChange}>
-              <SelectTrigger className="h-9 min-w-0 rounded-lg border-white/10 bg-background/60 px-2 text-xs font-semibold text-foreground transition-colors hover:bg-background/80 focus:ring-primary focus:ring-offset-0">
+              <SelectTrigger className="h-9 min-w-0 rounded-lg border-border/50 bg-background/60 px-2 text-xs font-semibold text-foreground transition-colors hover:bg-background/80 focus:ring-primary focus:ring-offset-0 dark:border-white/10">
                 <SelectValue className="truncate text-foreground" placeholder="Model" />
               </SelectTrigger>
-              <SelectContent className="border-white/10 bg-popover/95 text-popover-foreground backdrop-blur-xl">
+              <SelectContent className="border-border/40 bg-popover/95 text-popover-foreground backdrop-blur-xl dark:border-white/10">
                 {(activeProvider?.models || []).map((modelOption) => (
                   <SelectItem
                     className="cursor-pointer transition-colors focus:bg-primary/20 focus:text-primary"
@@ -199,13 +179,13 @@ export function CreateJobForm({
               disabled={!supportsReasoning}
               onValueChange={handleReasoningEffortChange}
             >
-              <SelectTrigger className="h-9 min-w-0 rounded-lg border-white/10 bg-background/60 px-2 text-xs font-semibold text-foreground transition-colors hover:bg-background/80 focus:ring-primary focus:ring-offset-0">
+              <SelectTrigger className="h-9 min-w-0 rounded-lg border-border/50 bg-background/60 px-2 text-xs font-semibold text-foreground transition-colors hover:bg-background/80 focus:ring-primary focus:ring-offset-0 dark:border-white/10">
                 <SelectValue
                   className="truncate text-foreground"
                   placeholder={supportsReasoning ? "Reasoning" : "N/A"}
                 />
               </SelectTrigger>
-              <SelectContent className="border-white/10 bg-popover/95 text-popover-foreground backdrop-blur-xl">
+              <SelectContent className="border-border/40 bg-popover/95 text-popover-foreground backdrop-blur-xl dark:border-white/10">
                 <SelectItem
                   className="cursor-pointer transition-colors focus:bg-primary/20 focus:text-primary"
                   value="__default__"
@@ -232,15 +212,10 @@ export function CreateJobForm({
                 </SelectItem>
               </SelectContent>
             </Select>
-          </div>
 
-          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-            <div className="text-xs text-muted-foreground">
-              {task.trim().length > 0 ? `${task.trim().length} chars ready` : "Add task details to enable run"}
-            </div>
             <Button
               type="submit"
-              className="h-12 w-full rounded-xl px-6 text-base font-bold shadow-lg shadow-primary/20 transition-all active:scale-95 sm:w-auto sm:min-w-[11rem]"
+              className="h-9 min-w-[8.5rem] rounded-lg px-4 text-sm font-bold shadow-lg shadow-primary/20 transition-all active:scale-95 justify-self-end"
               disabled={isSubmitting || !task.trim()}
             >
               {isSubmitting ? "Submitting..." : "Run Task"}
@@ -256,3 +231,12 @@ export function CreateJobForm({
     </div>
   );
 }
+
+
+
+
+
+
+
+
+

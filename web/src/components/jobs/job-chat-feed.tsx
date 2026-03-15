@@ -415,7 +415,7 @@ export function JobChatFeed({
                     threadId={threadId}
                   />
                 ) : (
-                  <div className="prose prose-invert prose-sm mt-1.5 max-w-none text-sm leading-relaxed text-foreground/90 prose-headings:my-2 prose-li:my-0 prose-ol:my-1 prose-p:my-1 prose-pre:my-2 prose-pre:rounded-lg prose-pre:border prose-pre:border-white/5 prose-pre:bg-black/30 prose-code:text-xs prose-code:text-violet-300 prose-a:text-primary prose-a:no-underline prose-ul:my-1 hover:prose-a:underline">
+                  <div className="prose prose-sm mt-1.5 max-w-none text-sm leading-relaxed text-foreground/90 prose-headings:my-2 prose-li:my-0 prose-ol:my-1 prose-p:my-1 prose-pre:my-2 prose-pre:rounded-lg prose-pre:border prose-pre:border-border/50 prose-pre:bg-muted/55 prose-code:text-xs prose-code:text-primary prose-a:text-primary prose-a:no-underline prose-ul:my-1 hover:prose-a:underline dark:prose-invert dark:prose-pre:border-white/5 dark:prose-pre:bg-black/30 dark:prose-code:text-violet-300">
                     <Markdown
                       components={{
                         pre: ({ children }) => (
@@ -442,7 +442,7 @@ export function JobChatFeed({
                           }
                           return (
                             <code
-                              className="rounded bg-white/5 px-1.5 py-0.5 text-xs font-mono"
+                              className="rounded bg-muted/60 px-1.5 py-0.5 text-xs font-mono dark:bg-white/5"
                               {...props}
                             >
                               {children}
