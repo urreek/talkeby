@@ -20,7 +20,6 @@ import type { ThemePreference } from "@/lib/storage";
 import type {
   AIProvider,
   ExecutionMode,
-  ProjectInfo,
   ProviderCatalogItem,
   ReasoningEffort,
 } from "@/lib/types";
@@ -34,8 +33,6 @@ type SettingsPanelProps = {
   codexParityMode?: boolean;
   codexSessionResumeEnabled?: boolean;
   providerCatalog: ProviderCatalogItem[];
-  activeProject: string;
-  projects: ProjectInfo[];
   projectsBasePath: string;
   theme: ThemePreference;
   showLogout: boolean;
@@ -46,14 +43,12 @@ type SettingsPanelProps = {
   onChangeModel: (model: string) => void;
   onChangeReasoningEffort: (effort: ReasoningEffort) => void;
   onChangePlanMode: (enabled: boolean) => void;
-  onChangeProject: (projectName: string) => void;
   onAddProject: (input: {
     projectName: string;
     path?: string;
   }) => Promise<void>;
   isUpdatingMode: boolean;
   isUpdatingProvider: boolean;
-  isUpdatingProject: boolean;
   isAddingProject: boolean;
   isLoggingOut: boolean;
 };
@@ -67,8 +62,6 @@ export function SettingsPanel({
   codexParityMode,
   codexSessionResumeEnabled,
   providerCatalog,
-  activeProject,
-  projects,
   projectsBasePath,
   theme,
   showLogout,
@@ -79,22 +72,14 @@ export function SettingsPanel({
   onChangeModel,
   onChangeReasoningEffort,
   onChangePlanMode,
-  onChangeProject,
   onAddProject,
   isUpdatingMode,
   isUpdatingProvider,
-  isUpdatingProject,
   isAddingProject,
   isLoggingOut,
 }: SettingsPanelProps) {
   const [newProjectName, setNewProjectName] = useState("");
   const [newProjectPath, setNewProjectPath] = useState("");
-
-  const resolvedProjectValue = projects.some(
-    (project) => project.name === activeProject,
-  )
-    ? activeProject
-    : "";
 
   const activeProvider = useMemo(
     () => providerCatalog.find((item) => item.id === provider) || providerCatalog[0],
@@ -113,6 +98,7 @@ export function SettingsPanel({
 
   return (
     <div className="space-y-4">
+      <div className="grid gap-4 md:grid-cols-2">
       <Card className="theme-surface">
         <CardHeader>
           <CardTitle>Appearance</CardTitle>
@@ -176,6 +162,7 @@ export function SettingsPanel({
           </Select>
         </CardContent>
       </Card>
+      </div>
 
       <Card className="theme-surface">
         <CardHeader>
@@ -324,43 +311,9 @@ export function SettingsPanel({
 
       <Card className="theme-surface">
         <CardHeader>
-          <CardTitle>Project</CardTitle>
-          <CardDescription>
-            Choose where the AI agent should run.
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          <Select
-            value={resolvedProjectValue}
-            disabled={isUpdatingProject}
-            onValueChange={onChangeProject}
-          >
-            <SelectTrigger className="bg-background text-foreground">
-              <SelectValue
-                className="text-foreground"
-                placeholder="Choose project"
-              />
-            </SelectTrigger>
-            <SelectContent className="bg-popover text-popover-foreground">
-              {projects.map((project) => (
-                <SelectItem
-                  className="text-popover-foreground"
-                  key={project.name}
-                  value={project.name}
-                >
-                  {project.name}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </CardContent>
-      </Card>
-
-      <Card className="theme-surface">
-        <CardHeader>
           <CardTitle>Add Project</CardTitle>
           <CardDescription>
-            Add a new project. It will be selected automatically.
+            Add a project to the workspace list.
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-3">

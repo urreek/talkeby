@@ -22,7 +22,6 @@ import {
   fetchProvider,
   fetchSessionStatus,
   logout,
-  selectProject,
   setMode,
   setProvider,
 } from "@/lib/api";
@@ -80,14 +79,6 @@ function SettingsScreen() {
     },
   });
 
-  const projectMutation = useMutation({
-    mutationFn: (projectName: string) => selectProject({ projectName }),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["projects"] });
-      queryClient.invalidateQueries({ queryKey: ["threads"] });
-    },
-  });
-
   const addProjectMutation = useMutation({
     mutationFn: (input: { projectName: string; path?: string }) =>
       addProject({
@@ -113,7 +104,6 @@ function SettingsScreen() {
     getErrorMessage(sessionQuery.error) ||
     getErrorMessage(modeMutation.error) ||
     getErrorMessage(providerMutation.error) ||
-    getErrorMessage(projectMutation.error) ||
     getErrorMessage(addProjectMutation.error) ||
     getErrorMessage(providerCatalogQuery.error) ||
     getErrorMessage(projectsQuery.error) ||
@@ -122,13 +112,9 @@ function SettingsScreen() {
 
   const projects = projectsQuery.data?.projects ?? [];
   const projectsBasePath = projectsQuery.data?.basePath ?? "";
-  const fetchedActiveProject = projectsQuery.data?.activeProject;
-  const activeProject = projects.some((project) => project.name === fetchedActiveProject)
-    ? String(fetchedActiveProject)
-    : "";
 
   return (
-    <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500 fill-mode-both">
+    <div className="mx-auto w-full max-w-5xl space-y-4 pb-4 animate-in fade-in slide-in-from-bottom-4 duration-500 fill-mode-both">
       {errorMessage ? (
         <Card className="border-destructive/40 bg-destructive/10">
           <CardContent className="p-4">
@@ -137,12 +123,15 @@ function SettingsScreen() {
         </Card>
       ) : null}
 
-      <ProviderHealth />
-      <ProviderSetup />
+      <div className="grid gap-4 md:grid-cols-2">
+        <ProviderHealth />
+        <ProviderSetup />
+      </div>
 
-      <DiscoverProjects />
-
-      <SoundsToggle />
+      <div className="grid gap-4 md:grid-cols-2">
+        <DiscoverProjects />
+        <SoundsToggle />
+      </div>
 
       <SettingsPanel
         mode={modeQuery.data?.executionMode ?? "auto"}
@@ -153,8 +142,6 @@ function SettingsScreen() {
         codexParityMode={providerQuery.data?.codexParityMode}
         codexSessionResumeEnabled={providerQuery.data?.codexSessionResumeEnabled}
         providerCatalog={providerCatalogQuery.data?.providers ?? []}
-        activeProject={activeProject}
-        projects={projects}
         projectsBasePath={projectsBasePath}
         theme={theme}
         showLogout={Boolean(sessionQuery.data?.required)}
@@ -179,13 +166,11 @@ function SettingsScreen() {
             queryClient.invalidateQueries({ queryKey: ["provider"] }),
           )
         }
-        onChangeProject={(projectName) => projectMutation.mutate(projectName)}
         onAddProject={async (input) => {
           await addProjectMutation.mutateAsync(input);
         }}
         isUpdatingMode={modeMutation.isPending}
         isUpdatingProvider={providerMutation.isPending}
-        isUpdatingProject={projectMutation.isPending}
         isAddingProject={addProjectMutation.isPending}
         isLoggingOut={logoutMutation.isPending}
       />
