@@ -55,7 +55,7 @@ export function DiscoverProjects() {
     : "";
 
   return (
-    <Card className="theme-surface">
+    <Card className="theme-surface min-w-0">
       <CardHeader>
         <div className="flex flex-col items-start justify-between gap-2 sm:flex-row sm:items-center">
           <CardTitle>Discover Projects</CardTitle>
@@ -71,7 +71,9 @@ export function DiscoverProjects() {
         </div>
         <CardDescription>
           Folders found in {" "}
-          <code className="rounded bg-muted px-1 text-xs">{data.basePath}</code>
+          <code className="inline-block max-w-full break-all rounded bg-muted px-1 text-xs align-middle">
+            {data.basePath}
+          </code>
           . Tap Add on a folder to make it selectable in Jobs.
         </CardDescription>
       </CardHeader>

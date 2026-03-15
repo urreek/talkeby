@@ -99,7 +99,7 @@ export function SettingsPanel({
   return (
     <div className="space-y-4">
       <div className="grid gap-4 md:grid-cols-2">
-      <Card className="theme-surface">
+      <Card className="theme-surface min-w-0">
         <CardHeader>
           <CardTitle>Appearance</CardTitle>
           <CardDescription>
@@ -129,7 +129,7 @@ export function SettingsPanel({
         </CardContent>
       </Card>
 
-      <Card className="theme-surface">
+      <Card className="theme-surface min-w-0">
         <CardHeader>
           <CardTitle>Execution Mode</CardTitle>
           <CardDescription>
@@ -164,7 +164,7 @@ export function SettingsPanel({
       </Card>
       </div>
 
-      <Card className="theme-surface">
+      <Card className="theme-surface min-w-0">
         <CardHeader>
           <CardTitle>AI Provider</CardTitle>
           <CardDescription>
@@ -309,7 +309,7 @@ export function SettingsPanel({
         </CardContent>
       </Card>
 
-      <Card className="theme-surface">
+      <Card className="theme-surface min-w-0">
         <CardHeader>
           <CardTitle>Add Project</CardTitle>
           <CardDescription>
@@ -355,7 +355,7 @@ export function SettingsPanel({
       </Card>
 
       {showLogout ? (
-        <Card className="theme-surface">
+        <Card className="theme-surface min-w-0">
           <CardHeader>
             <CardTitle>Session</CardTitle>
             <CardDescription>

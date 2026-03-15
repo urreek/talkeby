@@ -34,7 +34,7 @@ export function ProviderSetup() {
 
   if (providerQuery.isLoading || doctorQuery.isLoading) {
     return (
-      <Card className="theme-surface">
+      <Card className="theme-surface min-w-0">
         <CardHeader>
           <CardTitle>Selected Provider Setup</CardTitle>
           <CardDescription>Checking provider requirements...</CardDescription>
@@ -52,7 +52,7 @@ export function ProviderSetup() {
   const selected = checks.find((check) => check.provider === selectedProvider);
   if (!selected) {
     return (
-      <Card className="theme-surface border-destructive/40 bg-destructive/5">
+      <Card className="theme-surface min-w-0 border-destructive/40 bg-destructive/5">
         <CardHeader>
           <CardTitle>Selected Provider Setup</CardTitle>
           <CardDescription>
@@ -75,7 +75,7 @@ export function ProviderSetup() {
 
   return (
     <Card
-      className={`theme-surface ${ready ? "border-emerald-500/30 bg-emerald-500/5" : "border-destructive/40 bg-destructive/5"}`}
+      className={`theme-surface min-w-0 ${ready ? "border-emerald-500/30 bg-emerald-500/5" : "border-destructive/40 bg-destructive/5"}`}
     >
       <CardHeader>
         <CardTitle>Selected Provider Setup</CardTitle>
@@ -85,11 +85,11 @@ export function ProviderSetup() {
       </CardHeader>
       <CardContent className="space-y-2">
         <p className="text-sm text-muted-foreground">
-          Binary: <code className="rounded bg-muted px-1">{selected.binary}</code>
+          Binary: <code className="break-all rounded bg-muted px-1">{selected.binary}</code>
         </p>
         {selected.envKey ? (
           <p className="text-sm text-muted-foreground">
-            Env key: <code className="rounded bg-muted px-1">{selected.envKey}</code>
+            Env key: <code className="break-all rounded bg-muted px-1">{selected.envKey}</code>
           </p>
         ) : (
           <p className="text-sm text-muted-foreground">Env key: built-in auth</p>

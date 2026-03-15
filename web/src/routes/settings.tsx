@@ -124,13 +124,21 @@ function SettingsScreen() {
       ) : null}
 
       <div className="grid gap-4 md:grid-cols-2">
-        <ProviderHealth />
-        <ProviderSetup />
+        <div className="min-w-0">
+          <ProviderHealth />
+        </div>
+        <div className="min-w-0">
+          <ProviderSetup />
+        </div>
       </div>
 
       <div className="grid gap-4 md:grid-cols-2">
-        <DiscoverProjects />
-        <SoundsToggle />
+        <div className="min-w-0">
+          <DiscoverProjects />
+        </div>
+        <div className="min-w-0">
+          <SoundsToggle />
+        </div>
       </div>
 
       <SettingsPanel

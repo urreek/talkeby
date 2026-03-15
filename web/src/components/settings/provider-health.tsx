@@ -61,7 +61,7 @@ function ProviderRow({ check }: { check: ProviderHealthCheck }) {
             {check.envKey ? (
               <span>
                 {check.apiKeySet ? "OK" : "X"}{" "}
-                <code className="rounded bg-muted px-1">{check.envKey}</code>
+                <code className="break-all rounded bg-muted px-1">{check.envKey}</code>
               </span>
             ) : (
               <span className="text-emerald-500/70">OK Built-in auth</span>
@@ -89,7 +89,7 @@ export function ProviderHealth() {
 
   if (doctorQuery.isLoading) {
     return (
-      <Card className="theme-surface">
+      <Card className="theme-surface min-w-0">
         <CardHeader>
           <CardTitle>Provider Health</CardTitle>
         </CardHeader>
@@ -106,7 +106,7 @@ export function ProviderHealth() {
   }
 
   return (
-    <Card className="theme-surface">
+    <Card className="theme-surface min-w-0">
       <CardHeader>
         <CardTitle className="flex items-center gap-2">
           Provider Health
@@ -138,7 +138,7 @@ export function ProviderHealth() {
                 <p className="font-medium">{check.message}</p>
                 {check.fix ? (
                   <p className="mt-1 text-[11px] opacity-80">
-                    Fix: <code className="rounded bg-muted px-1">{check.fix}</code>
+                    Fix: <code className="break-all rounded bg-muted px-1">{check.fix}</code>
                   </p>
                 ) : null}
               </div>
