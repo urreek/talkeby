@@ -98,7 +98,7 @@ export function CreateJobForm({
       className={cn(
         "relative overflow-hidden",
         embedded
-          ? "rounded-none"
+          ? "rounded-[1.25rem]"
           : "theme-surface rounded-[1.75rem] border border-border/40 shadow-2xl shadow-black/20 dark:border-white/10",
       )}
     >
