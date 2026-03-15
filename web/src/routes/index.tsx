@@ -1,5 +1,4 @@
-import { useEffect, useRef, useState } from "react";
-import type { CSSProperties } from "react";
+import { useEffect, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { createRoute } from "@tanstack/react-router";
 
@@ -70,8 +69,6 @@ function JobsScreen() {
   const search = jobsRoute.useSearch();
   const queryClient = useQueryClient();
   const { confirm, ConfirmDialog } = useConfirmDialog();
-  const composerContainerRef = useRef<HTMLDivElement | null>(null);
-  const [mobileComposerHeight, setMobileComposerHeight] = useState(0);
   const [workspaceDrawerOpen, setWorkspaceDrawerOpen] = useState(false);
   const [chatHidden, setChatHidden] = useState(false);
   const [compactChat, setCompactChat] = useState(false);
@@ -264,59 +261,6 @@ function JobsScreen() {
   const runtimeApprovals = runtimeApprovalsQuery.data?.approvals ?? [];
   const pendingRuntimeApprovalCount = runtimeApprovals.length;
   const threadTotalTokens = Number(activeThread?.tokenUsed || 0);
-  const jobsScreenStyle = {
-    "--talkeby-mobile-composer-space":
-      activeThread && !chatHidden && !workspaceDrawerOpen && mobileComposerHeight > 0
-        ? `calc(${mobileComposerHeight}px + var(--talkeby-bottom-clearance) + 1rem)`
-        : "0px",
-  } as CSSProperties;
-
-  useEffect(() => {
-    if (typeof window === "undefined") {
-      return;
-    }
-    const container = composerContainerRef.current;
-    if (!container) {
-      return;
-    }
-
-    const mobileMedia = window.matchMedia("(max-width: 639px)");
-    let resizeObserver: ResizeObserver | null = null;
-
-    const updateHeight = () => {
-      if (!activeThread || !mobileMedia.matches) {
-        setMobileComposerHeight(0);
-        return;
-      }
-
-      const nextHeight = Math.ceil(container.getBoundingClientRect().height);
-      setMobileComposerHeight((current) => (current === nextHeight ? current : nextHeight));
-    };
-
-    updateHeight();
-
-    if ("ResizeObserver" in window) {
-      resizeObserver = new ResizeObserver(updateHeight);
-      resizeObserver.observe(container);
-    }
-
-    if (typeof mobileMedia.addEventListener === "function") {
-      mobileMedia.addEventListener("change", updateHeight);
-    } else {
-      mobileMedia.addListener(updateHeight);
-    }
-    window.addEventListener("resize", updateHeight);
-
-    return () => {
-      resizeObserver?.disconnect();
-      if (typeof mobileMedia.removeEventListener === "function") {
-        mobileMedia.removeEventListener("change", updateHeight);
-      } else {
-        mobileMedia.removeListener(updateHeight);
-      }
-      window.removeEventListener("resize", updateHeight);
-    };
-  }, [activeThread?.id]);
 
   useEffect(() => {
     if (!activeProject || !activeThread) {
@@ -376,7 +320,7 @@ function JobsScreen() {
   };
 
   return (
-    <div className="relative flex min-h-0 flex-1 flex-col gap-4" style={jobsScreenStyle}>
+    <div className="relative flex min-h-0 flex-1 flex-col gap-4">
       <WorkspaceDrawer
         open={workspaceDrawerOpen}
         activeProject={activeProject}
@@ -423,7 +367,7 @@ function JobsScreen() {
 
       <div
         className={cn(
-          "min-h-0 flex flex-1 flex-col gap-4 pb-[var(--talkeby-mobile-composer-space)] sm:pb-0",
+          "min-h-0 flex flex-1 flex-col gap-4",
           workspaceDrawerOpen && "pointer-events-none select-none",
         )}
         aria-hidden={workspaceDrawerOpen}
@@ -502,8 +446,7 @@ function JobsScreen() {
 
         {activeThread && !chatHidden && !workspaceDrawerOpen && (
           <div
-            ref={composerContainerRef}
-            className="fixed inset-x-0 bottom-[calc(var(--talkeby-bottom-clearance)+0.75rem)] z-30 mx-auto w-full max-w-xl shrink-0 px-4 animate-in fade-in slide-in-from-bottom-8 duration-700 delay-75 fill-mode-both sm:static sm:mx-0 sm:max-w-none sm:px-0"
+            className="shrink-0 animate-in fade-in slide-in-from-bottom-8 duration-700 delay-75 fill-mode-both"
           >
             <CreateJobForm
               projects={projects}
