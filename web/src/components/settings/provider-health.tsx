@@ -33,13 +33,13 @@ function StatusDot({ ok }: { ok: boolean }) {
 function ProviderRow({ check }: { check: ProviderHealthCheck }) {
   return (
     <div
-      className={`flex items-start justify-between gap-2 rounded-lg border px-4 py-3 overflow-hidden ${
+      className={`flex flex-col gap-2 overflow-hidden rounded-lg border px-4 py-3 sm:flex-row sm:items-start sm:justify-between ${
         check.active
           ? "border-primary/30 bg-primary/5"
           : "border-border bg-background"
       }`}
     >
-      <div className="flex items-start gap-3 min-w-0 flex-1">
+      <div className="flex min-w-0 flex-1 items-start gap-3">
         <StatusDot ok={check.ready} />
         <div className="min-w-0 flex-1">
           <p className="text-sm font-medium">
@@ -48,11 +48,11 @@ function ProviderRow({ check }: { check: ProviderHealthCheck }) {
               <span className="ml-2 text-xs text-primary">(active)</span>
             ) : null}
           </p>
-          <div className="flex flex-col gap-0.5 text-xs text-muted-foreground mt-1">
-            <span className="flex items-center gap-1 min-w-0">
-              {check.binaryInstalled ? "✓" : "✗"}{" "}
+          <div className="mt-1 flex flex-col gap-0.5 text-xs text-muted-foreground">
+            <span className="flex min-w-0 items-center gap-1">
+              {check.binaryInstalled ? "OK" : "X"}{" "}
               <code
-                className="rounded bg-muted px-1 truncate max-w-[200px] inline-block align-middle"
+                className="inline-block max-w-full truncate rounded bg-muted px-1 align-middle sm:max-w-[240px]"
                 title={check.binary}
               >
                 {check.binary}
@@ -60,17 +60,17 @@ function ProviderRow({ check }: { check: ProviderHealthCheck }) {
             </span>
             {check.envKey ? (
               <span>
-                {check.apiKeySet ? "✓" : "✗"}{" "}
+                {check.apiKeySet ? "OK" : "X"}{" "}
                 <code className="rounded bg-muted px-1">{check.envKey}</code>
               </span>
             ) : (
-              <span className="text-emerald-500/70">✓ Built-in auth</span>
+              <span className="text-emerald-500/70">OK Built-in auth</span>
             )}
           </div>
         </div>
       </div>
       <span
-        className={`text-xs font-medium shrink-0 ${
+        className={`text-xs font-medium ${
           check.ready ? "text-emerald-600" : "text-red-500"
         }`}
       >
@@ -119,7 +119,7 @@ export function ProviderHealth() {
       <CardContent className="space-y-2">
         {data.summary ? (
           <div className="rounded-lg border border-border bg-muted/20 px-3 py-2 text-xs text-muted-foreground">
-            System checks · failures {data.summary.failures} · warnings {data.summary.warnings}
+            System checks: failures {data.summary.failures}, warnings {data.summary.warnings}
           </div>
         ) : null}
         {data.checks && data.checks.length > 0 ? (

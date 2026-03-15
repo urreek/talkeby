@@ -114,7 +114,7 @@ function SettingsScreen() {
   const projectsBasePath = projectsQuery.data?.basePath ?? "";
 
   return (
-    <div className="mx-auto w-full max-w-5xl space-y-4 pb-4 animate-in fade-in slide-in-from-bottom-4 duration-500 fill-mode-both">
+    <div className="mx-auto w-full max-w-5xl space-y-4 px-3 pb-4 sm:px-4 animate-in fade-in slide-in-from-bottom-4 duration-500 fill-mode-both">
       {errorMessage ? (
         <Card className="border-destructive/40 bg-destructive/10">
           <CardContent className="p-4">
@@ -182,16 +182,17 @@ function SoundsToggle() {
   const [enabled, setEnabled] = useState(isSoundsEnabled());
 
   return (
-    <Card className="theme-surface">
-      <CardHeader>
-        <CardTitle>Sound Effects</CardTitle>
+      <Card className="theme-surface">
+        <CardHeader>
+          <CardTitle>Sound Effects</CardTitle>
         <CardDescription>
           Play sounds when jobs complete, fail, or need approval.
         </CardDescription>
       </CardHeader>
-      <CardContent className="flex items-center gap-3">
+      <CardContent className="flex flex-col items-stretch gap-2 sm:flex-row sm:items-center">
         <Button
           size="sm"
+          className="w-full sm:w-auto"
           variant={enabled ? "default" : "outline"}
           onClick={() => {
             const next = !enabled;
@@ -203,7 +204,12 @@ function SoundsToggle() {
           {enabled ? "Enabled" : "Disabled"}
         </Button>
         {enabled && (
-          <Button size="sm" variant="ghost" onClick={() => playCompleted()}>
+          <Button
+            size="sm"
+            variant="ghost"
+            className="w-full sm:w-auto"
+            onClick={() => playCompleted()}
+          >
             Test
           </Button>
         )}

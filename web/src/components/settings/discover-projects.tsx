@@ -57,12 +57,12 @@ export function DiscoverProjects() {
   return (
     <Card className="theme-surface">
       <CardHeader>
-        <div className="flex items-center justify-between gap-3">
+        <div className="flex flex-col items-start justify-between gap-2 sm:flex-row sm:items-center">
           <CardTitle>Discover Projects</CardTitle>
           <Button
             size="sm"
             variant="outline"
-            className="bg-background"
+            className="w-full bg-background sm:w-auto"
             disabled={discoverQuery.isFetching}
             onClick={() => discoverQuery.refetch()}
           >
