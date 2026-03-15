@@ -129,13 +129,13 @@ export function AppShell({ children }: PropsWithChildren) {
 
       <div className="relative mx-auto flex h-dvh h-screen w-full max-w-[1600px] flex-col overflow-hidden pt-[var(--talkeby-top-clearance)] lg:p-4 lg:pt-4">
         <div className="flex min-h-0 flex-1 flex-col overflow-hidden lg:rounded-[2rem] lg:border lg:border-border/40 lg:bg-card/60 lg:shadow-[0_24px_80px_rgba(15,23,42,0.2)] lg:backdrop-blur-2xl dark:lg:border-white/10 dark:lg:bg-slate-950/55 dark:lg:shadow-[0_24px_80px_rgba(15,23,42,0.45)]">
-          <header className="theme-header sticky top-0 z-20 shrink-0 border-b border-foreground/5 px-3 py-3 backdrop-blur-xl transition-all duration-300 sm:px-4 lg:px-5 lg:py-4">
+          <header className="theme-header sticky top-0 z-20 shrink-0 border-b border-foreground/5 px-3 py-2.5 backdrop-blur-xl transition-all duration-300 sm:px-4 lg:px-5 lg:py-3">
             <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-              <div className="min-w-0">
-                <p className="text-[10px] font-semibold uppercase tracking-[0.26em] text-muted-foreground">
+              <div className="min-w-0 flex items-baseline gap-2 sm:gap-3">
+                <p className="shrink-0 text-[10px] font-semibold uppercase tracking-[0.22em] text-muted-foreground">
                   Local-first coding cockpit
                 </p>
-                <h1 className="bg-gradient-to-r from-foreground via-foreground to-foreground/70 bg-clip-text text-lg font-bold tracking-tight text-transparent drop-shadow-md sm:text-xl">
+                <h1 className="truncate bg-gradient-to-r from-foreground via-foreground to-foreground/70 bg-clip-text text-lg font-bold tracking-tight text-transparent drop-shadow-md sm:text-xl">
                   Talkeby
                 </h1>
               </div>
