@@ -132,11 +132,11 @@ export function CreateJobForm({
             onChange={(event) => setTask(event.target.value)}
           />
 
-          <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
+          <div className="grid grid-cols-3 gap-2">
             <Select value={provider} onValueChange={handleProviderChange}>
-              <SelectTrigger className="h-11 rounded-xl border-white/10 bg-background/60 text-sm font-medium text-foreground transition-colors hover:bg-background/80 focus:ring-primary focus:ring-offset-0">
+              <SelectTrigger className="h-9 min-w-0 rounded-lg border-white/10 bg-background/60 px-2 text-xs font-semibold text-foreground transition-colors hover:bg-background/80 focus:ring-primary focus:ring-offset-0">
                 <SelectValue
-                  className="text-foreground"
+                  className="truncate text-foreground"
                   placeholder="Provider"
                 />
               </SelectTrigger>
@@ -154,8 +154,8 @@ export function CreateJobForm({
             </Select>
 
             <Select value={currentModelValue} onValueChange={handleModelChange}>
-              <SelectTrigger className="h-11 rounded-xl border-white/10 bg-background/60 text-sm font-medium text-foreground transition-colors hover:bg-background/80 focus:ring-primary focus:ring-offset-0">
-                <SelectValue className="text-foreground" placeholder="Model" />
+              <SelectTrigger className="h-9 min-w-0 rounded-lg border-white/10 bg-background/60 px-2 text-xs font-semibold text-foreground transition-colors hover:bg-background/80 focus:ring-primary focus:ring-offset-0">
+                <SelectValue className="truncate text-foreground" placeholder="Model" />
               </SelectTrigger>
               <SelectContent className="border-white/10 bg-popover/95 text-popover-foreground backdrop-blur-xl">
                 {(activeProvider?.models || []).map((modelOption) => (
@@ -175,10 +175,10 @@ export function CreateJobForm({
               disabled={!supportsReasoning}
               onValueChange={handleReasoningEffortChange}
             >
-              <SelectTrigger className="h-11 rounded-xl border-white/10 bg-background/60 text-sm font-medium text-foreground transition-colors hover:bg-background/80 focus:ring-primary focus:ring-offset-0">
+              <SelectTrigger className="h-9 min-w-0 rounded-lg border-white/10 bg-background/60 px-2 text-xs font-semibold text-foreground transition-colors hover:bg-background/80 focus:ring-primary focus:ring-offset-0">
                 <SelectValue
-                  className="text-foreground"
-                  placeholder={supportsReasoning ? "Reasoning" : "Reasoning (n/a)"}
+                  className="truncate text-foreground"
+                  placeholder={supportsReasoning ? "Reasoning" : "N/A"}
                 />
               </SelectTrigger>
               <SelectContent className="border-white/10 bg-popover/95 text-popover-foreground backdrop-blur-xl">
