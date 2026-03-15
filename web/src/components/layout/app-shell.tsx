@@ -109,17 +109,9 @@ export function AppShell({ children }: PropsWithChildren) {
 
   const shellStyle = {
     "--talkeby-keyboard-inset": `${keyboardInset}px`,
-    "--talkeby-nav-gap": "1.5rem",
-    "--talkeby-nav-height": "5.5rem",
-    "--talkeby-nav-offset":
-      "calc(env(safe-area-inset-bottom, 0px) + var(--talkeby-nav-gap) + var(--talkeby-keyboard-inset))",
     "--talkeby-bottom-clearance":
-      "calc(var(--talkeby-nav-offset) + var(--talkeby-nav-height))",
+      "calc(env(safe-area-inset-bottom, 0px) + var(--talkeby-keyboard-inset) + 0.75rem)",
   } as CSSProperties;
-
-  const navStyle: CSSProperties = {
-    bottom: "var(--talkeby-nav-offset)",
-  };
 
   return (
     <div
@@ -136,7 +128,7 @@ export function AppShell({ children }: PropsWithChildren) {
         <div className="absolute inset-0 bg-slate-950/60 dark:bg-background/40 backdrop-blur-[12px]"></div>
       </div>
 
-      <header className="theme-header sticky top-0 z-20 shrink-0 border-b border-foreground/5 px-4 py-4 backdrop-blur-xl transition-all duration-300 dark:border-white/5">
+      <header className="theme-header sticky top-0 z-20 shrink-0 border-b border-foreground/5 px-4 py-3 backdrop-blur-xl transition-all duration-300 dark:border-white/5">
         <div className="flex items-start justify-between gap-3">
           <div>
             <h1 className="bg-gradient-to-r from-white to-white/70 bg-clip-text text-lg font-bold tracking-tight text-transparent drop-shadow-md">
@@ -148,6 +140,31 @@ export function AppShell({ children }: PropsWithChildren) {
           </div>
           <ThemeToggle />
         </div>
+
+        <nav className="mt-3">
+          <div className="theme-surface inline-grid grid-cols-2 gap-1 rounded-xl border border-white/10 bg-card/80 p-1 shadow-lg backdrop-blur-xl">
+            {navItems.map((item) => {
+              const Icon = item.icon;
+              const isActive = pathname === item.to;
+
+              return (
+                <Link
+                  key={item.to}
+                  to={item.to}
+                  className={cn(
+                    "inline-flex items-center justify-center gap-1.5 rounded-lg px-2.5 py-1.5 text-xs font-semibold transition-all duration-200",
+                    isActive
+                      ? "bg-primary text-primary-foreground shadow-sm shadow-primary/25"
+                      : "text-muted-foreground hover:bg-secondary/80 hover:text-foreground",
+                  )}
+                >
+                  <Icon className="size-3.5" />
+                  {item.label}
+                </Link>
+              );
+            })}
+          </div>
+        </nav>
       </header>
 
       <main
@@ -158,39 +175,6 @@ export function AppShell({ children }: PropsWithChildren) {
       >
         {children}
       </main>
-
-      <nav
-        className="fixed inset-x-0 z-20 mx-auto max-w-sm px-4 animate-in slide-in-from-bottom-12 fade-in duration-700 delay-150 fill-mode-both transition-[bottom] duration-200"
-        style={navStyle}
-      >
-        <div className="theme-surface grid grid-cols-2 gap-2 rounded-[2rem] border border-white/10 bg-card/80 p-2 shadow-2xl backdrop-blur-xl">
-          {navItems.map((item) => {
-            const Icon = item.icon;
-            const isActive = pathname === item.to;
-
-            return (
-              <Link
-                key={item.to}
-                to={item.to}
-                className={cn(
-                  "inline-flex items-center justify-center gap-2 rounded-full px-4 py-3 text-sm font-semibold transition-all duration-300",
-                  isActive
-                    ? "bg-primary text-primary-foreground shadow-lg shadow-primary/25 scale-100"
-                    : "text-muted-foreground hover:bg-secondary/80 hover:text-foreground scale-95 hover:scale-100",
-                )}
-              >
-                <Icon
-                  className={cn(
-                    "size-4 transition-transform duration-300",
-                    isActive && "scale-110",
-                  )}
-                />
-                {item.label}
-              </Link>
-            );
-          })}
-        </div>
-      </nav>
     </div>
   );
 }
