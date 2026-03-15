@@ -205,12 +205,12 @@ export function WorkspaceDrawer({
         onClick={() => onOpenChange(false)}
       />
 
-      <div className="absolute inset-y-0 left-1/2 w-full max-w-xl -translate-x-1/2">
+      <div className="absolute inset-y-0 left-1/2 w-full max-w-xl -translate-x-1/2 lg:max-w-[1200px] xl:max-w-[1440px]">
         <button
           type="button"
           aria-label="Open workspace drawer"
           className={cn(
-            "pointer-events-auto absolute left-0 top-24 z-10 flex h-28 w-12 items-center justify-center rounded-r-2xl border border-white/10 bg-slate-950/85 text-slate-100 shadow-[0_18px_60px_rgba(15,23,42,0.45)] backdrop-blur-xl transition-all duration-300 hover:bg-slate-900/95",
+            "pointer-events-auto absolute left-0 top-24 z-10 flex h-28 w-12 items-center justify-center rounded-r-2xl border border-white/10 bg-slate-950/85 text-slate-100 shadow-[0_18px_60px_rgba(15,23,42,0.45)] backdrop-blur-xl transition-all duration-300 hover:bg-slate-900/95 xl:top-28",
             open && "-translate-x-4 opacity-0 pointer-events-none",
           )}
           onClick={() => onOpenChange(true)}
@@ -229,7 +229,7 @@ export function WorkspaceDrawer({
           aria-label="Workspace drawer"
           aria-hidden={!open}
           className={cn(
-            "pointer-events-auto flex h-full w-[22rem] max-w-[calc(100%-0.75rem)] flex-col border-r border-white/10 bg-slate-950/90 shadow-[0_24px_80px_rgba(15,23,42,0.55)] backdrop-blur-2xl transition-transform duration-300 sm:w-[24rem]",
+            "pointer-events-auto flex h-full w-[22rem] max-w-[calc(100%-0.75rem)] flex-col border-r border-white/10 bg-slate-950/90 shadow-[0_24px_80px_rgba(15,23,42,0.55)] backdrop-blur-2xl transition-transform duration-300 sm:w-[24rem] xl:w-[27rem]",
             open ? "translate-x-0" : "-translate-x-[calc(100%+1rem)]",
           )}
         >

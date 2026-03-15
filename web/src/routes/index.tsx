@@ -320,7 +320,7 @@ function JobsScreen() {
   };
 
   return (
-    <div className="relative flex min-h-0 flex-1 flex-col gap-4">
+    <div className="relative flex min-h-0 flex-1 flex-col gap-4 xl:grid xl:grid-cols-[22rem_minmax(0,1fr)] xl:gap-6">
       <WorkspaceDrawer
         open={workspaceDrawerOpen}
         activeProject={activeProject}
@@ -338,7 +338,7 @@ function JobsScreen() {
         }}
       />
 
-      <div className="shrink-0 space-y-4">
+      <div className="shrink-0 space-y-4 xl:min-h-0 xl:overflow-y-auto xl:pr-1">
         <WorkspaceToolbar
           activeProject={activeProject}
           activeThread={activeThread}
@@ -398,24 +398,48 @@ function JobsScreen() {
             <Card
               className={cn(
                 "theme-surface animate-in relative flex min-h-0 flex-col overflow-hidden border-border/50 shadow-md fade-in slide-in-from-bottom-6 duration-500 fill-mode-both",
-                compactChat ? "h-[42vh] sm:h-auto sm:flex-1" : "flex-1",
+                compactChat ? "h-[42vh] sm:h-[48vh] xl:h-auto" : "flex-1",
               )}
             >
               <div className="absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-primary/30 to-transparent" />
-              <CardContent className="min-h-0 flex-1 p-3 sm:p-4">
-                <JobChatFeed
-                  className="h-full"
-                  threadId={activeThread.id}
-                  jobs={threadJobs}
-                  approvingJobId={approveMutation.variables ?? ""}
-                  denyingJobId={denyMutation.variables ?? ""}
-                  resumingJobId={resumeMutation.variables ?? ""}
-                  stoppingJobId={stopMutation.variables ?? ""}
-                  onApprove={(jobId) => approveMutation.mutate(jobId)}
-                  onDeny={(jobId) => denyMutation.mutate(jobId)}
-                  onResumeError={(jobId) => resumeMutation.mutate(jobId)}
-                  onStop={(jobId) => stopMutation.mutate(jobId)}
-                />
+              <CardContent className="flex min-h-0 flex-1 flex-col p-0">
+                <div className="min-h-0 flex-1 px-3 pt-3 sm:px-4 sm:pt-4">
+                  <JobChatFeed
+                    className="h-full pb-4"
+                    threadId={activeThread.id}
+                    jobs={threadJobs}
+                    approvingJobId={approveMutation.variables ?? ""}
+                    denyingJobId={denyMutation.variables ?? ""}
+                    resumingJobId={resumeMutation.variables ?? ""}
+                    stoppingJobId={stopMutation.variables ?? ""}
+                    onApprove={(jobId) => approveMutation.mutate(jobId)}
+                    onDeny={(jobId) => denyMutation.mutate(jobId)}
+                    onResumeError={(jobId) => resumeMutation.mutate(jobId)}
+                    onStop={(jobId) => stopMutation.mutate(jobId)}
+                  />
+                </div>
+
+                <div className="shrink-0 border-t border-white/10 bg-slate-950/30 px-3 py-3 backdrop-blur-xl sm:px-4 sm:py-4">
+                  <CreateJobForm
+                    projects={projects}
+                    activeProject={activeProject}
+                    threadTitle={activeThread.title}
+                    threadTokenCount={threadTotalTokens}
+                    isSubmitting={createJobMutation.isPending}
+                    submitError={createJobErrorMessage}
+                    variant="embedded"
+                    onRenameThread={(title) =>
+                      renameThreadMutation.mutate({
+                        threadId: activeThread.id,
+                        title,
+                      })
+                    }
+                    onSubmit={async (input) => {
+                      createJobMutation.reset();
+                      await createJobMutation.mutateAsync(input);
+                    }}
+                  />
+                </div>
               </CardContent>
             </Card>
           )
@@ -444,30 +468,6 @@ function JobsScreen() {
           </Card>
         )}
 
-        {activeThread && !chatHidden && !workspaceDrawerOpen && (
-          <div
-            className="shrink-0 animate-in fade-in slide-in-from-bottom-8 duration-700 delay-75 fill-mode-both"
-          >
-            <CreateJobForm
-              projects={projects}
-              activeProject={activeProject}
-              threadTitle={activeThread.title}
-              threadTokenCount={threadTotalTokens}
-              isSubmitting={createJobMutation.isPending}
-              submitError={createJobErrorMessage}
-              onRenameThread={(title) =>
-                renameThreadMutation.mutate({
-                  threadId: activeThread.id,
-                  title,
-                })
-              }
-              onSubmit={async (input) => {
-                createJobMutation.reset();
-                await createJobMutation.mutateAsync(input);
-              }}
-            />
-          </div>
-        )}
       </div>
 
       {ConfirmDialog}

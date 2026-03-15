@@ -3,7 +3,6 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 
 import { EditableThreadTitle } from "@/components/jobs/editable-thread-title";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent } from "@/components/ui/card";
 import {
   Select,
   SelectContent,
@@ -14,6 +13,7 @@ import {
 import { Textarea } from "@/components/ui/textarea";
 import { fetchProvider, fetchProviderCatalog, setProvider } from "@/lib/api";
 import type { AIProvider, ProjectInfo } from "@/lib/types";
+import { cn } from "@/lib/utils";
 
 type CreateJobFormProps = {
   projects: ProjectInfo[];
@@ -24,6 +24,7 @@ type CreateJobFormProps = {
   submitError?: string;
   onRenameThread: (title: string) => void;
   onSubmit: (input: { task: string; projectName: string }) => Promise<void>;
+  variant?: "card" | "embedded";
 };
 
 export function CreateJobForm({
@@ -35,10 +36,12 @@ export function CreateJobForm({
   submitError = "",
   onRenameThread,
   onSubmit,
+  variant = "card",
 }: CreateJobFormProps) {
   const queryClient = useQueryClient();
   const [task, setTask] = useState("");
   const [projectName, setProjectName] = useState(activeProject);
+  const embedded = variant === "embedded";
   const resolvedProjectValue = projects.some(
     (project) => project.name === projectName,
   )
@@ -98,9 +101,21 @@ export function CreateJobForm({
   };
 
   return (
-    <Card className="theme-surface relative overflow-hidden rounded-[1.75rem] border border-white/10 shadow-2xl shadow-black/20">
-      <div className="pointer-events-none absolute inset-0 bg-gradient-to-br from-primary/10 via-transparent to-transparent opacity-80" />
-      <CardContent className="relative z-10 p-4 sm:p-5">
+    <div
+      className={cn(
+        "relative overflow-hidden",
+        embedded
+          ? "rounded-none"
+          : "theme-surface rounded-[1.75rem] border border-white/10 shadow-2xl shadow-black/20",
+      )}
+    >
+      <div
+        className={cn(
+          "pointer-events-none absolute inset-0 bg-gradient-to-br from-primary/10 via-transparent to-transparent",
+          embedded ? "opacity-55" : "opacity-80",
+        )}
+      />
+      <div className={cn("relative z-10", embedded ? "p-0" : "p-4 sm:p-5")}>
         <form
           className="space-y-4"
           onSubmit={async (event) => {
@@ -137,11 +152,11 @@ export function CreateJobForm({
           <Textarea
             placeholder="Describe the change you want, the files involved, and any constraints."
             value={task}
-            className="min-h-[112px] max-h-[240px] resize-y rounded-[1.5rem] border-white/10 bg-background/70 px-4 py-3 text-sm font-medium shadow-inner placeholder:text-muted-foreground/50 focus-visible:ring-2 focus-visible:ring-primary/70 focus-visible:ring-offset-0"
+            className="min-h-[96px] max-h-[240px] resize-y rounded-[1.5rem] border-white/10 bg-background/70 px-4 py-3 text-sm font-medium shadow-inner placeholder:text-muted-foreground/50 focus-visible:ring-2 focus-visible:ring-primary/70 focus-visible:ring-offset-0 sm:min-h-[112px]"
             onChange={(event) => setTask(event.target.value)}
           />
 
-          <div className="grid grid-cols-3 gap-2">
+          <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
             <Select value={provider} onValueChange={handleProviderChange}>
               <SelectTrigger className="h-9 min-w-0 rounded-lg border-white/10 bg-background/60 px-2 text-xs font-semibold text-foreground transition-colors hover:bg-background/80 focus:ring-primary focus:ring-offset-0">
                 <SelectValue
@@ -237,7 +252,7 @@ export function CreateJobForm({
             <p className="text-sm font-medium text-destructive">{submitError}</p>
           ) : null}
         </form>
-      </CardContent>
-    </Card>
+      </div>
+    </div>
   );
 }

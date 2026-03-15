@@ -115,7 +115,7 @@ export function AppShell({ children }: PropsWithChildren) {
 
   return (
     <div
-      className="talkeby-app relative mx-auto flex h-dvh h-screen w-full max-w-xl flex-col overflow-hidden bg-slate-950"
+      className="talkeby-app relative mx-auto flex h-dvh h-screen w-full max-w-xl flex-col overflow-hidden bg-slate-950 lg:max-w-[1200px] xl:max-w-[1440px]"
       style={shellStyle}
     >
       <div className="fixed inset-0 z-0 pointer-events-none overflow-hidden">
@@ -166,7 +166,7 @@ export function AppShell({ children }: PropsWithChildren) {
 
       <main
         className={cn(
-          "flex min-h-0 flex-1 flex-col px-4 pb-[calc(var(--talkeby-bottom-clearance)+1rem)] pt-4",
+          "flex min-h-0 flex-1 flex-col px-4 pb-[calc(var(--talkeby-bottom-clearance)+1rem)] pt-4 lg:px-5 xl:px-6",
           isWorkspaceRoute ? "overflow-hidden" : "overflow-y-auto",
         )}
       >
