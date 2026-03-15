@@ -10,7 +10,9 @@ import {
   WorkspaceControls,
 } from "@/components/jobs/workspace-controls";
 import { useConfirmDialog } from "@/components/ui/confirm-dialog";
+import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader } from "@/components/ui/card";
+import { cn } from "@/lib/utils";
 import {
   approveJob,
   approveRuntimeApproval,
@@ -69,6 +71,8 @@ function JobsScreen() {
   const composerContainerRef = useRef<HTMLDivElement | null>(null);
   const [mobileComposerHeight, setMobileComposerHeight] = useState(0);
   const [mobileWorkspaceOpen, setMobileWorkspaceOpen] = useState(false);
+  const [chatHidden, setChatHidden] = useState(false);
+  const [compactChat, setCompactChat] = useState(false);
 
   const projectsQuery = useQuery({
     queryKey: ["projects"],
@@ -261,7 +265,7 @@ function JobsScreen() {
   const threadEstimatedTokens = Number(activeThread?.tokenUsedEstimated || 0);
   const jobsScreenStyle = {
     "--talkeby-mobile-composer-space":
-      activeThread && mobileComposerHeight > 0
+      activeThread && !chatHidden && mobileComposerHeight > 0
         ? `calc(${mobileComposerHeight}px + var(--talkeby-bottom-clearance) + 1rem)`
         : "0px",
   } as CSSProperties;
@@ -319,6 +323,13 @@ function JobsScreen() {
     }
   }, [activeProject, activeThread]);
 
+  useEffect(() => {
+    if (!activeThread) {
+      setChatHidden(false);
+      setCompactChat(false);
+    }
+  }, [activeThread?.id]);
+
   const handleSelectProject = (projectName: string) => {
     selectProjectMutation.mutate(projectName);
     setMobileWorkspaceOpen(false);
@@ -373,8 +384,12 @@ function JobsScreen() {
           pendingApprovalCount={pendingRuntimeApprovalCount}
           workspaceOpen={mobileWorkspaceOpen}
           creatingThread={createThreadMutation.isPending}
+          chatHidden={chatHidden}
+          compactChat={compactChat}
           onToggleWorkspace={() => setMobileWorkspaceOpen((current) => !current)}
           onCreateThread={handleCreateThread}
+          onToggleChatVisibility={() => setChatHidden((current) => !current)}
+          onToggleChatSize={() => setCompactChat((current) => !current)}
         />
 
         {mobileWorkspaceOpen && (
@@ -426,56 +441,84 @@ function JobsScreen() {
 
       <div className="min-h-0 flex flex-1 flex-col gap-4 pb-[var(--talkeby-mobile-composer-space)] sm:pb-0">
         {activeThread ? (
-          <Card className="theme-surface animate-in relative flex min-h-0 flex-1 flex-col overflow-hidden border-border/50 shadow-md fade-in slide-in-from-bottom-6 duration-500 fill-mode-both">
-            <div className="absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-primary/30 to-transparent" />
-            <CardHeader className="shrink-0 border-b border-border/30 pb-4">
-              <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
-                <div className="min-w-0 space-y-2">
-                  <EditableTitle
-                    title={activeThread.title}
-                    onSave={(title) =>
-                      renameThreadMutation.mutate({
-                        threadId: activeThread.id,
-                        title,
-                      })
-                    }
-                  />
-                  <CardDescription className="text-xs text-muted-foreground">
-                    {activeProject} | {threadJobs.length} message
-                    {threadJobs.length !== 1 ? "s" : ""} | tokens burned {threadTotalTokens}
-                  </CardDescription>
+          chatHidden ? (
+            <Card className="theme-surface animate-in flex flex-1 items-center border-border/50 shadow-md fade-in slide-in-from-bottom-6 duration-500 fill-mode-both">
+              <CardContent className="w-full space-y-3 p-6 text-center">
+                <p className="text-sm font-semibold text-foreground">
+                  Chat is hidden.
+                </p>
+                <p className="text-xs text-muted-foreground">
+                  Use the workspace controls while chat stays collapsed.
+                </p>
+                <div className="flex justify-center">
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="outline"
+                    onClick={() => setChatHidden(false)}
+                  >
+                    Show Chat
+                  </Button>
                 </div>
+              </CardContent>
+            </Card>
+          ) : (
+            <Card
+              className={cn(
+                "theme-surface animate-in relative flex min-h-0 flex-col overflow-hidden border-border/50 shadow-md fade-in slide-in-from-bottom-6 duration-500 fill-mode-both",
+                compactChat ? "h-[42vh] sm:h-auto sm:flex-1" : "flex-1",
+              )}
+            >
+              <div className="absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-primary/30 to-transparent" />
+              <CardHeader className="shrink-0 border-b border-border/30 pb-4">
+                <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+                  <div className="min-w-0 space-y-2">
+                    <EditableTitle
+                      title={activeThread.title}
+                      onSave={(title) =>
+                        renameThreadMutation.mutate({
+                          threadId: activeThread.id,
+                          title,
+                        })
+                      }
+                    />
+                    <CardDescription className="text-xs text-muted-foreground">
+                      {activeProject} | {threadJobs.length} message
+                      {threadJobs.length !== 1 ? "s" : ""} | tokens burned {threadTotalTokens}
+                    </CardDescription>
+                  </div>
 
-                <div className="rounded-2xl border border-white/10 bg-background/40 px-4 py-3 text-left shadow-sm sm:min-w-[13rem] sm:text-right">
-                  <p className="text-[10px] uppercase tracking-[0.22em] text-muted-foreground">
-                    Thread tokens
-                  </p>
-                  <p className="mt-1 text-lg font-semibold text-foreground">
-                    {threadTotalTokens}
-                  </p>
-                  <p className="mt-1 text-[11px] text-muted-foreground">
-                    Exact {threadExactTokens} / est {threadEstimatedTokens}
-                  </p>
+                  <div className="rounded-2xl border border-white/10 bg-background/40 px-4 py-3 text-left shadow-sm sm:min-w-[13rem] sm:text-right">
+                    <p className="text-[10px] uppercase tracking-[0.22em] text-muted-foreground">
+                      Thread tokens
+                    </p>
+                    <p className="mt-1 text-lg font-semibold text-foreground">
+                      {threadTotalTokens}
+                    </p>
+                    <p className="mt-1 text-[11px] text-muted-foreground">
+                      Exact {threadExactTokens} / est {threadEstimatedTokens}
+                    </p>
+                  </div>
                 </div>
-              </div>
-            </CardHeader>
+              </CardHeader>
 
-            <CardContent className="min-h-0 flex-1 p-3 sm:p-4">
-              <JobChatFeed
-                className="h-full"
-                threadId={activeThread.id}
-                jobs={threadJobs}
-                approvingJobId={approveMutation.variables ?? ""}
-                denyingJobId={denyMutation.variables ?? ""}
-                resumingJobId={resumeMutation.variables ?? ""}
-                stoppingJobId={stopMutation.variables ?? ""}
-                onApprove={(jobId) => approveMutation.mutate(jobId)}
-                onDeny={(jobId) => denyMutation.mutate(jobId)}
-                onResumeError={(jobId) => resumeMutation.mutate(jobId)}
-                onStop={(jobId) => stopMutation.mutate(jobId)}
-              />
-            </CardContent>
-          </Card>
+              <CardContent className="min-h-0 flex-1 p-3 sm:p-4">
+                <JobChatFeed
+                  className="h-full"
+                  threadId={activeThread.id}
+                  jobs={threadJobs}
+                  approvingJobId={approveMutation.variables ?? ""}
+                  denyingJobId={denyMutation.variables ?? ""}
+                  resumingJobId={resumeMutation.variables ?? ""}
+                  stoppingJobId={stopMutation.variables ?? ""}
+                  onApprove={(jobId) => approveMutation.mutate(jobId)}
+                  onDeny={(jobId) => denyMutation.mutate(jobId)}
+                  onResumeError={(jobId) => resumeMutation.mutate(jobId)}
+                  onStop={(jobId) => stopMutation.mutate(jobId)}
+                />
+              </CardContent>
+            </Card>
+          )
         ) : (
           <Card
             className="theme-surface flex flex-1 cursor-pointer items-center justify-center transition-all hover:border-primary/30 hover:shadow-md"
@@ -498,7 +541,7 @@ function JobsScreen() {
           </Card>
         )}
 
-        {activeThread && (
+        {activeThread && !chatHidden && (
           <div
             ref={composerContainerRef}
             className="fixed inset-x-0 bottom-[calc(var(--talkeby-bottom-clearance)+0.75rem)] z-30 mx-auto w-full max-w-xl shrink-0 px-4 animate-in fade-in slide-in-from-bottom-8 duration-700 delay-75 fill-mode-both sm:static sm:mx-0 sm:max-w-none sm:px-0"

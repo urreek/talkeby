@@ -219,8 +219,12 @@ type MobileWorkspaceBarProps = {
   pendingApprovalCount: number;
   workspaceOpen: boolean;
   creatingThread: boolean;
+  chatHidden: boolean;
+  compactChat: boolean;
   onToggleWorkspace: () => void;
   onCreateThread: () => void;
+  onToggleChatVisibility: () => void;
+  onToggleChatSize: () => void;
 };
 
 export function MobileWorkspaceBar({
@@ -230,8 +234,12 @@ export function MobileWorkspaceBar({
   pendingApprovalCount,
   workspaceOpen,
   creatingThread,
+  chatHidden,
+  compactChat,
   onToggleWorkspace,
   onCreateThread,
+  onToggleChatVisibility,
+  onToggleChatSize,
 }: MobileWorkspaceBarProps) {
   const summaryTitle = activeThread?.title
     || (activeProject ? "No thread selected" : "No project selected");
@@ -281,6 +289,27 @@ export function MobileWorkspaceBar({
             onClick={onCreateThread}
           >
             {creatingThread ? "Creating..." : "New Thread"}
+          </Button>
+        </div>
+
+        <div className="grid grid-cols-2 gap-2">
+          <Button
+            type="button"
+            variant="outline"
+            className="h-10 rounded-xl"
+            disabled={!activeThread}
+            onClick={onToggleChatVisibility}
+          >
+            {chatHidden ? "Show Chat" : "Hide Chat"}
+          </Button>
+          <Button
+            type="button"
+            variant="outline"
+            className="h-10 rounded-xl"
+            disabled={!activeThread || chatHidden}
+            onClick={onToggleChatSize}
+          >
+            {compactChat ? "Normal Chat" : "Smaller Chat"}
           </Button>
         </div>
       </CardContent>
