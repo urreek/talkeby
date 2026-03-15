@@ -1,5 +1,6 @@
 import { useEffect } from "react";
-import { X } from "lucide-react";
+import { Link } from "@tanstack/react-router";
+import { Settings, X } from "lucide-react";
 
 import { WorkspaceSelectionPanel } from "@/components/jobs/workspace-controls";
 import { Button } from "@/components/ui/button";
@@ -56,20 +57,31 @@ function WorkspaceSidebarContent({
   onCreateThread,
   onSelectThread,
   onDeleteThread,
-}: WorkspaceSharedProps) {
+  onOpenSettings,
+}: WorkspaceSharedProps & { onOpenSettings?: () => void }) {
   return (
-    <div className="min-h-0 flex-1 overflow-y-auto px-4 py-4 sm:px-5">
-      <WorkspaceSelectionPanel
-        projects={projects}
-        activeProject={activeProject}
-        threads={threads}
-        activeThreadId={activeThread?.id}
-        creatingThread={creatingThread}
-        onSelectProject={onSelectProject}
-        onCreateThread={onCreateThread}
-        onSelectThread={onSelectThread}
-        onDeleteThread={onDeleteThread}
-      />
+    <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
+      <div className="min-h-0 flex-1 overflow-y-auto px-4 py-4 sm:px-5">
+        <WorkspaceSelectionPanel
+          projects={projects}
+          activeProject={activeProject}
+          threads={threads}
+          activeThreadId={activeThread?.id}
+          creatingThread={creatingThread}
+          onSelectProject={onSelectProject}
+          onCreateThread={onCreateThread}
+          onSelectThread={onSelectThread}
+          onDeleteThread={onDeleteThread}
+        />
+      </div>
+      <div className="shrink-0 border-t border-border/40 px-4 py-3 sm:px-5 dark:border-white/10">
+        <Button asChild variant="outline" className="w-full justify-start gap-2">
+          <Link to="/settings" onClick={onOpenSettings}>
+            <Settings className="size-4" />
+            Settings
+          </Link>
+        </Button>
+      </div>
     </div>
   );
 }
@@ -162,6 +174,7 @@ export function WorkspaceDrawer({
               props.onSelectThread(threadId);
               onOpenChange(false);
             }}
+            onOpenSettings={() => onOpenChange(false)}
           />
         </div>
       </aside>

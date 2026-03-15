@@ -1,16 +1,11 @@
-import { Link, useRouterState } from "@tanstack/react-router";
-import { Cog, Home, Menu } from "lucide-react";
+import { useRouterState } from "@tanstack/react-router";
+import { Menu } from "lucide-react";
 import { useEffect, useState } from "react";
 import type { CSSProperties, PropsWithChildren } from "react";
 
 import { ThemeToggle } from "@/components/layout/theme-toggle";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/cn";
-
-const navItems = [
-  { to: "/", label: "Jobs", icon: Home },
-  { to: "/settings", label: "Settings", icon: Cog },
-] as const;
 
 export function AppShell({ children }: PropsWithChildren) {
   const pathname = useRouterState({
@@ -153,30 +148,6 @@ export function AppShell({ children }: PropsWithChildren) {
                       Workspace
                     </Button>
                   ) : null}
-                  <nav>
-                    <div className="theme-surface inline-grid grid-cols-2 gap-1 rounded-2xl border border-white/10 bg-card/80 p-1 shadow-lg backdrop-blur-xl">
-                      {navItems.map((item) => {
-                        const Icon = item.icon;
-                        const isActive = pathname === item.to;
-
-                        return (
-                          <Link
-                            key={item.to}
-                            to={item.to}
-                            className={cn(
-                              "inline-flex items-center justify-center gap-1.5 rounded-xl px-3 py-2 text-xs font-semibold transition-all duration-200",
-                              isActive
-                                ? "bg-primary text-primary-foreground shadow-sm shadow-primary/25"
-                                : "text-muted-foreground hover:bg-secondary/80 hover:text-foreground",
-                            )}
-                          >
-                            <Icon className="size-3.5" />
-                            {item.label}
-                          </Link>
-                        );
-                      })}
-                    </div>
-                  </nav>
                 </div>
                 <ThemeToggle />
               </div>
