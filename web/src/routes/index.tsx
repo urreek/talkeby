@@ -1,11 +1,14 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
+import type { CSSProperties } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { createRoute } from "@tanstack/react-router";
 
 import { CreateJobForm } from "@/components/jobs/create-job-form";
 import { JobChatFeed } from "@/components/jobs/job-chat-feed";
-import { ObservabilityDashboard } from "@/components/jobs/observability-dashboard";
-import { RuntimeApprovalCards } from "@/components/jobs/runtime-approval-cards";
+import {
+  MobileWorkspaceBar,
+  WorkspaceControls,
+} from "@/components/jobs/workspace-controls";
 import { useConfirmDialog } from "@/components/ui/confirm-dialog";
 import { Card, CardContent, CardDescription, CardHeader } from "@/components/ui/card";
 import {
@@ -48,11 +51,6 @@ export const jobsRoute = createRoute({
   component: JobsScreen,
 });
 
-function truncate(text: string, max: number) {
-  if (text.length <= max) return text;
-  return text.slice(0, max) + "...";
-}
-
 function readErrorMessage(error: unknown, fallback: string) {
   if (error instanceof Error && error.message.trim()) {
     return error.message.trim();
@@ -68,6 +66,9 @@ function JobsScreen() {
   const search = jobsRoute.useSearch();
   const queryClient = useQueryClient();
   const { confirm, ConfirmDialog } = useConfirmDialog();
+  const composerContainerRef = useRef<HTMLDivElement | null>(null);
+  const [mobileComposerHeight, setMobileComposerHeight] = useState(0);
+  const [mobileWorkspaceOpen, setMobileWorkspaceOpen] = useState(false);
 
   const projectsQuery = useQuery({
     queryKey: ["projects"],
@@ -253,137 +254,177 @@ function JobsScreen() {
     )
     : "";
 
+  const runtimeApprovals = runtimeApprovalsQuery.data?.approvals ?? [];
+  const pendingRuntimeApprovalCount = runtimeApprovals.length;
   const threadTotalTokens = Number(activeThread?.tokenUsed || 0);
   const threadExactTokens = Number(activeThread?.tokenUsedExact || 0);
   const threadEstimatedTokens = Number(activeThread?.tokenUsedEstimated || 0);
+  const jobsScreenStyle = {
+    "--talkeby-mobile-composer-space":
+      activeThread && mobileComposerHeight > 0
+        ? `calc(${mobileComposerHeight}px + var(--talkeby-bottom-clearance) + 1rem)`
+        : "0px",
+  } as CSSProperties;
+
+  useEffect(() => {
+    if (typeof window === "undefined") {
+      return;
+    }
+    const container = composerContainerRef.current;
+    if (!container) {
+      return;
+    }
+
+    const mobileMedia = window.matchMedia("(max-width: 639px)");
+    let resizeObserver: ResizeObserver | null = null;
+
+    const updateHeight = () => {
+      if (!activeThread || !mobileMedia.matches) {
+        setMobileComposerHeight(0);
+        return;
+      }
+
+      const nextHeight = Math.ceil(container.getBoundingClientRect().height);
+      setMobileComposerHeight((current) => (current === nextHeight ? current : nextHeight));
+    };
+
+    updateHeight();
+
+    if ("ResizeObserver" in window) {
+      resizeObserver = new ResizeObserver(updateHeight);
+      resizeObserver.observe(container);
+    }
+
+    if (typeof mobileMedia.addEventListener === "function") {
+      mobileMedia.addEventListener("change", updateHeight);
+    } else {
+      mobileMedia.addListener(updateHeight);
+    }
+    window.addEventListener("resize", updateHeight);
+
+    return () => {
+      resizeObserver?.disconnect();
+      if (typeof mobileMedia.removeEventListener === "function") {
+        mobileMedia.removeEventListener("change", updateHeight);
+      } else {
+        mobileMedia.removeListener(updateHeight);
+      }
+      window.removeEventListener("resize", updateHeight);
+    };
+  }, [activeThread?.id]);
+
+  useEffect(() => {
+    if (!activeProject || !activeThread) {
+      setMobileWorkspaceOpen(true);
+    }
+  }, [activeProject, activeThread]);
+
+  const handleSelectProject = (projectName: string) => {
+    selectProjectMutation.mutate(projectName);
+    setMobileWorkspaceOpen(false);
+    void navigate({
+      search: (previous) => ({
+        ...previous,
+        project: projectName,
+        thread: undefined,
+      }),
+    });
+  };
+
+  const handleCreateThread = () => {
+    if (!activeProject) {
+      return;
+    }
+    setMobileWorkspaceOpen(false);
+    createThreadMutation.mutate();
+  };
+
+  const handleSelectThread = (threadId: string) => {
+    setMobileWorkspaceOpen(false);
+    void navigate({
+      search: (previous) => ({
+        ...previous,
+        project: activeProject,
+        thread: threadId,
+      }),
+    });
+  };
+
+  const handleDeleteThread = async (thread: Thread) => {
+    const confirmed = await confirm({
+      title: `Delete "${thread.title}"?`,
+      description:
+        "This permanently removes the thread and its Codex resume session from disk.",
+      confirmLabel: "Delete",
+      variant: "destructive",
+    });
+    if (confirmed) {
+      deleteThreadMutation.mutate(thread.id);
+    }
+  };
 
   return (
-    <div className="flex min-h-0 flex-1 flex-col gap-4">
-      <div className="max-h-[34vh] shrink-0 space-y-4 overflow-y-auto pr-1 scrollbar-none">
-        <ObservabilityDashboard summary={observabilityQuery.data ?? null} />
-
-        <RuntimeApprovalCards
-          approvals={runtimeApprovalsQuery.data?.approvals ?? []}
-          approvingId={approveRuntimeMutation.variables ?? ""}
-          denyingId={denyRuntimeMutation.variables ?? ""}
-          onApprove={(id) => approveRuntimeMutation.mutate(id)}
-          onDeny={(id) => denyRuntimeMutation.mutate(id)}
+    <div className="flex min-h-0 flex-1 flex-col gap-4" style={jobsScreenStyle}>
+      <div className="space-y-3 sm:hidden">
+        <MobileWorkspaceBar
+          activeProject={activeProject}
+          activeThread={activeThread}
+          messageCount={threadJobs.length}
+          pendingApprovalCount={pendingRuntimeApprovalCount}
+          workspaceOpen={mobileWorkspaceOpen}
+          creatingThread={createThreadMutation.isPending}
+          onToggleWorkspace={() => setMobileWorkspaceOpen((current) => !current)}
+          onCreateThread={handleCreateThread}
         />
 
-        {projects.length > 0 && (
-          <Card className="theme-surface animate-in border-border/50 shadow-sm fade-in slide-in-from-bottom-2 duration-300 fill-mode-both">
-            <CardContent className="space-y-3 p-4">
-              <div className="flex items-center justify-between gap-3">
-                <div>
-                  <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-muted-foreground">
-                    Projects
-                  </p>
-                  <p className="text-sm text-foreground">
-                    Choose a workspace before sending the next task.
-                  </p>
-                </div>
-                {activeProject ? (
-                  <div className="rounded-full border border-primary/20 bg-primary/10 px-3 py-1 text-[11px] font-medium text-primary">
-                    Active: {activeProject}
-                  </div>
-                ) : null}
-              </div>
-
-              <div className="flex gap-2 overflow-x-auto pb-1 scrollbar-none">
-                {projects.map((project) => (
-                  <button
-                    key={project.name}
-                    type="button"
-                    onClick={() => {
-                      selectProjectMutation.mutate(project.name);
-                      void navigate({
-                        search: (previous) => ({
-                          ...previous,
-                          project: project.name,
-                          thread: undefined,
-                        }),
-                      });
-                    }}
-                    className={`shrink-0 rounded-full px-4 py-2 text-xs font-semibold transition-all ${
-                      project.name === activeProject
-                        ? "bg-primary text-primary-foreground shadow-md shadow-primary/20"
-                        : "border border-border/50 bg-muted/40 text-muted-foreground hover:bg-muted hover:text-foreground"
-                    }`}
-                  >
-                    {project.name}
-                  </button>
-                ))}
-              </div>
-            </CardContent>
-          </Card>
-        )}
-
-        {activeProject && (
-          <Card className="theme-surface animate-in border-border/50 shadow-sm fade-in slide-in-from-bottom-4 duration-400 fill-mode-both">
-            <CardContent className="space-y-3 p-4">
-              <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-                <div>
-                  <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-muted-foreground">
-                    Threads
-                  </p>
-                  <p className="text-sm text-foreground">
-                    {threads.length > 0
-                      ? "Switch conversations or start a new one."
-                      : "Start the first thread for this project."}
-                  </p>
-                </div>
-                <button
-                  type="button"
-                  onClick={() => createThreadMutation.mutate()}
-                  disabled={createThreadMutation.isPending}
-                  className="shrink-0 rounded-full border border-dashed border-border/60 px-3 py-2 text-xs font-medium text-muted-foreground transition-all hover:border-primary/40 hover:text-primary"
-                >
-                  + New Thread
-                </button>
-              </div>
-
-              <div className="flex items-center gap-2 overflow-x-auto pb-1 scrollbar-none">
-                {threads.map((thread) => (
-                  <ThreadPill
-                    key={thread.id}
-                    thread={thread}
-                    isActive={thread.id === activeThread?.id}
-                    onClick={() => {
-                      void navigate({
-                        search: (previous) => ({
-                          ...previous,
-                          project: activeProject,
-                          thread: thread.id,
-                        }),
-                      });
-                    }}
-                    onDelete={async () => {
-                      const confirmed = await confirm({
-                        title: `Delete "${thread.title}"?`,
-                        description:
-                          "This permanently removes the thread and its Codex resume session from disk.",
-                        confirmLabel: "Delete",
-                        variant: "destructive",
-                      });
-                      if (confirmed) {
-                        deleteThreadMutation.mutate(thread.id);
-                      }
-                    }}
-                  />
-                ))}
-
-                {threads.length === 0 ? (
-                  <p className="text-sm text-muted-foreground">
-                    No threads yet for this project.
-                  </p>
-                ) : null}
-              </div>
-            </CardContent>
-          </Card>
+        {mobileWorkspaceOpen && (
+          <div className="max-h-[42vh] space-y-4 overflow-y-auto pr-1 scrollbar-none">
+            <WorkspaceControls
+              projects={projects}
+              activeProject={activeProject}
+              threads={threads}
+              activeThreadId={activeThread?.id}
+              observabilitySummary={observabilityQuery.data ?? null}
+              runtimeApprovals={runtimeApprovals}
+              approvingRuntimeId={approveRuntimeMutation.variables ?? ""}
+              denyingRuntimeId={denyRuntimeMutation.variables ?? ""}
+              creatingThread={createThreadMutation.isPending}
+              onApproveRuntime={(id) => approveRuntimeMutation.mutate(id)}
+              onDenyRuntime={(id) => denyRuntimeMutation.mutate(id)}
+              onSelectProject={handleSelectProject}
+              onCreateThread={handleCreateThread}
+              onSelectThread={handleSelectThread}
+              onDeleteThread={(thread) => {
+                void handleDeleteThread(thread);
+              }}
+            />
+          </div>
         )}
       </div>
 
-      <div className="min-h-0 flex flex-1 flex-col gap-4">
+      <div className="hidden max-h-[34vh] shrink-0 space-y-4 overflow-y-auto pr-1 scrollbar-none sm:block">
+        <WorkspaceControls
+          projects={projects}
+          activeProject={activeProject}
+          threads={threads}
+          activeThreadId={activeThread?.id}
+          observabilitySummary={observabilityQuery.data ?? null}
+          runtimeApprovals={runtimeApprovals}
+          approvingRuntimeId={approveRuntimeMutation.variables ?? ""}
+          denyingRuntimeId={denyRuntimeMutation.variables ?? ""}
+          creatingThread={createThreadMutation.isPending}
+          onApproveRuntime={(id) => approveRuntimeMutation.mutate(id)}
+          onDenyRuntime={(id) => denyRuntimeMutation.mutate(id)}
+          onSelectProject={handleSelectProject}
+          onCreateThread={handleCreateThread}
+          onSelectThread={handleSelectThread}
+          onDeleteThread={(thread) => {
+            void handleDeleteThread(thread);
+          }}
+        />
+      </div>
+
+      <div className="min-h-0 flex flex-1 flex-col gap-4 pb-[var(--talkeby-mobile-composer-space)] sm:pb-0">
         {activeThread ? (
           <Card className="theme-surface animate-in relative flex min-h-0 flex-1 flex-col overflow-hidden border-border/50 shadow-md fade-in slide-in-from-bottom-6 duration-500 fill-mode-both">
             <div className="absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-primary/30 to-transparent" />
@@ -458,7 +499,10 @@ function JobsScreen() {
         )}
 
         {activeThread && (
-          <div className="shrink-0 animate-in fade-in slide-in-from-bottom-8 duration-700 delay-75 fill-mode-both">
+          <div
+            ref={composerContainerRef}
+            className="fixed inset-x-0 bottom-[calc(var(--talkeby-bottom-clearance)+0.75rem)] z-30 mx-auto w-full max-w-xl shrink-0 px-4 animate-in fade-in slide-in-from-bottom-8 duration-700 delay-75 fill-mode-both sm:static sm:mx-0 sm:max-w-none sm:px-0"
+          >
             <CreateJobForm
               projects={projects}
               activeProject={activeProject}
@@ -474,67 +518,6 @@ function JobsScreen() {
       </div>
 
       {ConfirmDialog}
-    </div>
-  );
-}
-
-function ThreadPill({
-  thread,
-  isActive,
-  onClick,
-  onDelete,
-}: {
-  thread: Thread;
-  isActive: boolean;
-  onClick: () => void;
-  onDelete: () => void;
-}) {
-  const dotClass = (() => {
-    switch (thread.latestJobStatus) {
-      case "pending_approval":
-        return "bg-amber-500 animate-pulse";
-      case "running":
-        return "bg-violet-500 shadow-[0_0_6px_rgba(139,92,246,0.5)]";
-      case "failed":
-        return "bg-red-500";
-      case "completed":
-        return "bg-emerald-500";
-      default:
-        return "bg-muted-foreground/40";
-    }
-  })();
-
-  const highlight =
-    thread.latestJobStatus === "pending_approval"
-      ? "ring-1 ring-amber-500/40"
-      : thread.latestJobStatus === "running"
-        ? "ring-1 ring-violet-500/30"
-        : "";
-
-  return (
-    <div
-      className={`group flex shrink-0 items-center gap-1 rounded-full border transition-all ${highlight} ${
-        isActive
-          ? "border-primary/30 bg-primary/15 text-primary shadow-sm"
-          : "border-transparent bg-muted/30 text-muted-foreground hover:bg-muted/60 hover:text-foreground"
-      }`}
-    >
-      <button
-        type="button"
-        onClick={onClick}
-        className="flex min-w-0 items-center gap-2 px-4 py-2 text-xs font-medium"
-      >
-        <span className={`inline-block h-1.5 w-1.5 rounded-full ${dotClass}`} />
-        <span>{truncate(thread.title, 25)}</span>
-      </button>
-      <button
-        type="button"
-        onClick={onDelete}
-        className="rounded-full px-2 py-2 text-xs opacity-50 transition-opacity hover:opacity-100 focus-visible:opacity-100"
-        aria-label={`Delete ${thread.title}`}
-      >
-        x
-      </button>
     </div>
   );
 }
