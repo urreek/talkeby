@@ -134,9 +134,6 @@ export function AppShell({ children }: PropsWithChildren) {
             <h1 className="bg-gradient-to-r from-white to-white/70 bg-clip-text text-lg font-bold tracking-tight text-transparent drop-shadow-md">
               Talkeby Mobile
             </h1>
-            <p className="text-sm font-medium text-white/70">
-              Run Codex on your home machine, from anywhere.
-            </p>
           </div>
           <ThemeToggle />
         </div>
