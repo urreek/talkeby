@@ -1,5 +1,6 @@
 import { useEffect } from "react";
 import {
+  ChevronRight,
   Eye,
   EyeOff,
   Maximize2,
@@ -195,23 +196,38 @@ export function WorkspaceDrawer({
   }, [onOpenChange, open]);
 
   return (
-    <div
-      className={cn("fixed inset-0 z-40", open ? "" : "pointer-events-none")}
-      aria-hidden={!open}
-    >
+    <div className="pointer-events-none fixed inset-0 z-40">
       <div
         className={cn(
           "absolute inset-0 bg-slate-950/70 backdrop-blur-md transition-opacity duration-300",
-          open ? "opacity-100" : "opacity-0",
+          open ? "pointer-events-auto opacity-100" : "opacity-0",
         )}
         onClick={() => onOpenChange(false)}
       />
 
       <div className="absolute inset-y-0 left-1/2 w-full max-w-xl -translate-x-1/2">
+        <button
+          type="button"
+          aria-label="Open workspace drawer"
+          className={cn(
+            "pointer-events-auto absolute left-0 top-24 z-10 flex h-28 w-12 items-center justify-center rounded-r-2xl border border-white/10 bg-slate-950/85 text-slate-100 shadow-[0_18px_60px_rgba(15,23,42,0.45)] backdrop-blur-xl transition-all duration-300 hover:bg-slate-900/95",
+            open && "-translate-x-4 opacity-0 pointer-events-none",
+          )}
+          onClick={() => onOpenChange(true)}
+        >
+          <div className="flex flex-col items-center gap-2">
+            <ChevronRight className="size-4" />
+            <span className="[writing-mode:vertical-rl] rotate-180 text-[10px] font-semibold uppercase tracking-[0.28em]">
+              Workspace
+            </span>
+          </div>
+        </button>
+
         <aside
           role="dialog"
           aria-modal="true"
           aria-label="Workspace drawer"
+          aria-hidden={!open}
           className={cn(
             "pointer-events-auto flex h-full w-[22rem] max-w-[calc(100%-0.75rem)] flex-col border-r border-white/10 bg-slate-950/90 shadow-[0_24px_80px_rgba(15,23,42,0.55)] backdrop-blur-2xl transition-transform duration-300 sm:w-[24rem]",
             open ? "translate-x-0" : "-translate-x-[calc(100%+1rem)]",
