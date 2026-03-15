@@ -1,19 +1,10 @@
-import { ObservabilityDashboard } from "@/components/jobs/observability-dashboard";
-import { RuntimeApprovalCards } from "@/components/jobs/runtime-approval-cards";
+import { FolderKanban, MessageSquareText, Plus, Trash2 } from "lucide-react";
+
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
-import type {
-  ObservabilitySummary,
-  ProjectInfo,
-  RuntimeApproval,
-  Thread,
-} from "@/lib/types";
-
-function truncate(text: string, max: number) {
-  if (text.length <= max) return text;
-  return text.slice(0, max) + "...";
-}
+import type { ProjectInfo, Thread } from "@/lib/types";
+import { cn } from "@/lib/utils";
 
 function threadStatusDotClass(status: string | null) {
   switch (status) {
@@ -30,7 +21,106 @@ function threadStatusDotClass(status: string | null) {
   }
 }
 
-function ThreadPill({
+function threadStatusLabel(status: string | null) {
+  switch (status) {
+    case "pending_approval":
+      return "Pending approval";
+    case "running":
+      return "Running";
+    case "failed":
+      return "Failed";
+    case "completed":
+      return "Completed";
+    case "queued":
+      return "Queued";
+    case "denied":
+      return "Denied";
+    default:
+      return "Idle";
+  }
+}
+
+function threadStatusBadgeClass(status: string | null) {
+  switch (status) {
+    case "pending_approval":
+      return "border-amber-500/30 bg-amber-500/10 text-amber-600 dark:text-amber-300";
+    case "running":
+      return "border-violet-500/30 bg-violet-500/10 text-violet-600 dark:text-violet-300";
+    case "failed":
+      return "border-red-500/30 bg-red-500/10 text-red-600 dark:text-red-300";
+    case "completed":
+      return "border-emerald-500/30 bg-emerald-500/10 text-emerald-600 dark:text-emerald-300";
+    default:
+      return "border-border/60 bg-muted/40 text-muted-foreground";
+  }
+}
+
+function formatProjectPath(path: string) {
+  const normalized = String(path || "").trim();
+  if (!normalized) {
+    return "Path not available";
+  }
+
+  const parts = normalized.split(/[\\/]/).filter(Boolean);
+  if (parts.length <= 2) {
+    return normalized;
+  }
+
+  return `.../${parts.slice(-2).join("/")}`;
+}
+
+function formatThreadMeta(thread: Thread) {
+  const tokens = Number(thread.tokenUsed || 0);
+  if (tokens > 0) {
+    return `${tokens.toLocaleString()} tokens burned`;
+  }
+
+  return "No token usage yet";
+}
+
+function ProjectButton({
+  project,
+  isActive,
+  onClick,
+}: {
+  project: ProjectInfo;
+  isActive: boolean;
+  onClick: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className={cn(
+        "group w-full rounded-2xl border px-4 py-3 text-left transition-all",
+        isActive
+          ? "border-primary/40 bg-primary/10 shadow-sm shadow-primary/10"
+          : "border-border/50 bg-muted/20 hover:border-primary/20 hover:bg-muted/40",
+      )}
+    >
+      <div className="flex items-start justify-between gap-3">
+        <div className="min-w-0">
+          <p className="truncate text-sm font-semibold text-foreground">
+            {project.name}
+          </p>
+          <p className="mt-1 truncate text-xs text-muted-foreground">
+            {formatProjectPath(project.path)}
+          </p>
+        </div>
+        {isActive ? (
+          <Badge
+            variant="outline"
+            className="border-primary/30 bg-primary/10 text-primary"
+          >
+            Active
+          </Badge>
+        ) : null}
+      </div>
+    </button>
+  );
+}
+
+function ThreadListItem({
   thread,
   isActive,
   onClick,
@@ -41,278 +131,174 @@ function ThreadPill({
   onClick: () => void;
   onDelete: () => void;
 }) {
-  const highlight =
-    thread.latestJobStatus === "pending_approval"
-      ? "ring-1 ring-amber-500/40"
-      : thread.latestJobStatus === "running"
-        ? "ring-1 ring-violet-500/30"
-        : "";
-
   return (
     <div
-      className={`group flex shrink-0 items-center gap-1 rounded-full border transition-all ${highlight} ${
+      className={cn(
+        "group flex items-start gap-2 rounded-2xl border px-2 py-2 transition-all",
         isActive
-          ? "border-primary/30 bg-primary/15 text-primary shadow-sm"
-          : "border-transparent bg-muted/30 text-muted-foreground hover:bg-muted/60 hover:text-foreground"
-      }`}
+          ? "border-primary/40 bg-primary/10 shadow-sm shadow-primary/10"
+          : "border-border/50 bg-muted/20 hover:border-primary/20 hover:bg-muted/40",
+      )}
     >
       <button
         type="button"
         onClick={onClick}
-        className="flex min-w-0 items-center gap-2 px-4 py-2 text-xs font-medium"
+        className="flex min-w-0 flex-1 items-start gap-3 rounded-xl px-2 py-1.5 text-left"
       >
         <span
-          className={`inline-block h-1.5 w-1.5 rounded-full ${threadStatusDotClass(thread.latestJobStatus)}`}
+          className={cn(
+            "mt-1 inline-flex h-2.5 w-2.5 shrink-0 rounded-full",
+            threadStatusDotClass(thread.latestJobStatus),
+          )}
         />
-        <span>{truncate(thread.title, 25)}</span>
+        <div className="min-w-0 flex-1">
+          <div className="flex flex-wrap items-center gap-2">
+            <p className="truncate text-sm font-semibold text-foreground">
+              {thread.title}
+            </p>
+            <Badge
+              variant="outline"
+              className={cn("text-[10px]", threadStatusBadgeClass(thread.latestJobStatus))}
+            >
+              {threadStatusLabel(thread.latestJobStatus)}
+            </Badge>
+          </div>
+          <p className="mt-1 text-xs text-muted-foreground">
+            {formatThreadMeta(thread)}
+          </p>
+        </div>
       </button>
-      <button
+
+      <Button
         type="button"
-        onClick={onDelete}
-        className="rounded-full px-2 py-2 text-xs opacity-50 transition-opacity hover:opacity-100 focus-visible:opacity-100"
+        size="icon"
+        variant="ghost"
+        className="mt-0.5 h-8 w-8 shrink-0 rounded-full text-muted-foreground hover:text-destructive"
         aria-label={`Delete ${thread.title}`}
+        onClick={onDelete}
       >
-        x
-      </button>
+        <Trash2 className="size-4" />
+      </Button>
     </div>
   );
 }
 
-type WorkspaceControlsProps = {
+type WorkspaceSelectionPanelProps = {
   projects: ProjectInfo[];
   activeProject: string;
   threads: Thread[];
   activeThreadId?: string;
-  observabilitySummary: ObservabilitySummary | null;
-  runtimeApprovals: RuntimeApproval[];
-  approvingRuntimeId?: string;
-  denyingRuntimeId?: string;
   creatingThread: boolean;
-  onApproveRuntime: (id: string) => void;
-  onDenyRuntime: (id: string) => void;
   onSelectProject: (projectName: string) => void;
   onCreateThread: () => void;
   onSelectThread: (threadId: string) => void;
   onDeleteThread: (thread: Thread) => void;
 };
 
-export function WorkspaceControls({
+export function WorkspaceSelectionPanel({
   projects,
   activeProject,
   threads,
   activeThreadId,
-  observabilitySummary,
-  runtimeApprovals,
-  approvingRuntimeId,
-  denyingRuntimeId,
   creatingThread,
-  onApproveRuntime,
-  onDenyRuntime,
   onSelectProject,
   onCreateThread,
   onSelectThread,
   onDeleteThread,
-}: WorkspaceControlsProps) {
+}: WorkspaceSelectionPanelProps) {
   return (
-    <>
-      <ObservabilityDashboard summary={observabilitySummary} />
-
-      <RuntimeApprovalCards
-        approvals={runtimeApprovals}
-        approvingId={approvingRuntimeId}
-        denyingId={denyingRuntimeId}
-        onApprove={onApproveRuntime}
-        onDeny={onDenyRuntime}
-      />
-
-      {projects.length > 0 && (
-        <Card className="theme-surface animate-in border-border/50 shadow-sm fade-in slide-in-from-bottom-2 duration-300 fill-mode-both">
-          <CardContent className="space-y-3 p-4">
-            <div className="flex items-center justify-between gap-3">
-              <div>
-                <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-muted-foreground">
-                  Projects
-                </p>
-                <p className="text-sm text-foreground">
-                  Choose a workspace before sending the next task.
-                </p>
-              </div>
-              {activeProject ? (
-                <div className="rounded-full border border-primary/20 bg-primary/10 px-3 py-1 text-[11px] font-medium text-primary">
-                  Active: {activeProject}
-                </div>
-              ) : null}
+    <div className="space-y-4">
+      <Card className="theme-surface border-border/50 shadow-sm">
+        <CardContent className="space-y-4 p-4">
+          <div className="flex items-start gap-3">
+            <div className="rounded-2xl bg-primary/10 p-2 text-primary">
+              <FolderKanban className="size-5" />
             </div>
+            <div className="min-w-0">
+              <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-muted-foreground">
+                Projects
+              </p>
+              <p className="text-sm text-foreground">
+                Select the workspace the next conversation should run inside.
+              </p>
+            </div>
+          </div>
 
-            <div className="flex gap-2 overflow-x-auto pb-1 scrollbar-none">
+          {projects.length > 0 ? (
+            <div className="space-y-2">
               {projects.map((project) => (
-                <button
+                <ProjectButton
                   key={project.name}
-                  type="button"
+                  project={project}
+                  isActive={project.name === activeProject}
                   onClick={() => onSelectProject(project.name)}
-                  className={`shrink-0 rounded-full px-4 py-2 text-xs font-semibold transition-all ${
-                    project.name === activeProject
-                      ? "bg-primary text-primary-foreground shadow-md shadow-primary/20"
-                      : "border border-border/50 bg-muted/40 text-muted-foreground hover:bg-muted hover:text-foreground"
-                  }`}
-                >
-                  {project.name}
-                </button>
+                />
               ))}
             </div>
-          </CardContent>
-        </Card>
-      )}
+          ) : (
+            <div className="rounded-2xl border border-dashed border-border/60 bg-muted/10 px-4 py-5 text-sm text-muted-foreground">
+              No projects are configured yet. Add one from Settings before starting a thread.
+            </div>
+          )}
+        </CardContent>
+      </Card>
 
-      {activeProject && (
-        <Card className="theme-surface animate-in border-border/50 shadow-sm fade-in slide-in-from-bottom-4 duration-400 fill-mode-both">
-          <CardContent className="space-y-3 p-4">
-            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-              <div>
+      <Card className="theme-surface border-border/50 shadow-sm">
+        <CardContent className="space-y-4 p-4">
+          <div className="flex items-start justify-between gap-3">
+            <div className="flex items-start gap-3">
+              <div className="rounded-2xl bg-primary/10 p-2 text-primary">
+                <MessageSquareText className="size-5" />
+              </div>
+              <div className="min-w-0">
                 <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-muted-foreground">
                   Threads
                 </p>
                 <p className="text-sm text-foreground">
-                  {threads.length > 0
-                    ? "Switch conversations or start a new one."
-                    : "Start the first thread for this project."}
+                  {activeProject
+                    ? "Switch conversations for the active project or start a fresh thread."
+                    : "Pick a project first to see its threads."}
                 </p>
               </div>
-              <button
-                type="button"
-                onClick={onCreateThread}
-                disabled={creatingThread}
-                className="shrink-0 rounded-full border border-dashed border-border/60 px-3 py-2 text-xs font-medium text-muted-foreground transition-all hover:border-primary/40 hover:text-primary"
-              >
-                + New Thread
-              </button>
             </div>
 
-            <div className="flex items-center gap-2 overflow-x-auto pb-1 scrollbar-none">
-              {threads.map((thread) => (
-                <ThreadPill
-                  key={thread.id}
-                  thread={thread}
-                  isActive={thread.id === activeThreadId}
-                  onClick={() => onSelectThread(thread.id)}
-                  onDelete={() => onDeleteThread(thread)}
-                />
-              ))}
-
-              {threads.length === 0 ? (
-                <p className="text-sm text-muted-foreground">
-                  No threads yet for this project.
-                </p>
-              ) : null}
-            </div>
-          </CardContent>
-        </Card>
-      )}
-    </>
-  );
-}
-
-type MobileWorkspaceBarProps = {
-  activeProject: string;
-  activeThread: Thread | null;
-  messageCount: number;
-  pendingApprovalCount: number;
-  workspaceOpen: boolean;
-  creatingThread: boolean;
-  chatHidden: boolean;
-  compactChat: boolean;
-  onToggleWorkspace: () => void;
-  onCreateThread: () => void;
-  onToggleChatVisibility: () => void;
-  onToggleChatSize: () => void;
-};
-
-export function MobileWorkspaceBar({
-  activeProject,
-  activeThread,
-  messageCount,
-  pendingApprovalCount,
-  workspaceOpen,
-  creatingThread,
-  chatHidden,
-  compactChat,
-  onToggleWorkspace,
-  onCreateThread,
-  onToggleChatVisibility,
-  onToggleChatSize,
-}: MobileWorkspaceBarProps) {
-  const summaryTitle = activeThread?.title
-    || (activeProject ? "No thread selected" : "No project selected");
-  const summaryMeta = activeProject
-    ? `${activeProject} | ${messageCount} message${messageCount === 1 ? "" : "s"}`
-    : "Select a project to start";
-
-  return (
-    <Card className="theme-surface border-border/50 shadow-sm sm:hidden">
-      <CardContent className="space-y-3 p-4">
-        <div className="flex items-start justify-between gap-3">
-          <div className="min-w-0">
-            <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-muted-foreground">
-              Workspace
-            </p>
-            <p className="truncate text-sm font-semibold text-foreground">
-              {summaryTitle}
-            </p>
-            <p className="text-xs text-muted-foreground">
-              {summaryMeta}
-            </p>
+            <Button
+              type="button"
+              size="sm"
+              className="h-9 rounded-full px-3"
+              disabled={!activeProject || creatingThread}
+              onClick={onCreateThread}
+            >
+              <Plus className="size-4" />
+              {creatingThread ? "Creating..." : "New Thread"}
+            </Button>
           </div>
 
-          <Badge
-            variant="outline"
-            className={pendingApprovalCount > 0
-              ? "border-amber-500/40 bg-amber-500/10 text-amber-500"
-              : "border-emerald-500/30 bg-emerald-500/10 text-emerald-500"}
-          >
-            {pendingApprovalCount > 0 ? `${pendingApprovalCount} pending` : "Ready"}
-          </Badge>
-        </div>
-
-        <div className="grid grid-cols-2 gap-2">
-          <Button
-            type="button"
-            variant="outline"
-            className="h-10 rounded-xl"
-            onClick={onToggleWorkspace}
-          >
-            {workspaceOpen ? "Hide Panel" : "Open Panel"}
-          </Button>
-          <Button
-            type="button"
-            className="h-10 rounded-xl"
-            disabled={!activeProject || creatingThread}
-            onClick={onCreateThread}
-          >
-            {creatingThread ? "Creating..." : "New Thread"}
-          </Button>
-        </div>
-
-        <div className="grid grid-cols-2 gap-2">
-          <Button
-            type="button"
-            variant="outline"
-            className="h-10 rounded-xl"
-            disabled={!activeThread}
-            onClick={onToggleChatVisibility}
-          >
-            {chatHidden ? "Show Chat" : "Hide Chat"}
-          </Button>
-          <Button
-            type="button"
-            variant="outline"
-            className="h-10 rounded-xl"
-            disabled={!activeThread || chatHidden}
-            onClick={onToggleChatSize}
-          >
-            {compactChat ? "Normal Chat" : "Smaller Chat"}
-          </Button>
-        </div>
-      </CardContent>
-    </Card>
+          {activeProject ? (
+            threads.length > 0 ? (
+              <div className="space-y-2">
+                {threads.map((thread) => (
+                  <ThreadListItem
+                    key={thread.id}
+                    thread={thread}
+                    isActive={thread.id === activeThreadId}
+                    onClick={() => onSelectThread(thread.id)}
+                    onDelete={() => onDeleteThread(thread)}
+                  />
+                ))}
+              </div>
+            ) : (
+              <div className="rounded-2xl border border-dashed border-border/60 bg-muted/10 px-4 py-5 text-sm text-muted-foreground">
+                No threads exist for this project yet.
+              </div>
+            )
+          ) : (
+            <div className="rounded-2xl border border-dashed border-border/60 bg-muted/10 px-4 py-5 text-sm text-muted-foreground">
+              Choose a project above to unlock thread selection.
+            </div>
+          )}
+        </CardContent>
+      </Card>
+    </div>
   );
 }

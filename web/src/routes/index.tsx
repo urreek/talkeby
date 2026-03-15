@@ -4,15 +4,17 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { createRoute } from "@tanstack/react-router";
 
 import { CreateJobForm } from "@/components/jobs/create-job-form";
+import { EditableThreadTitle } from "@/components/jobs/editable-thread-title";
 import { JobChatFeed } from "@/components/jobs/job-chat-feed";
+import { ObservabilityDashboard } from "@/components/jobs/observability-dashboard";
+import { RuntimeApprovalCards } from "@/components/jobs/runtime-approval-cards";
 import {
-  MobileWorkspaceBar,
-  WorkspaceControls,
-} from "@/components/jobs/workspace-controls";
-import { useConfirmDialog } from "@/components/ui/confirm-dialog";
+  WorkspaceDrawer,
+  WorkspaceToolbar,
+} from "@/components/jobs/workspace-drawer";
 import { Button } from "@/components/ui/button";
+import { useConfirmDialog } from "@/components/ui/confirm-dialog";
 import { Card, CardContent, CardDescription, CardHeader } from "@/components/ui/card";
-import { cn } from "@/lib/utils";
 import {
   approveJob,
   approveRuntimeApproval,
@@ -32,6 +34,7 @@ import {
   stopJob,
 } from "@/lib/api";
 import type { Thread } from "@/lib/types";
+import { cn } from "@/lib/utils";
 import { rootRoute } from "@/routes/__root";
 
 type JobsSearch = {
@@ -70,7 +73,7 @@ function JobsScreen() {
   const { confirm, ConfirmDialog } = useConfirmDialog();
   const composerContainerRef = useRef<HTMLDivElement | null>(null);
   const [mobileComposerHeight, setMobileComposerHeight] = useState(0);
-  const [mobileWorkspaceOpen, setMobileWorkspaceOpen] = useState(false);
+  const [workspaceDrawerOpen, setWorkspaceDrawerOpen] = useState(false);
   const [chatHidden, setChatHidden] = useState(false);
   const [compactChat, setCompactChat] = useState(false);
 
@@ -155,6 +158,7 @@ function JobsScreen() {
     mutationFn: () => createThread({ projectName: activeProject }),
     onSuccess: (data) => {
       queryClient.invalidateQueries({ queryKey: ["threads", activeProject] });
+      setWorkspaceDrawerOpen(false);
       void navigate({
         search: (previous) => ({
           ...previous,
@@ -265,7 +269,7 @@ function JobsScreen() {
   const threadEstimatedTokens = Number(activeThread?.tokenUsedEstimated || 0);
   const jobsScreenStyle = {
     "--talkeby-mobile-composer-space":
-      activeThread && !chatHidden && !mobileWorkspaceOpen && mobileComposerHeight > 0
+      activeThread && !chatHidden && !workspaceDrawerOpen && mobileComposerHeight > 0
         ? `calc(${mobileComposerHeight}px + var(--talkeby-bottom-clearance) + 1rem)`
         : "0px",
   } as CSSProperties;
@@ -319,9 +323,9 @@ function JobsScreen() {
 
   useEffect(() => {
     if (!activeProject || !activeThread) {
-      setMobileWorkspaceOpen(true);
+      setWorkspaceDrawerOpen(true);
     }
-  }, [activeProject, activeThread]);
+  }, [activeProject, activeThread?.id]);
 
   useEffect(() => {
     if (!activeThread) {
@@ -332,7 +336,6 @@ function JobsScreen() {
 
   const handleSelectProject = (projectName: string) => {
     selectProjectMutation.mutate(projectName);
-    setMobileWorkspaceOpen(false);
     void navigate({
       search: (previous) => ({
         ...previous,
@@ -344,14 +347,15 @@ function JobsScreen() {
 
   const handleCreateThread = () => {
     if (!activeProject) {
+      setWorkspaceDrawerOpen(true);
       return;
     }
-    setMobileWorkspaceOpen(false);
+
     createThreadMutation.mutate();
   };
 
   const handleSelectThread = (threadId: string) => {
-    setMobileWorkspaceOpen(false);
+    setWorkspaceDrawerOpen(false);
     void navigate({
       search: (previous) => ({
         ...previous,
@@ -375,75 +379,57 @@ function JobsScreen() {
   };
 
   return (
-    <div className="flex min-h-0 flex-1 flex-col gap-4" style={jobsScreenStyle}>
-      <div className="shrink-0 space-y-3 sm:hidden">
-        <MobileWorkspaceBar
+    <div className="relative flex min-h-0 flex-1 flex-col gap-4" style={jobsScreenStyle}>
+      <WorkspaceDrawer
+        open={workspaceDrawerOpen}
+        activeProject={activeProject}
+        activeThread={activeThread}
+        projects={projects}
+        threads={threads}
+        pendingApprovalCount={pendingRuntimeApprovalCount}
+        creatingThread={createThreadMutation.isPending}
+        onOpenChange={setWorkspaceDrawerOpen}
+        onSelectProject={handleSelectProject}
+        onCreateThread={handleCreateThread}
+        onSelectThread={handleSelectThread}
+        onDeleteThread={(thread) => {
+          void handleDeleteThread(thread);
+        }}
+      />
+
+      <div className="shrink-0 space-y-4">
+        <WorkspaceToolbar
           activeProject={activeProject}
           activeThread={activeThread}
           messageCount={threadJobs.length}
           pendingApprovalCount={pendingRuntimeApprovalCount}
-          workspaceOpen={mobileWorkspaceOpen}
+          drawerOpen={workspaceDrawerOpen}
           creatingThread={createThreadMutation.isPending}
           chatHidden={chatHidden}
           compactChat={compactChat}
-          onToggleWorkspace={() => setMobileWorkspaceOpen((current) => !current)}
+          onToggleDrawer={() => setWorkspaceDrawerOpen((current) => !current)}
           onCreateThread={handleCreateThread}
           onToggleChatVisibility={() => setChatHidden((current) => !current)}
           onToggleChatSize={() => setCompactChat((current) => !current)}
         />
 
-        {mobileWorkspaceOpen && (
-          <div className="max-h-[42vh] space-y-4 overflow-y-auto pr-1 scrollbar-none">
-            <WorkspaceControls
-              projects={projects}
-              activeProject={activeProject}
-              threads={threads}
-              activeThreadId={activeThread?.id}
-              observabilitySummary={observabilityQuery.data ?? null}
-              runtimeApprovals={runtimeApprovals}
-              approvingRuntimeId={approveRuntimeMutation.variables ?? ""}
-              denyingRuntimeId={denyRuntimeMutation.variables ?? ""}
-              creatingThread={createThreadMutation.isPending}
-              onApproveRuntime={(id) => approveRuntimeMutation.mutate(id)}
-              onDenyRuntime={(id) => denyRuntimeMutation.mutate(id)}
-              onSelectProject={handleSelectProject}
-              onCreateThread={handleCreateThread}
-              onSelectThread={handleSelectThread}
-              onDeleteThread={(thread) => {
-                void handleDeleteThread(thread);
-              }}
-            />
-          </div>
-        )}
-      </div>
-
-      <div className="hidden max-h-[34vh] shrink-0 space-y-4 overflow-y-auto pr-1 scrollbar-none sm:block">
-        <WorkspaceControls
-          projects={projects}
-          activeProject={activeProject}
-          threads={threads}
-          activeThreadId={activeThread?.id}
-          observabilitySummary={observabilityQuery.data ?? null}
-          runtimeApprovals={runtimeApprovals}
-          approvingRuntimeId={approveRuntimeMutation.variables ?? ""}
-          denyingRuntimeId={denyRuntimeMutation.variables ?? ""}
-          creatingThread={createThreadMutation.isPending}
-          onApproveRuntime={(id) => approveRuntimeMutation.mutate(id)}
-          onDenyRuntime={(id) => denyRuntimeMutation.mutate(id)}
-          onSelectProject={handleSelectProject}
-          onCreateThread={handleCreateThread}
-          onSelectThread={handleSelectThread}
-          onDeleteThread={(thread) => {
-            void handleDeleteThread(thread);
-          }}
+        <RuntimeApprovalCards
+          approvals={runtimeApprovals}
+          approvingId={approveRuntimeMutation.variables ?? ""}
+          denyingId={denyRuntimeMutation.variables ?? ""}
+          onApprove={(id) => approveRuntimeMutation.mutate(id)}
+          onDeny={(id) => denyRuntimeMutation.mutate(id)}
         />
+
+        <ObservabilityDashboard summary={observabilityQuery.data ?? null} />
       </div>
 
       <div
         className={cn(
           "min-h-0 flex flex-1 flex-col gap-4 pb-[var(--talkeby-mobile-composer-space)] sm:pb-0",
-          mobileWorkspaceOpen && "hidden sm:flex",
+          workspaceDrawerOpen && "pointer-events-none select-none",
         )}
+        aria-hidden={workspaceDrawerOpen}
       >
         {activeThread ? (
           chatHidden ? (
@@ -453,7 +439,7 @@ function JobsScreen() {
                   Chat is hidden.
                 </p>
                 <p className="text-xs text-muted-foreground">
-                  Use the workspace controls while chat stays collapsed.
+                  Open the drawer to switch projects or threads while chat stays collapsed.
                 </p>
                 <div className="flex justify-center">
                   <Button
@@ -478,7 +464,7 @@ function JobsScreen() {
               <CardHeader className="shrink-0 border-b border-border/30 pb-4">
                 <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
                   <div className="min-w-0 space-y-2">
-                    <EditableTitle
+                    <EditableThreadTitle
                       title={activeThread.title}
                       onSave={(title) =>
                         renameThreadMutation.mutate({
@@ -530,7 +516,10 @@ function JobsScreen() {
             onClick={() => {
               if (activeProject) {
                 createThreadMutation.mutate();
+                return;
               }
+
+              setWorkspaceDrawerOpen(true);
             }}
           >
             <CardContent className="px-6 py-14 text-center">
@@ -539,14 +528,14 @@ function JobsScreen() {
               </p>
               <p className="mt-2 text-sm text-muted-foreground">
                 {!activeProject
-                  ? "Choose a project above or add one in Settings."
-                  : "Create a new thread to keep the composer docked and ready at the bottom."}
+                  ? "Open the drawer and pick a project, or add one in Settings."
+                  : "Open the drawer or create a new thread to keep the composer docked and ready at the bottom."}
               </p>
             </CardContent>
           </Card>
         )}
 
-        {activeThread && !chatHidden && !mobileWorkspaceOpen && (
+        {activeThread && !chatHidden && !workspaceDrawerOpen && (
           <div
             ref={composerContainerRef}
             className="fixed inset-x-0 bottom-[calc(var(--talkeby-bottom-clearance)+0.75rem)] z-30 mx-auto w-full max-w-xl shrink-0 px-4 animate-in fade-in slide-in-from-bottom-8 duration-700 delay-75 fill-mode-both sm:static sm:mx-0 sm:max-w-none sm:px-0"
@@ -567,57 +556,5 @@ function JobsScreen() {
 
       {ConfirmDialog}
     </div>
-  );
-}
-
-function EditableTitle({
-  title,
-  onSave,
-}: {
-  title: string;
-  onSave: (title: string) => void;
-}) {
-  const [editing, setEditing] = useState(false);
-  const [draft, setDraft] = useState(title);
-
-  if (!editing) {
-    return (
-      <h3
-        className="cursor-pointer text-base font-bold transition-colors hover:text-primary"
-        title="Click to rename"
-        onClick={() => {
-          setDraft(title);
-          setEditing(true);
-        }}
-      >
-        {title}
-      </h3>
-    );
-  }
-
-  return (
-    <input
-      type="text"
-      autoFocus
-      className="w-full border-b border-primary bg-transparent text-base font-bold outline-none"
-      value={draft}
-      onChange={(event) => setDraft(event.target.value)}
-      onBlur={() => {
-        const trimmed = draft.trim();
-        if (trimmed && trimmed !== title) {
-          onSave(trimmed);
-        }
-        setEditing(false);
-      }}
-      onKeyDown={(event) => {
-        if (event.key === "Enter") {
-          (event.target as HTMLInputElement).blur();
-        }
-        if (event.key === "Escape") {
-          setDraft(title);
-          setEditing(false);
-        }
-      }}
-    />
   );
 }
