@@ -265,7 +265,7 @@ function JobsScreen() {
   const threadEstimatedTokens = Number(activeThread?.tokenUsedEstimated || 0);
   const jobsScreenStyle = {
     "--talkeby-mobile-composer-space":
-      activeThread && !chatHidden && mobileComposerHeight > 0
+      activeThread && !chatHidden && !mobileWorkspaceOpen && mobileComposerHeight > 0
         ? `calc(${mobileComposerHeight}px + var(--talkeby-bottom-clearance) + 1rem)`
         : "0px",
   } as CSSProperties;
@@ -376,7 +376,7 @@ function JobsScreen() {
 
   return (
     <div className="flex min-h-0 flex-1 flex-col gap-4" style={jobsScreenStyle}>
-      <div className="space-y-3 sm:hidden">
+      <div className="shrink-0 space-y-3 sm:hidden">
         <MobileWorkspaceBar
           activeProject={activeProject}
           activeThread={activeThread}
@@ -439,7 +439,12 @@ function JobsScreen() {
         />
       </div>
 
-      <div className="min-h-0 flex flex-1 flex-col gap-4 pb-[var(--talkeby-mobile-composer-space)] sm:pb-0">
+      <div
+        className={cn(
+          "min-h-0 flex flex-1 flex-col gap-4 pb-[var(--talkeby-mobile-composer-space)] sm:pb-0",
+          mobileWorkspaceOpen && "hidden sm:flex",
+        )}
+      >
         {activeThread ? (
           chatHidden ? (
             <Card className="theme-surface animate-in flex flex-1 items-center border-border/50 shadow-md fade-in slide-in-from-bottom-6 duration-500 fill-mode-both">
@@ -541,7 +546,7 @@ function JobsScreen() {
           </Card>
         )}
 
-        {activeThread && !chatHidden && (
+        {activeThread && !chatHidden && !mobileWorkspaceOpen && (
           <div
             ref={composerContainerRef}
             className="fixed inset-x-0 bottom-[calc(var(--talkeby-bottom-clearance)+0.75rem)] z-30 mx-auto w-full max-w-xl shrink-0 px-4 animate-in fade-in slide-in-from-bottom-8 duration-700 delay-75 fill-mode-both sm:static sm:mx-0 sm:max-w-none sm:px-0"
