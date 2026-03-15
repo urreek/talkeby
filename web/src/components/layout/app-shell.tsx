@@ -114,64 +114,70 @@ export function AppShell({ children }: PropsWithChildren) {
   } as CSSProperties;
 
   return (
-    <div
-      className="talkeby-app relative mx-auto flex h-dvh h-screen w-full max-w-xl flex-col overflow-hidden bg-slate-950 lg:max-w-[1200px] xl:max-w-[1440px]"
-      style={shellStyle}
-    >
+    <div className="talkeby-app relative min-h-dvh bg-slate-950" style={shellStyle}>
       <div className="fixed inset-0 z-0 pointer-events-none overflow-hidden">
         <img
           alt=""
-          className="absolute inset-0 w-full h-full object-cover opacity-60 dark:opacity-40 transition-opacity duration-1000"
+          className="absolute inset-0 h-full w-full object-cover opacity-55 transition-opacity duration-1000 dark:opacity-40"
           src="https://4kwallpapers.com/images/walls/thumbs_3t/9621.jpg"
         />
-        {/* Glass Overlay - universally dark to blend into space */}
-        <div className="absolute inset-0 bg-slate-950/60 dark:bg-background/40 backdrop-blur-[12px]"></div>
+        <div className="absolute inset-0 bg-slate-950/65 backdrop-blur-[14px]" />
+        <div className="absolute inset-0 bg-[radial-gradient(circle_at_top,rgba(56,189,248,0.10),transparent_32%),radial-gradient(circle_at_bottom_right,rgba(14,165,233,0.08),transparent_30%)]" />
       </div>
 
-      <header className="theme-header sticky top-0 z-20 shrink-0 border-b border-foreground/5 px-4 py-3 backdrop-blur-xl transition-all duration-300 dark:border-white/5">
-        <div className="flex items-start justify-between gap-3">
-          <div>
-            <h1 className="bg-gradient-to-r from-white to-white/70 bg-clip-text text-lg font-bold tracking-tight text-transparent drop-shadow-md">
-              Talkeby Mobile
-            </h1>
-          </div>
-          <ThemeToggle />
+      <div className="relative mx-auto flex h-dvh h-screen w-full max-w-[1600px] flex-col overflow-hidden lg:p-4">
+        <div className="flex min-h-0 flex-1 flex-col overflow-hidden lg:rounded-[2rem] lg:border lg:border-white/10 lg:bg-slate-950/55 lg:shadow-[0_24px_80px_rgba(15,23,42,0.45)] lg:backdrop-blur-2xl">
+          <header className="theme-header sticky top-0 z-20 shrink-0 border-b border-foreground/5 px-3 py-3 backdrop-blur-xl transition-all duration-300 sm:px-4 lg:px-5 lg:py-4 dark:border-white/5">
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+              <div className="min-w-0">
+                <p className="text-[10px] font-semibold uppercase tracking-[0.26em] text-white/45">
+                  Local-first coding cockpit
+                </p>
+                <h1 className="bg-gradient-to-r from-white via-white to-slate-300 bg-clip-text text-lg font-bold tracking-tight text-transparent drop-shadow-md sm:text-xl">
+                  Talkeby
+                </h1>
+              </div>
+
+              <div className="flex items-center justify-between gap-3 sm:justify-end">
+                <nav>
+                  <div className="theme-surface inline-grid grid-cols-2 gap-1 rounded-2xl border border-white/10 bg-card/80 p-1 shadow-lg backdrop-blur-xl">
+                    {navItems.map((item) => {
+                      const Icon = item.icon;
+                      const isActive = pathname === item.to;
+
+                      return (
+                        <Link
+                          key={item.to}
+                          to={item.to}
+                          className={cn(
+                            "inline-flex items-center justify-center gap-1.5 rounded-xl px-3 py-2 text-xs font-semibold transition-all duration-200",
+                            isActive
+                              ? "bg-primary text-primary-foreground shadow-sm shadow-primary/25"
+                              : "text-muted-foreground hover:bg-secondary/80 hover:text-foreground",
+                          )}
+                        >
+                          <Icon className="size-3.5" />
+                          {item.label}
+                        </Link>
+                      );
+                    })}
+                  </div>
+                </nav>
+                <ThemeToggle />
+              </div>
+            </div>
+          </header>
+
+          <main
+            className={cn(
+              "flex min-h-0 flex-1 flex-col px-3 pb-[calc(var(--talkeby-bottom-clearance)+0.75rem)] pt-3 sm:px-4 sm:pt-4 lg:px-5 lg:pt-5",
+              isWorkspaceRoute ? "overflow-hidden" : "overflow-y-auto",
+            )}
+          >
+            {children}
+          </main>
         </div>
-
-        <nav className="mt-3">
-          <div className="theme-surface inline-grid grid-cols-2 gap-1 rounded-xl border border-white/10 bg-card/80 p-1 shadow-lg backdrop-blur-xl">
-            {navItems.map((item) => {
-              const Icon = item.icon;
-              const isActive = pathname === item.to;
-
-              return (
-                <Link
-                  key={item.to}
-                  to={item.to}
-                  className={cn(
-                    "inline-flex items-center justify-center gap-1.5 rounded-lg px-2.5 py-1.5 text-xs font-semibold transition-all duration-200",
-                    isActive
-                      ? "bg-primary text-primary-foreground shadow-sm shadow-primary/25"
-                      : "text-muted-foreground hover:bg-secondary/80 hover:text-foreground",
-                  )}
-                >
-                  <Icon className="size-3.5" />
-                  {item.label}
-                </Link>
-              );
-            })}
-          </div>
-        </nav>
-      </header>
-
-      <main
-        className={cn(
-          "flex min-h-0 flex-1 flex-col px-4 pb-[calc(var(--talkeby-bottom-clearance)+1rem)] pt-4 lg:px-5 xl:px-6",
-          isWorkspaceRoute ? "overflow-hidden" : "overflow-y-auto",
-        )}
-      >
-        {children}
-      </main>
+      </div>
     </div>
   );
 }

@@ -7,6 +7,7 @@ import { JobChatFeed } from "@/components/jobs/job-chat-feed";
 import { ObservabilityDashboard } from "@/components/jobs/observability-dashboard";
 import { RuntimeApprovalCards } from "@/components/jobs/runtime-approval-cards";
 import {
+  WorkspaceDesktopSidebar,
   WorkspaceDrawer,
   WorkspaceToolbar,
 } from "@/components/jobs/workspace-drawer";
@@ -70,8 +71,6 @@ function JobsScreen() {
   const queryClient = useQueryClient();
   const { confirm, ConfirmDialog } = useConfirmDialog();
   const [workspaceDrawerOpen, setWorkspaceDrawerOpen] = useState(false);
-  const [chatHidden, setChatHidden] = useState(false);
-  const [compactChat, setCompactChat] = useState(false);
 
   const projectsQuery = useQuery({
     queryKey: ["projects"],
@@ -268,13 +267,6 @@ function JobsScreen() {
     }
   }, [activeProject, activeThread?.id]);
 
-  useEffect(() => {
-    if (!activeThread) {
-      setChatHidden(false);
-      setCompactChat(false);
-    }
-  }, [activeThread?.id]);
-
   const handleSelectProject = (projectName: string) => {
     selectProjectMutation.mutate(projectName);
     void navigate({
@@ -320,7 +312,7 @@ function JobsScreen() {
   };
 
   return (
-    <div className="relative flex min-h-0 flex-1 flex-col gap-4 xl:grid xl:grid-cols-[22rem_minmax(0,1fr)] xl:gap-6">
+    <div className="relative flex min-h-0 flex-1 flex-col gap-4 lg:grid lg:grid-cols-[21rem_minmax(0,1fr)] lg:gap-5 xl:gap-6">
       <WorkspaceDrawer
         open={workspaceDrawerOpen}
         activeProject={activeProject}
@@ -338,7 +330,22 @@ function JobsScreen() {
         }}
       />
 
-      <div className="shrink-0 space-y-4 xl:min-h-0 xl:overflow-y-auto xl:pr-1">
+      <WorkspaceDesktopSidebar
+        activeProject={activeProject}
+        activeThread={activeThread}
+        projects={projects}
+        threads={threads}
+        pendingApprovalCount={pendingRuntimeApprovalCount}
+        creatingThread={createThreadMutation.isPending}
+        onSelectProject={handleSelectProject}
+        onCreateThread={handleCreateThread}
+        onSelectThread={handleSelectThread}
+        onDeleteThread={(thread) => {
+          void handleDeleteThread(thread);
+        }}
+      />
+
+      <div className="min-h-0 flex flex-1 flex-col gap-4">
         <WorkspaceToolbar
           activeProject={activeProject}
           activeThread={activeThread}
@@ -346,64 +353,28 @@ function JobsScreen() {
           pendingApprovalCount={pendingRuntimeApprovalCount}
           drawerOpen={workspaceDrawerOpen}
           creatingThread={createThreadMutation.isPending}
-          chatHidden={chatHidden}
-          compactChat={compactChat}
           onToggleDrawer={() => setWorkspaceDrawerOpen((current) => !current)}
           onCreateThread={handleCreateThread}
-          onToggleChatVisibility={() => setChatHidden((current) => !current)}
-          onToggleChatSize={() => setCompactChat((current) => !current)}
         />
 
-        <RuntimeApprovalCards
-          approvals={runtimeApprovals}
-          approvingId={approveRuntimeMutation.variables ?? ""}
-          denyingId={denyRuntimeMutation.variables ?? ""}
-          onApprove={(id) => approveRuntimeMutation.mutate(id)}
-          onDeny={(id) => denyRuntimeMutation.mutate(id)}
-        />
+        <div className="order-2 space-y-4 lg:order-1">
+          <RuntimeApprovalCards
+            approvals={runtimeApprovals}
+            approvingId={approveRuntimeMutation.variables ?? ""}
+            denyingId={denyRuntimeMutation.variables ?? ""}
+            onApprove={(id) => approveRuntimeMutation.mutate(id)}
+            onDeny={(id) => denyRuntimeMutation.mutate(id)}
+          />
 
-        <ObservabilityDashboard summary={observabilityQuery.data ?? null} />
-      </div>
+          <ObservabilityDashboard summary={observabilityQuery.data ?? null} />
+        </div>
 
-      <div
-        className={cn(
-          "min-h-0 flex flex-1 flex-col gap-4",
-          workspaceDrawerOpen && "pointer-events-none select-none",
-        )}
-        aria-hidden={workspaceDrawerOpen}
-      >
-        {activeThread ? (
-          chatHidden ? (
-            <Card className="theme-surface animate-in flex flex-1 items-center border-border/50 shadow-md fade-in slide-in-from-bottom-6 duration-500 fill-mode-both">
-              <CardContent className="w-full space-y-3 p-6 text-center">
-                <p className="text-sm font-semibold text-foreground">
-                  Chat is hidden.
-                </p>
-                <p className="text-xs text-muted-foreground">
-                  Open the drawer to switch projects or threads while chat stays collapsed.
-                </p>
-                <div className="flex justify-center">
-                  <Button
-                    type="button"
-                    size="sm"
-                    variant="outline"
-                    onClick={() => setChatHidden(false)}
-                  >
-                    Show Chat
-                  </Button>
-                </div>
-              </CardContent>
-            </Card>
-          ) : (
-            <Card
-              className={cn(
-                "theme-surface animate-in relative flex min-h-0 flex-col overflow-hidden border-border/50 shadow-md fade-in slide-in-from-bottom-6 duration-500 fill-mode-both",
-                compactChat ? "h-[42vh] sm:h-[48vh] xl:h-auto" : "flex-1",
-              )}
-            >
+        <div className="order-1 min-h-0 flex flex-1 flex-col lg:order-2">
+          {activeThread ? (
+            <Card className="theme-surface relative flex min-h-[min(36rem,calc(100dvh-15rem))] flex-1 flex-col overflow-hidden border-border/50 shadow-md lg:min-h-0">
               <div className="absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-primary/30 to-transparent" />
               <CardContent className="flex min-h-0 flex-1 flex-col p-0">
-                <div className="min-h-0 flex-1 px-3 pt-3 sm:px-4 sm:pt-4">
+                <div className="min-h-0 flex-1 px-3 pt-3 sm:px-4 sm:pt-4 lg:px-5 lg:pt-5">
                   <JobChatFeed
                     className="h-full pb-4"
                     threadId={activeThread.id}
@@ -419,7 +390,7 @@ function JobsScreen() {
                   />
                 </div>
 
-                <div className="shrink-0 border-t border-white/10 bg-slate-950/30 px-3 py-3 backdrop-blur-xl sm:px-4 sm:py-4">
+                <div className="shrink-0 border-t border-white/10 bg-slate-950/35 px-3 py-3 backdrop-blur-xl sm:px-4 sm:py-4 lg:px-5 lg:py-5">
                   <CreateJobForm
                     projects={projects}
                     activeProject={activeProject}
@@ -442,32 +413,31 @@ function JobsScreen() {
                 </div>
               </CardContent>
             </Card>
-          )
-        ) : (
-          <Card
-            className="theme-surface flex flex-1 cursor-pointer items-center justify-center transition-all hover:border-primary/30 hover:shadow-md"
-            onClick={() => {
-              if (activeProject) {
-                createThreadMutation.mutate();
-                return;
-              }
-
-              setWorkspaceDrawerOpen(true);
-            }}
-          >
-            <CardContent className="px-6 py-14 text-center">
-              <p className="text-base font-semibold text-foreground">
-                {!activeProject ? "Select a project to start chatting." : "No thread selected."}
-              </p>
-              <p className="mt-2 text-sm text-muted-foreground">
-                {!activeProject
-                  ? "Open the drawer and pick a project, or add one in Settings."
-                  : "Open the drawer or create a new thread to keep the composer docked and ready at the bottom."}
-              </p>
-            </CardContent>
-          </Card>
-        )}
-
+          ) : (
+            <Card className="theme-surface flex flex-1 items-center justify-center border-border/50 shadow-md">
+              <CardContent className="max-w-md px-6 py-14 text-center">
+                <p className="text-lg font-semibold text-foreground">
+                  {!activeProject ? "Choose a project to start." : "Pick a thread to continue."}
+                </p>
+                <p className="mt-2 text-sm text-muted-foreground">
+                  {!activeProject
+                    ? "Open the workspace drawer to choose a project, then start a thread when you are ready."
+                    : "Your workspace is ready. Select a thread from the drawer or create a fresh conversation."}
+                </p>
+                <div className="mt-5 flex flex-wrap justify-center gap-2">
+                  <Button type="button" onClick={() => setWorkspaceDrawerOpen(true)}>
+                    Open Workspace
+                  </Button>
+                  {activeProject ? (
+                    <Button type="button" variant="outline" onClick={handleCreateThread}>
+                      {createThreadMutation.isPending ? "Creating..." : "New Thread"}
+                    </Button>
+                  ) : null}
+                </div>
+              </CardContent>
+            </Card>
+          )}
+        </div>
       </div>
 
       {ConfirmDialog}

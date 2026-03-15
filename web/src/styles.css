@@ -68,7 +68,7 @@
     margin: 0;
     min-width: 320px;
     min-height: 100%;
-    font-family: "Inter", "SF Pro Text", "Segoe UI", sans-serif;
+    font-family: "Aptos", "SF Pro Text", "Segoe UI Variable Text", "Segoe UI", sans-serif;
     line-height: 1.4;
     font-weight: 400;
     font-synthesis: none;
@@ -155,14 +155,14 @@
   box-shadow: 0 0 0 2px hsl(var(--ring) / 0.2);
 }
 
-.talkeby-app button.border.border-border {
+.talkeby-app button[class~="border"] {
   background-color: hsl(var(--card) / 0.8);
   color: hsl(var(--foreground));
   backdrop-filter: blur(4px);
   transition: all 0.2s ease;
 }
 
-.talkeby-app button.border.border-border:hover {
+.talkeby-app button[class~="border"]:hover {
   background-color: hsl(var(--card));
   transform: translateY(-1px);
 }
@@ -182,3 +182,4 @@
 .dark .talkeby-app .bg-emerald-500\/15 {
   background-color: hsl(142 69% 40% / 0.25);
 }
+
