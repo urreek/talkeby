@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { createRoute } from "@tanstack/react-router";
+import { createRoute, Link } from "@tanstack/react-router";
 
 import { DiscoverProjects } from "@/components/settings/discover-projects";
 import { ProviderHealth } from "@/components/settings/provider-health";
@@ -115,6 +115,12 @@ function SettingsScreen() {
 
   return (
     <div className="mx-auto w-full max-w-5xl space-y-4 px-3 pb-4 sm:px-4 animate-in fade-in slide-in-from-bottom-4 duration-500 fill-mode-both">
+      <div className="flex items-center justify-end">
+        <Button asChild variant="outline" className="h-9 rounded-xl">
+          <Link to="/">Back to Workspace</Link>
+        </Button>
+      </div>
+
       {errorMessage ? (
         <Card className="border-destructive/40 bg-destructive/10">
           <CardContent className="p-4">
