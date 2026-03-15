@@ -132,12 +132,12 @@ export function AppShell({ children }: PropsWithChildren) {
           <header className="theme-header sticky top-0 z-20 shrink-0 border-b border-foreground/5 px-3 py-2.5 backdrop-blur-xl transition-all duration-300 sm:px-4 lg:px-5 lg:py-3">
             <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
               <div className="min-w-0 flex items-baseline gap-2 sm:gap-3">
-                <p className="shrink-0 text-[10px] font-semibold uppercase tracking-[0.22em] text-muted-foreground">
-                  Local-first coding cockpit
-                </p>
                 <h1 className="truncate bg-gradient-to-r from-foreground via-foreground to-foreground/70 bg-clip-text text-lg font-bold tracking-tight text-transparent drop-shadow-md sm:text-xl">
                   Talkeby
                 </h1>
+                <p className="shrink-0 text-[10px] font-semibold uppercase tracking-[0.22em] text-muted-foreground">
+                  Local-first coding cockpit
+                </p>
               </div>
 
               <div className="flex items-center justify-between gap-3 sm:justify-end">
