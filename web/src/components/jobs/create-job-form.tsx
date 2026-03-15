@@ -130,7 +130,7 @@ export function CreateJobForm({
         >
 
           <Textarea
-            placeholder="Ship a crisp request: goal, files, constraints, and what “done” looks like."
+            placeholder="Tell me what to do boss"
             value={task}
             className="min-h-[96px] max-h-[240px] resize-y rounded-[1.5rem] border-border/50 bg-background/70 px-4 py-3 text-base font-medium shadow-inner placeholder:text-muted-foreground/50 focus-visible:ring-2 focus-visible:ring-primary/70 focus-visible:ring-offset-0 dark:border-white/10 sm:min-h-[112px] md:text-sm"
             onChange={(event) => setTask(event.target.value)}
