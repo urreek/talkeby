@@ -218,9 +218,6 @@ export function WorkspaceSelectionPanel({
               <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-muted-foreground">
                 Projects
               </p>
-              <p className="text-sm text-foreground">
-                Select the workspace the next conversation should run inside.
-              </p>
             </div>
           </div>
 
@@ -245,7 +242,7 @@ export function WorkspaceSelectionPanel({
 
       <Card className="theme-surface border-border/50 shadow-sm">
         <CardContent className="space-y-4 p-4">
-          <div className="flex items-start justify-between gap-3">
+          <div className="space-y-3">
             <div className="flex items-start gap-3">
               <div className="rounded-2xl bg-primary/10 p-2 text-primary">
                 <MessageSquareText className="size-5" />
@@ -254,18 +251,12 @@ export function WorkspaceSelectionPanel({
                 <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-muted-foreground">
                   Threads
                 </p>
-                <p className="text-sm text-foreground">
-                  {activeProject
-                    ? "Switch conversations for the active project or start a fresh thread."
-                    : "Pick a project first to see its threads."}
-                </p>
               </div>
             </div>
 
             <Button
               type="button"
-              size="sm"
-              className="h-9 rounded-full px-3"
+              className="h-10 w-full rounded-2xl"
               disabled={!activeProject || creatingThread}
               onClick={onCreateThread}
             >
@@ -302,3 +293,4 @@ export function WorkspaceSelectionPanel({
     </div>
   );
 }
+
