@@ -31,7 +31,7 @@ export class RuntimeState {
     this.executionMode = config.app?.defaultExecutionMode || "auto";
     this.provider = config.runner?.provider || "codex";
     this.model = config.runner?.model || "";
-    this.reasoningEffort = "";
+    this.reasoningEffort = "medium";
     this.planMode = false;
     this.runtimeApprovalWaiters = new Map();
     this.startupRecovery = {
@@ -153,10 +153,11 @@ export class RuntimeState {
 
   setReasoningEffort(effort) {
     const normalized = String(effort || "").trim().toLowerCase();
-    const valid = ["", "low", "medium", "high"];
-    if (!valid.includes(normalized)) {
+    if (!normalized) {
+      this.reasoningEffort = "medium";
       return this.reasoningEffort;
     }
+
     this.reasoningEffort = normalized;
     return normalized;
   }
@@ -500,3 +501,4 @@ export class RuntimeState {
     }
   }
 }
+
