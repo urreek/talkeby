@@ -1,5 +1,5 @@
 import { useRouterState } from "@tanstack/react-router";
-import { Menu } from "lucide-react";
+import { PanelLeft } from "lucide-react";
 import { useEffect, useState } from "react";
 import type { CSSProperties, PropsWithChildren } from "react";
 
@@ -141,10 +141,10 @@ export function AppShell({ children }: PropsWithChildren) {
                     <Button
                       type="button"
                       variant="outline"
-                      className="h-10 rounded-2xl border-border/50 bg-card/80 px-3 text-xs font-semibold shadow-lg backdrop-blur-xl sm:hidden"
+                      className="-ml-3 h-10 rounded-l-none rounded-r-2xl border-l-0 border-border/50 bg-card/85 px-3 pr-4 text-xs font-semibold shadow-lg backdrop-blur-xl sm:hidden"
                       onClick={() => window.dispatchEvent(new CustomEvent("talkeby:open-workspace-drawer"))}
                     >
-                      <Menu className="size-4" />
+                      <PanelLeft className="size-4" />
                       Workspace
                     </Button>
                   ) : null}
