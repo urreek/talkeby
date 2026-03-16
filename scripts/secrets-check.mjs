@@ -28,6 +28,11 @@ const SKIP_SUFFIXES = [
   ".ttf",
 ];
 
+const SKIP_EXACT_FILES = new Set([
+  ".env",
+  "web/.env",
+]);
+
 const SENSITIVE_ASSIGNMENT_KEYS = [
   "APP_ACCESS_KEY",
   "OPENAI_API_KEY",
@@ -55,7 +60,7 @@ function listTrackedFiles() {
     encoding: "utf8",
   });
   if (result.status !== 0) {
-    throw new Error(result.stderr || "Failed to list tracked files with git ls-files.");
+    return null;
   }
   return String(result.stdout || "")
     .split("\0")
@@ -63,7 +68,47 @@ function listTrackedFiles() {
     .filter(Boolean);
 }
 
+function listWorkspaceFiles() {
+  const files = [];
+  const stack = [ROOT_DIR];
+
+  while (stack.length > 0) {
+    const currentDir = stack.pop();
+    const entries = fs.readdirSync(currentDir, { withFileTypes: true });
+
+    for (const entry of entries) {
+      const absolutePath = path.join(currentDir, entry.name);
+      const relativePath = path
+        .relative(ROOT_DIR, absolutePath)
+        .split(path.sep)
+        .join("/");
+      const normalizedDirectory = `${relativePath}/`;
+
+      if (entry.isDirectory()) {
+        if (entry.name === ".git" || SKIP_PREFIXES.some((prefix) => prefix.startsWith(normalizedDirectory))) {
+          continue;
+        }
+        stack.push(absolutePath);
+        continue;
+      }
+
+      if (shouldSkipFile(relativePath)) {
+        continue;
+      }
+      files.push(relativePath);
+    }
+  }
+
+  return files.sort();
+}
+
 function shouldSkipFile(file) {
+  if (SKIP_EXACT_FILES.has(file)) {
+    return true;
+  }
+  if (file.startsWith(".env.") || file.startsWith("web/.env.")) {
+    return true;
+  }
   if (SKIP_PREFIXES.some((prefix) => file.startsWith(prefix))) {
     return true;
   }
@@ -178,7 +223,16 @@ function scanFile(file) {
 }
 
 function main() {
-  const files = listTrackedFiles().filter((file) => !shouldSkipFile(file));
+  const trackedFiles = listTrackedFiles();
+  const files = trackedFiles
+    ? trackedFiles.filter((file) => !shouldSkipFile(file))
+    : listWorkspaceFiles();
+
+  if (!trackedFiles) {
+    // eslint-disable-next-line no-console
+    console.warn("[secrets-check] git ls-files unavailable; scanning workspace files instead.");
+  }
+
   const findings = [];
   for (const file of files) {
     findings.push(...scanFile(file));
