@@ -22,6 +22,20 @@ export function countPriorExecutedThreadJobs(jobs, currentJobId = "") {
   return jobs.filter((job) => String(job?.id || "") !== String(currentJobId) && isThreadJobExecuted(job)).length;
 }
 
+export function isThreadJobCountedForContinuity(job) {
+  return normalizeStatus(job?.status) === "completed";
+}
+
+export function countPriorContinuityTurns(jobs, currentJobId = "") {
+  if (!Array.isArray(jobs) || jobs.length === 0) {
+    return 0;
+  }
+  return jobs.filter((job) => (
+    String(job?.id || "") !== String(currentJobId)
+    && isThreadJobCountedForContinuity(job)
+  )).length;
+}
+
 export function buildCodexNativeContinuityError({
   reason,
   threadId = "",

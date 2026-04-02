@@ -27,7 +27,7 @@ export function WorkspaceToolbar({
   activeThread,
 }: WorkspaceToolbarProps) {
   return (
-    <div className="min-w-0 rounded-2xl border border-border/40 bg-card/60 px-3 py-2 backdrop-blur-xl lg:hidden">
+    <div className="min-w-0 rounded-xl border border-border/40 bg-card/60 px-3 py-2 backdrop-blur-xl lg:hidden">
       <p className="truncate text-[13px] font-semibold text-foreground">
         {workspaceTitle(activeProject, activeThread)}
       </p>
@@ -61,7 +61,7 @@ function WorkspaceSidebarContent({
 }: WorkspaceSharedProps & { onOpenSettings?: () => void }) {
   return (
     <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
-      <div className="min-h-0 flex-1 overflow-y-auto px-4 py-4 sm:px-5">
+      <div className="min-h-0 flex-1 px-4 py-4 sm:px-5">
         <WorkspaceSelectionPanel
           projects={projects}
           activeProject={activeProject}
@@ -90,7 +90,7 @@ type WorkspaceDesktopSidebarProps = WorkspaceSharedProps;
 
 export function WorkspaceDesktopSidebar(props: WorkspaceDesktopSidebarProps) {
   return (
-    <aside className="theme-surface hidden min-h-0 overflow-hidden rounded-[2rem] border border-white/10 shadow-[0_24px_80px_rgba(15,23,42,0.35)] lg:flex lg:flex-col">
+    <aside className="theme-surface hidden min-h-0 overflow-hidden rounded-xl border border-white/10 shadow-[0_24px_80px_rgba(15,23,42,0.35)] lg:flex lg:flex-col">
       <WorkspaceSidebarContent {...props} />
     </aside>
   );
@@ -152,7 +152,7 @@ export function WorkspaceDrawer({
           open ? "translate-x-0" : "-translate-x-[calc(100%+1rem)]",
         )}
       >
-        <div className="flex h-full flex-col overflow-hidden rounded-r-[2rem] border-r border-border/40 bg-card/95 shadow-[0_24px_80px_rgba(15,23,42,0.28)] backdrop-blur-2xl dark:border-white/10 dark:bg-slate-950/92 dark:shadow-[0_24px_80px_rgba(15,23,42,0.55)]">
+        <div className="flex h-full flex-col overflow-hidden rounded-r-xl border-r border-border/40 bg-card/95 shadow-[0_24px_80px_rgba(15,23,42,0.28)] backdrop-blur-2xl dark:border-white/10 dark:bg-slate-950/92 dark:shadow-[0_24px_80px_rgba(15,23,42,0.55)]">
           <div className="flex items-center justify-between px-4 pb-2 pt-4 sm:px-5">
             <p className="text-xs font-semibold uppercase tracking-[0.28em] text-muted-foreground">
               Workspace Drawer

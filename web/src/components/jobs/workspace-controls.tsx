@@ -1,8 +1,7 @@
-import { FolderKanban, MessageSquareText, Plus, Trash2 } from "lucide-react";
+import { ChevronDown, FolderKanban, Plus, Trash2 } from "lucide-react";
 
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent } from "@/components/ui/card";
 import type { ProjectInfo, Thread } from "@/lib/types";
 import { cn } from "@/lib/utils";
 
@@ -107,14 +106,22 @@ function ProjectButton({
             {formatProjectPath(project.path)}
           </p>
         </div>
-        {isActive ? (
-          <Badge
-            variant="outline"
-            className="border-primary/30 bg-primary/10 text-primary"
-          >
-            Active
-          </Badge>
-        ) : null}
+        <div className="flex items-center gap-2">
+          {isActive ? (
+            <Badge
+              variant="outline"
+              className="border-primary/30 bg-primary/10 text-primary"
+            >
+              Active
+            </Badge>
+          ) : null}
+          <ChevronDown
+            className={cn(
+              "size-4 shrink-0 text-muted-foreground transition-transform duration-200",
+              isActive ? "rotate-0 text-primary" : "-rotate-90",
+            )}
+          />
+        </div>
       </div>
     </button>
   );
@@ -134,52 +141,80 @@ function ThreadListItem({
   return (
     <div
       className={cn(
-        "group flex items-start gap-2 rounded-2xl border px-2 py-2 transition-all",
+        "group flex items-center gap-1 rounded-lg border px-1 py-0.5 transition-all",
         isActive
-          ? "border-primary/40 bg-primary/10 shadow-sm shadow-primary/10"
-          : "border-border/50 bg-muted/20 hover:border-primary/20 hover:bg-muted/40",
+          ? "border-primary/55 bg-primary/12 shadow-[inset_0_0_0_1px_rgba(59,130,246,0.14)]"
+          : "border-border/30 bg-transparent hover:border-primary/15 hover:bg-muted/20",
       )}
     >
       <button
         type="button"
         onClick={onClick}
-        className="flex min-w-0 flex-1 items-start gap-3 rounded-xl px-2 py-1.5 text-left"
+        className="flex min-w-0 flex-1 items-center gap-2 rounded-md px-1 py-1 text-left"
       >
         <span
           className={cn(
-            "mt-1 inline-flex h-2.5 w-2.5 shrink-0 rounded-full",
+            "inline-flex h-1.5 w-1.5 shrink-0 rounded-full",
             threadStatusDotClass(thread.latestJobStatus),
           )}
         />
-        <div className="min-w-0 flex-1">
-          <div className="flex flex-wrap items-center gap-2">
-            <p className="truncate text-sm font-semibold text-foreground">
-              {thread.title}
-            </p>
-            <Badge
-              variant="outline"
-              className={cn("text-[10px]", threadStatusBadgeClass(thread.latestJobStatus))}
-            >
-              {threadStatusLabel(thread.latestJobStatus)}
-            </Badge>
-          </div>
-          <p className="mt-1 text-xs text-muted-foreground">
+        <div className="min-w-0 flex flex-1 items-center gap-1.5">
+          <p className="truncate text-[12px] font-medium leading-4 text-foreground">
+            {thread.title}
+          </p>
+          <span className="text-[10px] leading-4 text-muted-foreground">-</span>
+          <p className="truncate text-[10px] leading-4 text-muted-foreground">
             {formatThreadMeta(thread)}
           </p>
         </div>
+        <Badge
+          variant="outline"
+          className={cn(
+            "hidden h-4 shrink-0 rounded-sm border px-1 text-[8px] font-medium md:inline-flex",
+            threadStatusBadgeClass(thread.latestJobStatus),
+          )}
+        >
+          {threadStatusLabel(thread.latestJobStatus)}
+        </Badge>
       </button>
 
       <Button
         type="button"
         size="icon"
         variant="ghost"
-        className="mt-0.5 h-8 w-8 shrink-0 rounded-full text-muted-foreground hover:text-destructive"
+        className={cn(
+          "h-6 w-6 shrink-0 rounded-md text-muted-foreground transition-opacity hover:text-destructive",
+          isActive ? "opacity-100" : "opacity-60 md:opacity-0 md:group-hover:opacity-100 md:group-focus-within:opacity-100",
+        )}
         aria-label={`Delete ${thread.title}`}
         onClick={onDelete}
       >
-        <Trash2 className="size-4" />
+        <Trash2 className="size-3" />
       </Button>
     </div>
+  );
+}
+
+function NewThreadListItem({
+  creatingThread,
+  onClick,
+}: {
+  creatingThread: boolean;
+  onClick: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      className="group flex w-full items-center gap-2 rounded-lg border border-dashed border-border/20 bg-transparent px-2 py-1 text-left opacity-70 transition-all hover:border-primary/35 hover:bg-primary/5 hover:opacity-100"
+      disabled={creatingThread}
+      onClick={onClick}
+    >
+      <span className="inline-flex h-1.5 w-1.5 shrink-0 rounded-full bg-muted-foreground/30 transition-colors group-hover:bg-primary/70" />
+      <span className="min-w-0 flex-1 truncate text-[12px] font-medium leading-4 text-foreground/75 transition-colors group-hover:text-foreground">
+        {creatingThread ? "Creating..." : "New Thread"}
+      </span>
+      <Plus className="size-3 shrink-0 text-muted-foreground transition-colors group-hover:text-primary" />
+    </button>
   );
 }
 
@@ -207,89 +242,65 @@ export function WorkspaceSelectionPanel({
   onDeleteThread,
 }: WorkspaceSelectionPanelProps) {
   return (
-    <div className="space-y-4">
-      <Card className="theme-surface border-border/50 shadow-sm">
-        <CardContent className="space-y-4 p-4">
-          <div className="flex items-start gap-3">
-            <div className="rounded-2xl bg-primary/10 p-2 text-primary">
-              <FolderKanban className="size-5" />
-            </div>
-            <div className="min-w-0">
-              <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-muted-foreground">
-                Projects
-              </p>
-            </div>
+    <div className="flex h-full min-h-0 flex-col">
+      <div className="shrink-0 border-b border-border/30 pb-3">
+        <div className="flex items-center gap-3">
+          <div className="flex h-9 w-9 items-center justify-center rounded-2xl bg-primary/10 text-primary">
+            <FolderKanban className="size-4.5" />
           </div>
+          <div className="min-w-0">
+            <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-muted-foreground">
+              Workspace
+            </p>
+          </div>
+        </div>
+      </div>
 
-          {projects.length > 0 ? (
-            <div className="space-y-2">
-              {projects.map((project) => (
-                <ProjectButton
-                  key={project.name}
-                  project={project}
-                  isActive={project.name === activeProject}
-                  onClick={() => onSelectProject(project.name)}
-                />
-              ))}
-            </div>
-          ) : (
-            <div className="rounded-2xl border border-dashed border-border/60 bg-muted/10 px-4 py-5 text-sm text-muted-foreground">
-              No projects are configured yet. Add one from Settings before starting a thread.
-            </div>
-          )}
-        </CardContent>
-      </Card>
-
-      <Card className="theme-surface border-border/50 shadow-sm">
-        <CardContent className="space-y-4 p-4">
+      {projects.length > 0 ? (
+        <div className="min-h-0 flex-1 overflow-y-auto pt-3">
           <div className="space-y-3">
-            <div className="flex items-start gap-3">
-              <div className="rounded-2xl bg-primary/10 p-2 text-primary">
-                <MessageSquareText className="size-5" />
-              </div>
-              <div className="min-w-0">
-                <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-muted-foreground">
-                  Threads
-                </p>
-              </div>
-            </div>
+            {projects.map((project) => {
+              const isActiveProject = project.name === activeProject;
 
-            <Button
-              type="button"
-              className="h-10 w-full rounded-2xl"
-              disabled={!activeProject || creatingThread}
-              onClick={onCreateThread}
-            >
-              <Plus className="size-4" />
-              {creatingThread ? "Creating..." : "New Thread"}
-            </Button>
-          </div>
-
-          {activeProject ? (
-            threads.length > 0 ? (
-              <div className="space-y-2">
-                {threads.map((thread) => (
-                  <ThreadListItem
-                    key={thread.id}
-                    thread={thread}
-                    isActive={thread.id === activeThreadId}
-                    onClick={() => onSelectThread(thread.id)}
-                    onDelete={() => onDeleteThread(thread)}
+              return (
+                <div key={project.name} className="space-y-2 pr-5">
+                  <ProjectButton
+                    project={project}
+                    isActive={isActiveProject}
+                    onClick={() => onSelectProject(project.name)}
                   />
-                ))}
-              </div>
-            ) : (
-              <div className="rounded-2xl border border-dashed border-border/60 bg-muted/10 px-4 py-5 text-sm text-muted-foreground">
-                No threads exist for this project yet.
-              </div>
-            )
-          ) : (
-            <div className="rounded-2xl border border-dashed border-border/60 bg-muted/10 px-4 py-5 text-sm text-muted-foreground">
-              Choose a project above to unlock thread selection.
-            </div>
-          )}
-        </CardContent>
-      </Card>
+
+                  {isActiveProject ? (
+                    <div className="ml-4 space-y-2 border-l border-border/50 pl-3">
+                      <div className="space-y-2">
+                        {threads.map((thread) => (
+                          <ThreadListItem
+                            key={thread.id}
+                            thread={thread}
+                            isActive={thread.id === activeThreadId}
+                            onClick={() => onSelectThread(thread.id)}
+                            onDelete={() => onDeleteThread(thread)}
+                          />
+                        ))}
+                        <NewThreadListItem
+                          creatingThread={creatingThread}
+                          onClick={onCreateThread}
+                        />
+                      </div>
+                    </div>
+                  ) : null}
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      ) : (
+        <div className="pt-3">
+          <div className="rounded-2xl border border-dashed border-border/60 bg-muted/10 px-4 py-5 text-sm text-muted-foreground">
+            No projects are configured yet. Add one from Settings before starting a thread.
+          </div>
+        </div>
+      )}
     </div>
   );
 }

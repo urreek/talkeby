@@ -1,4 +1,4 @@
-import type { JobEvent } from "@/lib/types";
+import type { JobEvent, TerminalEvent } from "@/lib/types";
 
 type SubscriberOptions = {
   jobId?: string;
@@ -60,6 +60,54 @@ export function subscribeJobEvents(options: SubscriberOptions) {
 
   return () => {
     for (const type of EVENT_TYPES) {
+      source.removeEventListener(type, handleMessage as EventListener);
+    }
+    source.close();
+  };
+}
+
+type TerminalSubscriberOptions = {
+  afterEventId?: number;
+  onEvent: (event: TerminalEvent) => void;
+  onError?: (error: Event) => void;
+};
+
+const TERMINAL_EVENT_TYPES = [
+  "terminal_status",
+  "terminal_output",
+  "terminal_input",
+  "terminal_exit",
+];
+
+export function subscribeTerminalEvents(options: TerminalSubscriberOptions) {
+  const params = new URLSearchParams();
+  if (options.afterEventId && options.afterEventId > 0) {
+    params.set("afterEventId", String(options.afterEventId));
+  }
+
+  const query = params.toString();
+  const source = new EventSource(`/api/terminal/events${query ? `?${query}` : ""}`);
+
+  const handleMessage = (input: Event) => {
+    const messageEvent = input as MessageEvent<string>;
+    try {
+      const parsed = JSON.parse(messageEvent.data) as TerminalEvent;
+      options.onEvent(parsed);
+    } catch {
+      // Ignore malformed event payloads to keep stream alive.
+    }
+  };
+
+  for (const type of TERMINAL_EVENT_TYPES) {
+    source.addEventListener(type, handleMessage as EventListener);
+  }
+
+  source.onerror = (error) => {
+    options.onError?.(error);
+  };
+
+  return () => {
+    for (const type of TERMINAL_EVENT_TYPES) {
       source.removeEventListener(type, handleMessage as EventListener);
     }
     source.close();

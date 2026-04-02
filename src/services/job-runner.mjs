@@ -1,17 +1,25 @@
 import crypto from "node:crypto";
 
 import { getRunner } from "../runners/index.mjs";
-import { isFreeModelAllowed } from "../providers/catalog.mjs";
+import { getProviderMeta, isFreeModelAllowed } from "../providers/catalog.mjs";
 import { estimateTokens } from "./token-budget.mjs";
 import { buildBudgetAwarePrompt } from "./prompt-trim.mjs";
 import { buildThreadHistoryContext } from "./thread-context.mjs";
 import {
   buildCodexNativeContinuityError,
-  countPriorExecutedThreadJobs,
   isCodexNativeThreadMode,
 } from "./codex-native-continuity.mjs";
 import { appendJobOutput, clearJobOutput } from "./job-output.mjs";
 import { validateCodexSession } from "./codex-sessions.mjs";
+import {
+  buildProviderNativeContinuityError,
+  countPriorProviderContinuityTurns,
+  getLatestPriorProvider,
+  isFinalizedThreadJob,
+  normalizeProvider,
+  supportsNativeProviderSessions,
+} from "./provider-thread-continuity.mjs";
+import { buildProviderSwitchContext } from "./provider-switch-context.mjs";
 import {
   evaluateRuntimeApprovalRequest,
 } from "./runtime-policy.mjs";
@@ -76,20 +84,43 @@ function publishThreadContinuityError({ eventBus, job, message, payload = {} }) 
 }
 
 export class JobRunner {
-  constructor({ config, state, eventBus, repository }) {
+  constructor({ config, state, eventBus, repository, threadSync = null }) {
     this.config = config;
     this.state = state;
     this.eventBus = eventBus;
     this.repository = repository;
-
-    this.runningJobId = "";
+    this.threadSync = threadSync;
+    this.runningJobIds = new Set();
+    this.runningThreadKeys = new Set();
+    this.threadQueues = new Map();
     this.queue = Promise.resolve();
     this.enqueuedJobIds = new Set();
     this.abortControllers = new Map();
   }
 
   getRunningJobId() {
-    return this.runningJobId || null;
+    return this.runningJobIds.values().next().value || null;
+  }
+
+  getRunningJobIds() {
+    return Array.from(this.runningJobIds);
+  }
+
+  countRunningJobs() {
+    return this.runningJobIds.size;
+  }
+
+  getLaneKey(job) {
+    return String(job?.threadId || job?.id || "").trim();
+  }
+
+  isThreadRunning(threadId = "") {
+    const laneKey = this.getLaneKey({ threadId });
+    return laneKey ? this.runningThreadKeys.has(laneKey) : false;
+  }
+
+  refreshQueueSnapshot() {
+    this.queue = Promise.all(Array.from(this.threadQueues.values())).then(() => {});
   }
 
   stop({ jobId }) {
@@ -132,6 +163,7 @@ export class JobRunner {
   }
 
   async resolveRuntimeApprovalRequest(job, request) {
+    const provider = normalizeProvider(job?.provider) || this.state.getProvider();
     if (this.config.runtimePolicy?.autoApproveAll !== false) {
       const now = new Date().toISOString();
       const approvalKey = String(request?.approvalId || crypto.randomUUID().slice(0, 8));
@@ -141,7 +173,7 @@ export class JobRunner {
 
       const saved = this.state.createRuntimeApproval({
         id: approvalId,
-        provider: this.state.getProvider(),
+        provider,
         chatId: job.chatId,
         jobId: job.id,
         threadId: job.threadId || "",
@@ -193,7 +225,7 @@ export class JobRunner {
 
     const baseRecord = {
       id: approvalId,
-      provider: this.state.getProvider(),
+      provider,
       chatId: job.chatId,
       jobId: job.id,
       threadId: job.threadId || "",
@@ -283,7 +315,10 @@ export class JobRunner {
     }
     this.enqueuedJobIds.add(job.id);
 
-    this.queue = this.queue
+    const laneKey = this.getLaneKey(job);
+    const previousLane = this.threadQueues.get(laneKey) || Promise.resolve();
+    const lanePromise = previousLane
+      .catch(() => {})
       .then(async () => {
         const leaseId = crypto.randomUUID();
         const startedAtMs = Date.now();
@@ -309,7 +344,8 @@ export class JobRunner {
         }
 
         const activeJob = claimedJob;
-        this.runningJobId = activeJob.id;
+        this.runningJobIds.add(activeJob.id);
+        this.runningThreadKeys.add(laneKey);
 
         // Auto-title thread from first user message
         if (activeJob.threadId && this.repository) {
@@ -359,15 +395,20 @@ export class JobRunner {
         let threadIdForBudget = activeJob.threadId || "";
         let inputTokenEstimate = 0;
         let outputTokenEstimate = 0;
-        let providerForRun = this.state.getProvider();
+        let providerForRun = normalizeProvider(activeJob.provider) || this.state.getProvider();
         const abortController = new AbortController();
         this.abortControllers.set(activeJob.id, abortController);
 
         try {
-          const provider = providerForRun;
+          const provider = normalizeProvider(activeJob.provider) || this.state.getProvider();
+          providerForRun = provider;
           const providerConfig = this.config.runner;
           const runner = getRunner(provider);
-          const model = this.state.getModel() || providerConfig.model;
+          const providerMeta = getProviderMeta(provider);
+          const model = (normalizeProvider(this.state.getProvider()) === provider ? this.state.getModel() : "")
+            || (provider === providerConfig.provider ? providerConfig.model : "")
+            || providerMeta?.defaultModel
+            || "";
           const reasoningEffort = this.state.getReasoningEffort();
           const planMode = this.state.getPlanMode();
           const codexParityMode = provider === "codex" && this.config.codex?.parityMode !== false;
@@ -375,6 +416,9 @@ export class JobRunner {
             provider,
             parityMode: codexParityMode,
           });
+          const providerNativeThreadMode = provider === "codex"
+            ? nativeCodexThreadMode
+            : supportsNativeProviderSessions(provider);
           const talkebyRuntimePolicyEnabled = provider === "codex" && this.config.runtimePolicy?.enabled !== false;
           const codexSessionResumeEnabled = this.config.codex?.disableSessionResume !== true;
           const shouldUseTalkebyRuntimePolicy = talkebyRuntimePolicyEnabled && !nativeCodexThreadMode;
@@ -384,13 +428,13 @@ export class JobRunner {
           let threadAutoTrimContext = this.config.threads?.autoTrimContextDefault !== false;
           let threadTokenBudget = toNonNegativeInt(this.config.threads?.defaultTokenBudget, 0);
           let threadRemainingBudget = 0;
+          let bootstrapPrompt = "";
           let resumeContext = "";
           let threadContext = "";
           let managedContextDisabled = false;
-          let promptTrimmed = false;
-          let promptRemovedSections = [];
-          let promptCannotFit = false;
-          let priorExecutedThreadJobs = 0;
+          let providerContinuityTurns = 0;
+          let previousThreadProvider = "";
+          let providerSession = null;
 
           if (nativeCodexThreadMode && talkebyRuntimePolicyEnabled) {
             const continuityMessage = buildCodexNativeContinuityError({
@@ -411,7 +455,12 @@ export class JobRunner {
           if (activeJob.threadId && this.repository) {
             try {
               const thread = this.repository.getThread(activeJob.threadId);
-              sessionId = thread?.cliSessionId || null;
+              providerSession = providerNativeThreadMode
+                ? this.repository.getThreadProviderSession(activeJob.threadId, provider)
+                : null;
+              sessionId = providerNativeThreadMode
+                ? (providerSession?.sessionId || null)
+                : (thread?.cliSessionId || null);
               threadAutoTrimContext = thread?.autoTrimContext !== 0;
               const tokenBudget = toNonNegativeInt(
                 thread?.tokenBudget,
@@ -420,19 +469,44 @@ export class JobRunner {
               threadTokenBudget = tokenBudget;
               const tokenUsed = toNonNegativeInt(thread?.tokenUsed, 0);
               threadRemainingBudget = Math.max(0, tokenBudget - tokenUsed);
-
-              const threadJobs = nativeCodexThreadMode
-                ? this.repository.listJobsByThread(activeJob.threadId, 5000)
-                : [];
-              priorExecutedThreadJobs = nativeCodexThreadMode
-                ? countPriorExecutedThreadJobs(threadJobs, activeJob.id)
+              const threadJobs = this.repository.listJobsByThread(activeJob.threadId, 5000);
+              providerContinuityTurns = providerNativeThreadMode
+                ? countPriorProviderContinuityTurns(threadJobs, {
+                    currentJobId: activeJob.id,
+                    provider,
+                    legacyFallbackProvider: provider === "codex" ? provider : "",
+                  })
                 : 0;
+              previousThreadProvider = providerNativeThreadMode
+                ? getLatestPriorProvider(threadJobs, {
+                    currentJobId: activeJob.id,
+                  })
+                : "";
+              const hasPriorVisibleThreadHistory = threadJobs.some((job) => (
+                String(job?.id || "") !== String(activeJob.id)
+                && isFinalizedThreadJob(job)
+              ));
+              const isProviderSwitch = providerNativeThreadMode && (
+                (previousThreadProvider && previousThreadProvider !== provider)
+                || (!sessionId && hasPriorVisibleThreadHistory && providerContinuityTurns === 0)
+              );
+              bootstrapPrompt = isProviderSwitch
+                ? buildProviderSwitchContext({
+                    repository: this.repository,
+                    threadId: activeJob.threadId,
+                    currentJobId: activeJob.id,
+                    syncedJobId: providerSession?.syncedJobId || "",
+                    fromProvider: previousThreadProvider || "talkeby",
+                    toProvider: provider,
+                  })
+                : "";
 
               if (
                 threadAutoTrimContext
                 && tokenBudget > 0
                 && threadRemainingBudget <= 0
                 && sessionId
+                && !providerNativeThreadMode
                 && !codexParityMode
               ) {
                 sessionId = null;
@@ -448,12 +522,27 @@ export class JobRunner {
                   },
                 });
               }
+              if (bootstrapPrompt) {
+                const handoffSource = previousThreadProvider || "talkeby";
+                this.eventBus.publish({
+                  jobId: activeJob.id,
+                  chatId: activeJob.chatId,
+                  eventType: "provider_switch_context_applied",
+                  message: `Applied compact ${handoffSource}->${provider} thread handoff.`,
+                  payload: {
+                    threadId: activeJob.threadId,
+                    fromProvider: handoffSource,
+                    toProvider: provider,
+                    syncedJobId: providerSession?.syncedJobId || "",
+                  },
+                });
+              }
             } catch {
               // non-critical
             }
           }
 
-          if (nativeCodexThreadMode && priorExecutedThreadJobs > 0 && !codexSessionResumeEnabled) {
+          if (nativeCodexThreadMode && providerContinuityTurns > 0 && !bootstrapPrompt && !codexSessionResumeEnabled) {
             const continuityMessage = buildCodexNativeContinuityError({
               reason: "session_resume_disabled",
               threadId: activeJob.threadId,
@@ -469,30 +558,78 @@ export class JobRunner {
             throw new Error(continuityMessage);
           }
 
-          if (nativeCodexThreadMode && priorExecutedThreadJobs > 0) {
+          if (nativeCodexThreadMode && sessionId) {
             const validation = await validateCodexSession({
               sessionId,
               workdir: activeJob.workdir,
-              minTaskMessages: priorExecutedThreadJobs,
+              minTaskMessages: bootstrapPrompt ? 0 : providerContinuityTurns,
             });
             if (!validation.ok) {
-              const continuityMessage = buildCodexNativeContinuityError({
-                reason: validation.reason,
-                threadId: activeJob.threadId,
-              });
-              publishThreadContinuityError({
-                eventBus: this.eventBus,
-                job: activeJob,
-                message: continuityMessage,
-                payload: {
+              if (bootstrapPrompt) {
+                sessionId = null;
+              } else {
+                const continuityMessage = buildCodexNativeContinuityError({
                   reason: validation.reason,
-                  priorExecutedThreadJobs,
-                  sessionId: sessionId || "",
-                },
-              });
-              throw new Error(continuityMessage);
+                  threadId: activeJob.threadId,
+                });
+                publishThreadContinuityError({
+                  eventBus: this.eventBus,
+                  job: activeJob,
+                  message: continuityMessage,
+                  payload: {
+                    reason: validation.reason,
+                    priorContinuityTurns: providerContinuityTurns,
+                    provider,
+                    sessionId: sessionId || "",
+                  },
+                });
+                throw new Error(continuityMessage);
+              }
             }
-            sessionId = validation.session?.sessionId || sessionId;
+            if (validation.ok) {
+              sessionId = validation.session?.sessionId || sessionId;
+            }
+          } else if (nativeCodexThreadMode && providerContinuityTurns > 0 && !bootstrapPrompt) {
+            const continuityMessage = buildCodexNativeContinuityError({
+              reason: "missing_session_id",
+              threadId: activeJob.threadId,
+            });
+            publishThreadContinuityError({
+              eventBus: this.eventBus,
+              job: activeJob,
+              message: continuityMessage,
+              payload: {
+                reason: "missing_session_id",
+                priorContinuityTurns: providerContinuityTurns,
+                provider,
+                sessionId: "",
+              },
+            });
+            throw new Error(continuityMessage);
+          }
+
+          if (
+            providerNativeThreadMode
+            && provider !== "codex"
+            && providerContinuityTurns > 0
+            && !bootstrapPrompt
+            && !sessionId
+          ) {
+            const continuityMessage = buildProviderNativeContinuityError({
+              provider,
+              threadId: activeJob.threadId,
+            });
+            publishThreadContinuityError({
+              eventBus: this.eventBus,
+              job: activeJob,
+              message: continuityMessage,
+              payload: {
+                reason: "missing_session_id",
+                priorContinuityTurns: providerContinuityTurns,
+                provider,
+              },
+            });
+            throw new Error(continuityMessage);
           }
 
           if (provider === "codex" && this.config.codex?.disableSessionResume) {
@@ -500,7 +637,7 @@ export class JobRunner {
           }
 
           managedContextDisabled = Boolean(
-            nativeCodexThreadMode || (provider === "codex" && sessionId),
+            providerNativeThreadMode || (provider === "codex" && sessionId),
           );
           if (!managedContextDisabled && activeJob.threadId && this.repository) {
             threadContext = buildThreadHistoryContext({
@@ -521,7 +658,7 @@ export class JobRunner {
           const budgetEnabled = threadTokenBudget > 0 && !managedContextDisabled;
           const prepared = buildBudgetAwarePrompt({
             userTask: activeJob.request,
-            bootstrapPrompt: "",
+            bootstrapPrompt,
             resumeContext: effectiveResumeContext,
             threadContext: effectiveThreadContext,
             remainingBudget: threadRemainingBudget,
@@ -530,9 +667,6 @@ export class JobRunner {
           });
           taskText = prepared.prompt;
           inputTokenEstimate = prepared.estimatedTokens;
-          promptTrimmed = Boolean(prepared.trimmed);
-          promptRemovedSections = Array.isArray(prepared.removed) ? prepared.removed : [];
-          promptCannotFit = Boolean(prepared.cannotFit);
           if (prepared.trimmed) {
             this.eventBus.publish({
               jobId: activeJob.id,
@@ -592,6 +726,7 @@ export class JobRunner {
             sessionId,
             nativeCodexThreadMode,
             persistExtendedHistory: Boolean(this.config.codex?.persistExtendedHistory),
+            sandboxMode: this.config.codex?.sandboxMode || "workspace-write",
             signal: abortController.signal,
             onLine: (line) => {
               appendJobOutput(activeJob.id, line);
@@ -621,11 +756,25 @@ export class JobRunner {
               : undefined,
           });
 
-          if (result.newSessionId && activeJob.threadId && this.repository && !shouldUseTalkebyRuntimePolicy) {
+          if (activeJob.threadId && this.repository && !shouldUseTalkebyRuntimePolicy) {
             try {
-              this.repository.updateThread(activeJob.threadId, {
-                cliSessionId: result.newSessionId,
-              });
+              const effectiveSessionId = String(result.newSessionId || sessionId || "").trim();
+              if (providerNativeThreadMode && effectiveSessionId) {
+                this.repository.upsertThreadProviderSession({
+                  threadId: activeJob.threadId,
+                  provider,
+                  sessionId: effectiveSessionId,
+                  syncedJobId: activeJob.id,
+                });
+                if (provider === "codex") {
+                  await this.threadSync?.syncTalkebyThread(activeJob.threadId);
+                }
+              } else if (provider === "codex" && result.newSessionId) {
+                this.repository.updateThread(activeJob.threadId, {
+                  cliSessionId: result.newSessionId,
+                });
+                await this.threadSync?.syncTalkebyThread(activeJob.threadId);
+              }
             } catch {
               // non-critical
             }
@@ -808,7 +957,8 @@ export class JobRunner {
             clearInterval(progressTimer);
           }
           this.state.markPendingConsumed(activeJob.id);
-          this.runningJobId = "";
+          this.runningJobIds.delete(activeJob.id);
+          this.runningThreadKeys.delete(laneKey);
           // Free streaming output buffer
           clearJobOutput(activeJob.id);
           this.enqueuedJobIds.delete(activeJob.id);
@@ -817,8 +967,18 @@ export class JobRunner {
       .catch((error) => {
         console.error("Unhandled queue error", error);
         this.enqueuedJobIds.delete(job.id);
-        this.runningJobId = "";
+        this.runningJobIds.delete(job.id);
+        this.runningThreadKeys.delete(laneKey);
       });
+
+    this.threadQueues.set(laneKey, lanePromise);
+    this.refreshQueueSnapshot();
+    lanePromise.finally(() => {
+      if (this.threadQueues.get(laneKey) === lanePromise) {
+        this.threadQueues.delete(laneKey);
+      }
+      this.refreshQueueSnapshot();
+    });
   }
 }
 

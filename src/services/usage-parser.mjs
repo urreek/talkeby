@@ -30,9 +30,24 @@ function usageRecord({
   };
 }
 
+function codexTokenUsageContainer(value) {
+  return value?.tokenUsage || value?.info || value?.payload?.info || null;
+}
+
+function codexUsageEntry(container, kind) {
+  if (!container) {
+    return null;
+  }
+
+  return container[kind]
+    || container[`${kind}TokenUsage`]
+    || container[`${kind}_token_usage`]
+    || null;
+}
+
 function parseCodexUsageEntry(entry, raw) {
-  const input = toInt(entry?.inputTokens);
-  const output = toInt(entry?.outputTokens);
+  const input = toInt(entry?.inputTokens || entry?.input_tokens);
+  const output = toInt(entry?.outputTokens || entry?.output_tokens);
   const total = toInt(entry?.totalTokens || input + output);
   if (input <= 0 && output <= 0 && total <= 0) {
     return null;
@@ -42,25 +57,56 @@ function parseCodexUsageEntry(entry, raw) {
     inputTokens: input,
     outputTokens: output,
     totalTokens: total,
-    cachedInputTokens: toInt(entry?.cachedInputTokens),
-    reasoningOutputTokens: toInt(entry?.reasoningOutputTokens),
+    cachedInputTokens: toInt(
+      entry?.cachedInputTokens
+      || entry?.cached_input_tokens
+      || entry?.input_tokens_details?.cached_tokens,
+    ),
+    reasoningOutputTokens: toInt(
+      entry?.reasoningOutputTokens
+      || entry?.reasoning_output_tokens
+      || entry?.output_tokens_details?.reasoning_tokens,
+    ),
     raw,
   });
 }
 
 export function extractCodexUsageFromEvent(event) {
-  if (!event?.tokenUsage) {
+  const tokenUsage = codexTokenUsageContainer(event);
+  if (!tokenUsage) {
     return null;
   }
   // Per-job accounting should use "last" (current turn delta), never cumulative "total".
-  return parseCodexUsageEntry(event.tokenUsage.last, event.tokenUsage);
+  return parseCodexUsageEntry(codexUsageEntry(tokenUsage, "last"), tokenUsage);
 }
 
 export function extractCodexTotalUsageFromEvent(event) {
-  if (!event?.tokenUsage) {
+  const tokenUsage = codexTokenUsageContainer(event);
+  if (!tokenUsage) {
     return null;
   }
-  return parseCodexUsageEntry(event.tokenUsage.total, event.tokenUsage);
+  return parseCodexUsageEntry(codexUsageEntry(tokenUsage, "total"), tokenUsage);
+}
+
+export function extractLatestCodexUsageFromSessionRows(rows) {
+  const safeRows = Array.isArray(rows) ? rows : [];
+  for (let index = safeRows.length - 1; index >= 0; index -= 1) {
+    const row = safeRows[index];
+    if (row?.type !== "event_msg") {
+      continue;
+    }
+    if (String(row?.payload?.type || "").trim().toLowerCase() !== "token_count") {
+      continue;
+    }
+
+    const usage = extractCodexUsageFromEvent({
+      info: row?.payload?.info || null,
+    });
+    if (usage && usage.totalTokens > 0) {
+      return usage;
+    }
+  }
+  return null;
 }
 
 export function extractGeminiUsageFromJsonPayload(payload) {

@@ -187,6 +187,23 @@ function createCompletedJob({ state, threadId, request, workdir, offsetMs }) {
   });
 }
 
+function createFailedJob({ state, threadId, request, workdir, offsetMs, error = "preflight failed" }) {
+  const timestamps = buildJobTimestamps(offsetMs);
+  return state.createJob({
+    id: `job-${Math.random().toString(36).slice(2, 10)}`,
+    chatId: state.getOwnerId(),
+    threadId,
+    request,
+    projectName: "demo",
+    workdir,
+    status: "failed",
+    createdAt: timestamps.createdAt,
+    startedAt: timestamps.startedAt,
+    completedAt: timestamps.completedAt,
+    error,
+  });
+}
+
 function createQueuedJob({ state, threadId, request, workdir, offsetMs }) {
   const timestamps = buildJobTimestamps(offsetMs);
   return state.createJob({
@@ -267,13 +284,99 @@ test("native Codex parity resumes validated sessions without injecting managed t
       assert.equal(updatedJob?.status, "completed");
       assert.equal(updatedJob?.summary, "native resume ok");
       assert.equal(logged.args[0], "exec");
-      assert.equal(logged.args[3], "resume");
-      assert.equal(logged.args[4], sessionId);
+      const resumeIndex = logged.args.indexOf("resume");
+      const sessionIdIndex = logged.args.indexOf(sessionId);
+      assert.notEqual(resumeIndex, -1);
+      assert.notEqual(sessionIdIndex, -1);
+      assert.ok(sessionIdIndex > resumeIndex);
       assert.equal(logged.args.at(-1), "-");
       assert.equal(logged.prompt, `${queuedJob.request}\n`);
       assert.equal(logged.prompt.includes("Thread context:"), false);
       assert.equal(logged.prompt.includes("Previous error context:"), false);
       assert.equal(repository.getThread(thread.id)?.cliSessionId, sessionId);
+    } finally {
+      harness.sqlite.close();
+      setCodexSpawnCompatForTests();
+    }
+  });
+});
+
+test("native Codex parity ignores failed preflight jobs when validating native session history", async () => {
+  const tempDir = await fs.mkdtemp(path.join(os.tmpdir(), "talkeby-job-runner-"));
+  const workdir = path.join(tempDir, "workdir");
+  const logPath = path.join(tempDir, "resume-after-failures-log.json");
+  await fs.mkdir(workdir, { recursive: true });
+  const binary = await createFakeCodexBinary(tempDir, workdir);
+  const sessionId = "77777777-1111-4222-8333-bbbbbbbbbbbb";
+
+  await withTemporaryHome(tempDir, async () => {
+    setCodexSpawnCompatForTests(createMockCodexSpawn());
+    const harness = await createHarness({
+      tempDir,
+      workdir,
+      binary,
+      runtimePolicyEnabled: false,
+    });
+
+    try {
+      const { repository, state, jobRunner } = harness;
+      const thread = createThread(repository);
+      repository.updateThread(thread.id, { cliSessionId: sessionId });
+      await createTalkebySessionFile({
+        homeDir: tempDir,
+        sessionId,
+        workdir,
+        taskMessages: ["first task"],
+      });
+      createCompletedJob({
+        state,
+        threadId: thread.id,
+        request: "first task",
+        workdir,
+        offsetMs: -4_000,
+      });
+      createFailedJob({
+        state,
+        threadId: thread.id,
+        request: "retry after restart",
+        workdir,
+        offsetMs: -3_000,
+        error: "Talkeby restarted while this job was running.",
+      });
+      createFailedJob({
+        state,
+        threadId: thread.id,
+        request: "retry after bad flag",
+        workdir,
+        offsetMs: -2_000,
+        error: "error: unexpected argument '--reasoning-effort' found",
+      });
+      const queuedJob = createQueuedJob({
+        state,
+        threadId: thread.id,
+        request: "continue from the last error in this thread and fix it.",
+        workdir,
+        offsetMs: -1_000,
+      });
+
+      await withFakeCodexEnv({
+        FAKE_CODEX_LOG: logPath,
+        FAKE_CODEX_MESSAGE: "native resume after failures ok",
+        FAKE_CODEX_WORKDIR: workdir,
+      }, async () => {
+        jobRunner.enqueue(queuedJob);
+        await jobRunner.queue;
+      });
+
+      const updatedJob = repository.getJobById(queuedJob.id);
+      const logged = JSON.parse(await fs.readFile(logPath, "utf8"));
+      assert.equal(updatedJob?.status, "completed");
+      assert.equal(updatedJob?.summary, "native resume after failures ok");
+      const resumeIndex = logged.args.indexOf("resume");
+      const sessionIdIndex = logged.args.indexOf(sessionId);
+      assert.notEqual(resumeIndex, -1);
+      assert.notEqual(sessionIdIndex, -1);
+      assert.ok(sessionIdIndex > resumeIndex);
     } finally {
       harness.sqlite.close();
       setCodexSpawnCompatForTests();

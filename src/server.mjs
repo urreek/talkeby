@@ -5,9 +5,11 @@ import { createDatabase } from "./db/database.mjs";
 import { TalkebyRepository } from "./db/repository.mjs";
 import { registerRoutes } from "./http/routes.mjs";
 import { registerSecurityHooks } from "./http/security.mjs";
+import { CodexThreadSync } from "./services/codex-thread-sync.mjs";
 import { EventBus } from "./services/event-bus.mjs";
 import { JobRunner } from "./services/job-runner.mjs";
 import { RuntimeState } from "./services/runtime-state.mjs";
+import { TerminalManager } from "./services/terminal-manager.mjs";
 
 function safeList(items) {
   if (!items || items.length === 0) {
@@ -18,10 +20,19 @@ function safeList(items) {
 
 async function start() {
   const config = loadConfig();
+  const app = fastify({
+    logger: true,
+  });
   const { db } = createDatabase({
     filePath: config.storage.databaseFile,
   });
   const repository = new TalkebyRepository(db);
+  const threadSync = new CodexThreadSync({
+    config,
+    repository,
+    log: app.log,
+  });
+  await threadSync.ensureSynced({ force: true });
   const state = new RuntimeState({
     config,
     repository,
@@ -29,11 +40,16 @@ async function start() {
   state.hydrate();
 
   const eventBus = new EventBus(repository);
+  const terminalManager = new TerminalManager({
+    defaultCwd: config.codex.workdir,
+    log: app.log,
+  });
   const jobRunner = new JobRunner({
     config,
     state,
     eventBus,
     repository,
+    threadSync,
   });
   const startupRecovery = state.consumeStartupRecovery();
   for (const job of startupRecovery.failedJobs) {
@@ -52,10 +68,6 @@ async function start() {
     jobRunner.enqueue(job);
   }
 
-  const app = fastify({
-    logger: true,
-  });
-
   const security = registerSecurityHooks({
     app,
     config,
@@ -69,6 +81,8 @@ async function start() {
     jobRunner,
     repository,
     security,
+    terminalManager,
+    threadSync,
   });
 
   await app.listen({
@@ -79,7 +93,8 @@ async function start() {
   app.log.info(`Default execution mode: ${config.app.defaultExecutionMode}`);
   app.log.info(`Codex default project: ${config.codex.defaultProjectName}`);
   app.log.info(`Codex projects: ${safeList(state.availableProjectNames())}`);
-  app.log.info(`Codex workdir: ${config.codex.workdir}`);
+  app.log.info(`Workspace directory: ${config.codex.workdir}`);
+  app.log.info(`Codex sandbox mode: ${config.codex.sandboxMode}`);
   app.log.info(`Database file: ${config.storage.databaseFile}`);
   app.log.info(`App access key: ${config.security.ownerKey ? "enabled" : "disabled"}`);
 }
