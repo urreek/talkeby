@@ -11,6 +11,7 @@ import type {
   ProviderCatalogResponse,
   ProviderResponse,
   RuntimeApprovalsResponse,
+  TerminalSnapshotResponse,
   Thread,
   ThreadsResponse,
 } from "@/lib/types";
@@ -270,6 +271,7 @@ export async function setProvider(input: {
   model?: string;
   reasoningEffort?: string;
   planMode?: boolean;
+  threadId?: string;
 }) {
   return requestJson<ProviderResponse>("/api/provider", {
     method: "POST",
@@ -394,6 +396,37 @@ export async function approveRuntimeApproval(input: { id: string }) {
 
 export async function denyRuntimeApproval(input: { id: string }) {
   return requestJson<{ ok: true }>(`/api/runtime-approvals/${encodeURIComponent(input.id)}/deny`, {
+    method: "POST",
+  });
+}
+
+export async function fetchTerminalSnapshot(afterEventId = 0, limit = 500) {
+  const params = new URLSearchParams();
+  if (afterEventId > 0) {
+    params.set("afterEventId", String(afterEventId));
+  }
+  params.set("limit", String(Math.max(1, Math.min(limit, 1000))));
+
+  const query = params.toString();
+  return requestJson<TerminalSnapshotResponse>(`/api/terminal${query ? `?${query}` : ""}`);
+}
+
+export async function startTerminal(cwd?: string) {
+  return requestJson<TerminalSnapshotResponse>("/api/terminal", {
+    method: "POST",
+    body: JSON.stringify(cwd?.trim() ? { cwd: cwd.trim() } : {}),
+  });
+}
+
+export async function sendTerminalInput(input: string) {
+  return requestJson<{ ok: true }>("/api/terminal/input", {
+    method: "POST",
+    body: JSON.stringify({ input }),
+  });
+}
+
+export async function closeTerminal() {
+  return requestJson<{ ok: true }>("/api/terminal/close", {
     method: "POST",
   });
 }

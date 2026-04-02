@@ -4,12 +4,19 @@ import fs from "node:fs";
 import path from "node:path";
 import { promisify } from "node:util";
 
+import { buildCodexTranscriptJobs } from "../services/codex-thread-history.mjs";
 import {
   getCodexNativeContinuityCheck,
 } from "../services/codex-native-continuity.mjs";
 import { getJobOutput, subscribeJobOutput } from "../services/job-output.mjs";
 import { buildObservabilitySummary } from "../services/observability.mjs";
-import { deleteCodexSessionFiles } from "../services/codex-sessions.mjs";
+import { inspectCodexSession } from "../services/codex-sessions.mjs";
+import { resolveProviderReasoningEffort } from "../services/provider-reasoning.mjs";
+import { buildSandboxDoctorCheck } from "../services/sandbox-policy.mjs";
+import {
+  buildThreadProviderPreferencePatch,
+  resolveThreadProviderPreferences,
+} from "../services/thread-provider-preferences.mjs";
 import {
   getProviderMeta,
   supportedProviderText,
@@ -18,6 +25,7 @@ import {
 import { buildProviderCatalogWithDiscovery } from "../providers/discovery.mjs";
 import { registerEventRoute } from "./events-route.mjs";
 import { registerJobRoutes } from "./jobs-routes.mjs";
+import { registerTerminalRoutes } from "./terminal-routes.mjs";
 import {
   serializeJob,
   serializeJobs,
@@ -168,6 +176,12 @@ function summarizeHealth({
   return {
     ok: true,
     runningJobId: jobRunner.getRunningJobId(),
+    runningJobIds: typeof jobRunner.getRunningJobIds === "function"
+      ? jobRunner.getRunningJobIds()
+      : (jobRunner.getRunningJobId() ? [jobRunner.getRunningJobId()] : []),
+    runningJobs: typeof jobRunner.countRunningJobs === "function"
+      ? jobRunner.countRunningJobs()
+      : (jobRunner.getRunningJobId() ? 1 : 0),
     queuedJobs: state.countQueuedJobs(),
     defaultExecutionMode: config.app.defaultExecutionMode,
     defaultProject: config.codex.defaultProjectName,
@@ -192,6 +206,8 @@ export function registerRoutes({
   jobRunner,
   repository,
   security,
+  terminalManager,
+  threadSync = null,
 }) {
   let providerCatalogCache = {
     fetchedAt: 0,
@@ -382,6 +398,10 @@ export function registerRoutes({
       fix: backendPort > 0 && webPort > 0 ? "" : "Set valid PORT and WEB_PORT integers in .env.",
     });
     if (activeProvider === "codex") {
+      addCheck(buildSandboxDoctorCheck({
+        sandboxMode: config.codex?.sandboxMode,
+        executionMode: config.app?.defaultExecutionMode,
+      }));
       addCheck({
         id: "codex_parity_mode",
         ok: codexParityMode,
@@ -500,6 +520,7 @@ export function registerRoutes({
   });
 
   app.get("/api/threads", async (request) => {
+    await threadSync?.ensureSynced();
     const projectName = textValue(request.query?.project || "");
     const limitInput = Number.parseInt(String(request.query?.limit || 50), 10);
     const limit = Number.isFinite(limitInput) ? Math.max(1, Math.min(limitInput, 200)) : 50;
@@ -537,6 +558,9 @@ export function registerRoutes({
       id,
       projectName: resolvedProjectName,
       title: title || "New thread",
+      lastProvider: state.getProvider(),
+      lastModel: state.getModel(),
+      lastReasoningEffort: state.getReasoningEffort(),
       tokenBudget: config.threads?.defaultTokenBudget ?? 12000,
       autoTrimContext: config.threads?.autoTrimContextDefault !== false,
     });
@@ -557,7 +581,38 @@ export function registerRoutes({
     }
 
     const jobs = repository.listJobsByThread(threadId);
-    return { jobs: serializeJobs(jobs) };
+    let transcriptJobs = [];
+    const workdir = textValue(config.codex.projects.get(thread.projectName) || "");
+
+    if (thread.cliSessionId && workdir) {
+      try {
+        const session = await inspectCodexSession({
+          sessionId: thread.cliSessionId,
+          workdir,
+        });
+        transcriptJobs = await buildCodexTranscriptJobs({
+          sessionFilePath: session?.filePath || "",
+          threadId,
+          projectName: thread.projectName,
+          workdir,
+          persistedJobs: jobs,
+        });
+      } catch {
+        transcriptJobs = [];
+      }
+    }
+
+    const mergedJobs = [...transcriptJobs, ...jobs]
+      .sort((left, right) => {
+        const leftTime = Date.parse(String(left.createdAt || ""));
+        const rightTime = Date.parse(String(right.createdAt || ""));
+        return leftTime - rightTime;
+      });
+    return {
+      jobs: serializeJobs(mergedJobs, {
+        getJobById: (jobId) => repository.getJobById(jobId),
+      }),
+    };
   });
 
   app.delete("/api/threads/:threadId", async (request, reply) => {
@@ -573,12 +628,21 @@ export function registerRoutes({
       return { error: "Thread not found." };
     }
 
+    const archivedThread = repository.updateThread(threadId, {
+      status: "archived",
+    });
     if (thread.cliSessionId) {
-      await deleteCodexSessionFiles(thread.cliSessionId);
+      await threadSync?.archiveTalkebyThread({
+        ...thread,
+        status: "archived",
+      });
     }
 
-    repository.deleteThread(threadId);
-    return { ok: true };
+    return {
+      ok: true,
+      archived: true,
+      thread: archivedThread,
+    };
   });
 
   app.patch("/api/threads/:threadId", async (request, reply) => {
@@ -617,6 +681,9 @@ export function registerRoutes({
     }
 
     const thread = repository.updateThread(threadId, patch);
+    if (thread?.cliSessionId) {
+      await threadSync?.syncTalkebyThread(thread.id);
+    }
     return { thread };
   });
 
@@ -643,6 +710,7 @@ export function registerRoutes({
     model: state.getModel(),
     reasoningEffort: state.getReasoningEffort(),
     planMode: state.getPlanMode(),
+    sandboxMode: config.codex?.sandboxMode || "workspace-write",
     codexParityMode: config.codex?.parityMode !== false,
     codexSessionResumeEnabled: config.codex?.disableSessionResume !== true,
     supported: SUPPORTED_PROVIDERS,
@@ -654,29 +722,65 @@ export function registerRoutes({
   });
 
   app.post("/api/provider", async (request, reply) => {
+    const threadId = textValue(request.body?.threadId || "");
     const providerName = request.body?.provider;
     const modelName = request.body?.model;
     const reasoningEffort = request.body?.reasoningEffort;
     const planMode = request.body?.planMode;
+    const shouldRestoreThreadState = (
+      Boolean(threadId)
+      && providerName === undefined
+      && modelName === undefined
+      && reasoningEffort === undefined
+      && planMode === undefined
+    );
+
+    let nextProvider = state.getProvider();
+    let nextModel = state.getModel();
+    let nextReasoningEffort = state.getReasoningEffort();
+    let thread = null;
+
+    if (threadId) {
+      thread = repository.getThread(threadId);
+      if (!thread) {
+        reply.code(404);
+        return {
+          error: `Thread ${threadId} was not found.`,
+        };
+      }
+    }
+
+    if (shouldRestoreThreadState && thread) {
+      const restored = resolveThreadProviderPreferences({
+        repository,
+        thread,
+        state,
+      });
+      nextProvider = restored.provider;
+      nextModel = restored.model;
+      nextReasoningEffort = restored.reasoningEffort;
+    }
 
     if (providerName !== undefined) {
       const requestedProvider = textValue(providerName).toLowerCase();
-      const resolved = state.setProvider(requestedProvider);
-      if (!resolved) {
+      const requestedProviderMeta = getProviderMeta(requestedProvider);
+      if (!requestedProviderMeta) {
         reply.code(400);
         return {
           error: `Unknown provider "${providerName}". Supported: ${supportedProviderText()}.`,
         };
       }
+      nextProvider = requestedProvider;
       if (modelName === undefined) {
-        state.setModel("");
+        nextModel = requestedProvider === config.runner?.provider
+          ? (config.runner?.model || requestedProviderMeta.defaultModel || "")
+          : (requestedProviderMeta.defaultModel || "");
       }
     }
 
     if (modelName !== undefined) {
       const normalizedModel = textValue(modelName);
-      const selectedProvider = state.getProvider();
-      const providerMeta = getProviderMeta(selectedProvider);
+      const providerMeta = getProviderMeta(nextProvider);
       if (
         config.runner?.freeModelsOnly
         && providerMeta
@@ -686,15 +790,41 @@ export function registerRoutes({
       ) {
         reply.code(400);
         return {
-          error: `Model "${normalizedModel}" is not allowed while FREE_MODELS_ONLY=true for provider "${selectedProvider}".`,
+          error: `Model "${normalizedModel}" is not allowed while FREE_MODELS_ONLY=true for provider "${nextProvider}".`,
           code: "model_not_allowed",
         };
       }
-      state.setModel(normalizedModel);
+      nextModel = normalizedModel;
     }
 
-    if (reasoningEffort !== undefined) {
-      state.setReasoningEffort(textValue(reasoningEffort));
+    if (
+      shouldRestoreThreadState
+      || 
+      providerName !== undefined
+      || modelName !== undefined
+      || reasoningEffort !== undefined
+    ) {
+      const providers = await resolveProviderCatalog();
+      nextReasoningEffort = resolveProviderReasoningEffort({
+        providerCatalog: providers,
+        providerId: nextProvider,
+        modelName: nextModel,
+        currentEffort: reasoningEffort !== undefined
+          ? textValue(reasoningEffort)
+          : nextReasoningEffort,
+      });
+    }
+
+    state.setProvider(nextProvider);
+    state.setModel(nextModel);
+    state.setReasoningEffort(nextReasoningEffort);
+
+    if (threadId) {
+      repository.updateThread(threadId, buildThreadProviderPreferencePatch({
+        provider: state.getProvider(),
+        model: state.getModel(),
+        reasoningEffort: state.getReasoningEffort(),
+      }));
     }
 
     if (planMode !== undefined) {
@@ -706,6 +836,7 @@ export function registerRoutes({
       model: state.getModel(),
       reasoningEffort: state.getReasoningEffort(),
       planMode: state.getPlanMode(),
+      sandboxMode: config.codex?.sandboxMode || "workspace-write",
       codexParityMode: config.codex?.parityMode !== false,
       codexSessionResumeEnabled: config.codex?.disableSessionResume !== true,
     };
@@ -999,5 +1130,6 @@ export function registerRoutes({
   });
 
   registerEventRoute(app, eventBus);
+  registerTerminalRoutes(app, terminalManager);
 }
 

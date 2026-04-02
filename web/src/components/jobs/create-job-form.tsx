@@ -11,12 +11,14 @@ import {
 } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { fetchProvider, fetchProviderCatalog, setProvider } from "@/lib/api";
+import { getReasoningConfig, resolveReasoningEffort } from "@/lib/reasoning";
 import type { AIProvider, ProjectInfo } from "@/lib/types";
 import { cn } from "@/lib/utils";
 
 type CreateJobFormProps = {
   projects: ProjectInfo[];
   activeProject: string;
+  activeThreadId?: string;
   isSubmitting: boolean;
   submitError?: string;
   onSubmit: (input: { task: string; projectName: string }) => Promise<void>;
@@ -26,6 +28,7 @@ type CreateJobFormProps = {
 export function CreateJobForm({
   projects,
   activeProject,
+  activeThreadId = "",
   isSubmitting,
   submitError = "",
   onSubmit,
@@ -54,14 +57,20 @@ export function CreateJobForm({
   const providerData = providerQuery.data;
   const provider = providerData?.provider ?? "codex";
   const currentModelValue = providerData?.model || "__default__";
-  const currentReasoningEffort = providerData?.reasoningEffort || "__default__";
+  const currentReasoningEffort = providerData?.reasoningEffort || "medium";
 
   const providerCatalog = catalogQuery.data?.providers ?? [];
   const activeProvider = useMemo(
     () => providerCatalog.find((item) => item.id === provider) || providerCatalog[0],
     [providerCatalog, provider],
   );
-  const supportsReasoning = Boolean(activeProvider?.supportsReasoningEffort);
+  const reasoningConfig = getReasoningConfig(activeProvider, currentModelValue);
+  const canSelectReasoning = reasoningConfig.canSelectReasoning;
+  const resolvedReasoningEffort = resolveReasoningEffort(
+    activeProvider,
+    currentModelValue,
+    currentReasoningEffort,
+  );
 
   useEffect(() => {
     if (projects.some((project) => project.name === activeProject)) {
@@ -74,23 +83,37 @@ export function CreateJobForm({
   }, [activeProject, projects]);
 
   const handleProviderChange = (value: string) => {
-    setProvider({ provider: value }).then(() =>
-      queryClient.invalidateQueries({ queryKey: ["provider"] }),
-    );
+    setProvider({
+      provider: value,
+      threadId: activeThreadId || undefined,
+    }).then((response) => {
+      queryClient.setQueryData(["provider"], response);
+    });
   };
 
   const handleModelChange = (value: string) => {
     const model = value === "__default__" ? "" : value;
-    setProvider({ model }).then(() =>
-      queryClient.invalidateQueries({ queryKey: ["provider"] }),
+    const nextReasoningEffort = resolveReasoningEffort(
+      activeProvider,
+      value,
+      currentReasoningEffort,
     );
+    setProvider({
+      model,
+      reasoningEffort: nextReasoningEffort,
+      threadId: activeThreadId || undefined,
+    }).then((response) => {
+      queryClient.setQueryData(["provider"], response);
+    });
   };
 
   const handleReasoningEffortChange = (value: string) => {
-    const reasoningEffort = value === "__default__" ? "" : value;
-    setProvider({ reasoningEffort }).then(() =>
-      queryClient.invalidateQueries({ queryKey: ["provider"] }),
-    );
+    setProvider({
+      reasoningEffort: value,
+      threadId: activeThreadId || undefined,
+    }).then((response) => {
+      queryClient.setQueryData(["provider"], response);
+    });
   };
 
   return (
@@ -98,8 +121,8 @@ export function CreateJobForm({
       className={cn(
         "relative overflow-hidden",
         embedded
-          ? "rounded-[1.25rem]"
-          : "theme-surface rounded-[1.75rem] border border-border/40 shadow-2xl shadow-black/20 dark:border-white/10",
+          ? "rounded-lg"
+          : "theme-surface rounded-xl border border-border/40 shadow-2xl shadow-black/20 dark:border-white/10",
       )}
     >
       <div
@@ -128,11 +151,10 @@ export function CreateJobForm({
             }
           }}
         >
-
           <Textarea
             placeholder="Tell me what to do boss"
             value={task}
-            className="min-h-[96px] max-h-[240px] resize-y rounded-[1.5rem] border-border/50 bg-background/70 px-4 py-3 text-base font-medium shadow-inner placeholder:text-muted-foreground/50 focus-visible:ring-2 focus-visible:ring-primary/70 focus-visible:ring-offset-0 dark:border-white/10 sm:min-h-[112px] md:text-sm"
+            className="min-h-[96px] max-h-[240px] resize-y rounded-lg border-border/50 bg-background/70 px-4 py-3 text-base font-medium shadow-inner placeholder:text-muted-foreground/50 focus-visible:ring-2 focus-visible:ring-primary/70 focus-visible:ring-offset-0 dark:border-white/10 sm:min-h-[112px] md:text-sm"
             onChange={(event) => setTask(event.target.value)}
           />
 
@@ -175,47 +197,32 @@ export function CreateJobForm({
             </Select>
 
             <Select
-              value={currentReasoningEffort}
-              disabled={!supportsReasoning}
+              value={canSelectReasoning ? resolvedReasoningEffort : ""}
+              disabled={!canSelectReasoning}
               onValueChange={handleReasoningEffortChange}
             >
               <SelectTrigger className="h-9 min-w-0 rounded-lg border-border/50 bg-background/60 px-2 text-xs font-semibold text-foreground transition-colors hover:bg-background/80 focus:ring-primary focus:ring-offset-0 dark:border-white/10">
                 <SelectValue
                   className="truncate text-foreground"
-                  placeholder={supportsReasoning ? "Reasoning" : "N/A"}
+                  placeholder={canSelectReasoning ? "Reasoning" : "Unavailable"}
                 />
               </SelectTrigger>
               <SelectContent className="border-border/40 bg-popover/95 text-popover-foreground backdrop-blur-xl dark:border-white/10">
-                <SelectItem
-                  className="cursor-pointer transition-colors focus:bg-primary/20 focus:text-primary"
-                  value="__default__"
-                >
-                  Reasoning: Default
-                </SelectItem>
-                <SelectItem
-                  className="cursor-pointer transition-colors focus:bg-primary/20 focus:text-primary"
-                  value="low"
-                >
-                  Reasoning: Low
-                </SelectItem>
-                <SelectItem
-                  className="cursor-pointer transition-colors focus:bg-primary/20 focus:text-primary"
-                  value="medium"
-                >
-                  Reasoning: Medium
-                </SelectItem>
-                <SelectItem
-                  className="cursor-pointer transition-colors focus:bg-primary/20 focus:text-primary"
-                  value="high"
-                >
-                  Reasoning: High
-                </SelectItem>
+                {reasoningConfig.options.map((option) => (
+                  <SelectItem
+                    className="cursor-pointer transition-colors focus:bg-primary/20 focus:text-primary"
+                    key={option.value}
+                    value={option.value}
+                  >
+                    {option.label}
+                  </SelectItem>
+                ))}
               </SelectContent>
             </Select>
 
             <Button
               type="submit"
-              className="h-9 min-w-[8.5rem] rounded-lg px-4 text-sm font-bold shadow-lg shadow-primary/20 transition-all active:scale-95 justify-self-end"
+              className="h-9 min-w-[8.5rem] justify-self-end rounded-lg px-4 text-sm font-bold shadow-lg shadow-primary/20 transition-all active:scale-95"
               disabled={isSubmitting || !task.trim()}
             >
               {isSubmitting ? "Submitting..." : "Run Task"}
@@ -231,12 +238,3 @@ export function CreateJobForm({
     </div>
   );
 }
-
-
-
-
-
-
-
-
-

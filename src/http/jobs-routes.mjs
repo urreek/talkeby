@@ -20,7 +20,9 @@ export function registerJobRoutes({
   repository,
   config,
 }) {
-  app.get("/jobs", async () => serializeJobs(state.listJobs(200)));
+  const getJobById = (jobId) => state.getJobById(jobId);
+
+  app.get("/jobs", async () => serializeJobs(state.listJobs(200), { getJobById }));
 
   app.get("/api/jobs", async (request) => {
     const limit = Number.parseInt(String(request.query?.limit || 100), 10);
@@ -35,7 +37,7 @@ export function registerJobRoutes({
     if (threadId) {
       jobs = jobs.filter((job) => String(job.threadId || "") === threadId);
     }
-    return serializeJobs(jobs.slice(0, safeLimit));
+    return serializeJobs(jobs.slice(0, safeLimit), { getJobById });
   });
 
   app.get("/api/jobs/:id", async (request, reply) => {
@@ -44,7 +46,7 @@ export function registerJobRoutes({
       reply.code(404);
       return { error: "Job not found." };
     }
-    return serializeJob(job);
+    return serializeJob(job, { getJobById });
   });
 
   app.post("/api/jobs", async (request, reply) => {

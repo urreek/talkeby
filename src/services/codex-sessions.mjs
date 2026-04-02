@@ -2,9 +2,19 @@ import { promises as fs } from "node:fs";
 import os from "node:os";
 import path from "node:path";
 
+import { extractLatestCodexUsageFromSessionRows } from "./usage-parser.mjs";
+
 const SESSION_ID_PATTERN = /\bsession id:\s*([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})\b/i;
 const SESSION_FILE_PATTERN = /([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})\.jsonl$/i;
-const NATIVE_SESSION_ORIGINATORS = new Set(["talkeby", "codex_exec"]);
+const RESUMABLE_SESSION_ORIGINATORS = new Set([
+  "talkeby",
+  "codex_exec",
+  "codex desktop",
+]);
+const TALKEBY_DISCOVERY_ORIGINATORS = new Set([
+  "talkeby",
+  "codex_exec",
+]);
 
 function normalizeSessionId(value) {
   const text = String(value || "").trim().toLowerCase();
@@ -17,7 +27,11 @@ function normalizeWorkdir(value) {
 }
 
 function isAcceptedNativeOriginator(value) {
-  return NATIVE_SESSION_ORIGINATORS.has(String(value || "").trim().toLowerCase());
+  return RESUMABLE_SESSION_ORIGINATORS.has(String(value || "").trim().toLowerCase());
+}
+
+function isAcceptedDiscoveryOriginator(value) {
+  return TALKEBY_DISCOVERY_ORIGINATORS.has(String(value || "").trim().toLowerCase());
 }
 
 function isLikelyTaskMessage(text) {
@@ -241,7 +255,7 @@ export async function findNewTalkebySession({
       const sessionId = normalizeSessionId(meta.id || "");
       const metaWorkdir = normalizeWorkdir(meta.cwd || "");
       const originator = String(meta.originator || "").trim().toLowerCase();
-      if (!sessionId || !isAcceptedNativeOriginator(originator)) {
+      if (!sessionId || !isAcceptedDiscoveryOriginator(originator)) {
         return;
       }
       if (expectedWorkdir && metaWorkdir && metaWorkdir !== expectedWorkdir) {
@@ -260,6 +274,26 @@ export async function findNewTalkebySession({
   });
 
   return newest;
+}
+
+export async function readLatestCodexSessionUsage({
+  sessionId,
+  workdir = "",
+}) {
+  const session = await inspectCodexSession({
+    sessionId,
+    workdir,
+  });
+  if (!session?.filePath) {
+    return null;
+  }
+
+  try {
+    const parsed = await readCodexSessionFile(session.filePath);
+    return extractLatestCodexUsageFromSessionRows(parsed.rows);
+  } catch {
+    return null;
+  }
 }
 
 export async function deleteCodexSessionFiles(sessionId) {

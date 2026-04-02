@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import Markdown from "react-markdown";
 
 import { Button } from "@/components/ui/button";
+import { getJobDisplayRequest } from "@/lib/job-display";
 import { isSoundsEnabled, playCompleted, playFailed, playNeedsApproval } from "@/lib/sounds";
 import type { Job } from "@/lib/types";
 import { cn } from "@/lib/utils";
@@ -48,6 +49,9 @@ function formatTokenCount(value: number | null | undefined): string {
 
 function tokenUsageLine(job: Job): string {
   const source = (job.tokenSource || "estimate").toString().toLowerCase();
+  if (source === "native_history") {
+    return "Imported from native Codex thread history.";
+  }
   if (source === "internal") {
     return "Answered from visible thread history (no provider tokens used).";
   }
@@ -315,7 +319,7 @@ export function JobChatFeed({
         ref={scrollRef}
         className={cn("flex min-h-0 flex-1 items-center justify-center", className)}
       >
-        <div className="theme-muted-surface w-full rounded-[1.75rem] border border-white/5 px-6 py-12 text-center shadow-sm">
+        <div className="theme-muted-surface w-full rounded-xl border border-white/5 px-6 py-12 text-center shadow-sm">
           <p className="text-sm text-muted-foreground">
             No messages yet. Send a task to start.
           </p>
@@ -359,7 +363,7 @@ export function JobChatFeed({
             {gap && <TimelineConnector duration={gap} />}
 
             <div className="space-y-3 py-2">
-              <div className="theme-muted-surface ml-auto max-w-[90%] rounded-[1.75rem] border border-white/5 p-4 shadow-sm transition-all hover:bg-muted/60">
+              <div className="theme-muted-surface ml-auto max-w-[90%] rounded-xl border border-white/5 p-4 shadow-sm transition-all hover:bg-muted/60">
                 <div className="flex items-center justify-between gap-3">
                   <p className="text-xs font-medium text-muted-foreground">
                     You | {formatTimestamp(job.createdAt)}
@@ -369,12 +373,12 @@ export function JobChatFeed({
                   </span>
                 </div>
                 <p className="mt-1.5 text-sm leading-relaxed text-foreground">
-                  {job.request}
+                  {getJobDisplayRequest(job)}
                 </p>
               </div>
 
               <div
-                className={`theme-surface mr-auto max-w-[94%] rounded-[1.75rem] border p-4 shadow-md backdrop-blur-md transition-all ${
+                className={`theme-surface mr-auto max-w-[94%] rounded-xl border p-4 shadow-md backdrop-blur-md transition-all ${
                   isWorking
                     ? "border-violet-500/30 bg-gradient-to-br from-card to-violet-500/5"
                     : "border-primary/20 bg-gradient-to-br from-card to-primary/5"

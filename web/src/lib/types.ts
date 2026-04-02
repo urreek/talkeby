@@ -15,6 +15,9 @@ export interface Thread {
   title: string;
   status: string;
   latestJobStatus: string | null;
+  lastProvider?: AIProvider | string | null;
+  lastModel?: string | null;
+  lastReasoningEffort?: string | null;
   tokenUsed?: number;
   tokenUsedExact?: number;
   tokenUsedEstimated?: number;
@@ -30,6 +33,7 @@ export interface Job {
   id: string;
   threadId: string | null;
   request: string;
+  displayRequest?: string;
   projectName: string;
   workdir: string;
   status: JobStatus;
@@ -89,15 +93,21 @@ export interface ModeResponse {
   executionMode?: ExecutionMode;
 }
 
-export type AIProvider = "codex" | "claude" | "gemini" | "groq" | "openrouter";
+export type AIProvider = "codex" | "claude" | "gemini" | "copilot" | "groq" | "openrouter";
 
-export type ReasoningEffort = "" | "low" | "medium" | "high";
+export type ReasoningEffort = "" | string;
 
+export interface ProviderReasoningOption {
+  value: string;
+  label: string;
+  description?: string;
+}
 export interface ProviderResponse {
   provider: AIProvider;
   model: string;
   reasoningEffort: ReasoningEffort;
   planMode: boolean;
+  sandboxMode: string;
   codexParityMode: boolean;
   codexSessionResumeEnabled: boolean;
   supported: AIProvider[];
@@ -107,6 +117,8 @@ export interface ProviderCatalogModel {
   value: string;
   label: string;
   free: boolean;
+  reasoningEfforts?: ProviderReasoningOption[];
+  defaultReasoningEffort?: string;
 }
 
 export interface ProviderCatalogItem {
@@ -114,6 +126,8 @@ export interface ProviderCatalogItem {
   label: string;
   defaultModel: string;
   supportsReasoningEffort: boolean;
+  reasoningEfforts?: ProviderReasoningOption[];
+  defaultReasoningEffort?: string;
   supportsPlanMode: boolean;
   models: ProviderCatalogModel[];
 }
@@ -218,3 +232,33 @@ export interface ObservabilitySummary {
     avgDecisionSeconds: number;
   };
 }
+
+export type TerminalSessionStatus = "running" | "closing" | "closed";
+
+export interface TerminalSession {
+  id: string;
+  status: TerminalSessionStatus;
+  shell: string;
+  cwd: string;
+  createdAt: string;
+  updatedAt: string;
+  closedAt: string | null;
+  exitCode: number | null;
+}
+
+export interface TerminalEvent {
+  id: number;
+  sessionId: string;
+  eventType: "terminal_status" | "terminal_output" | "terminal_input" | "terminal_exit" | string;
+  stream: "stdin" | "stdout" | "stderr" | "system" | string;
+  data: string;
+  createdAt: string;
+  exitCode: number | null;
+}
+
+export interface TerminalSnapshotResponse {
+  session: TerminalSession | null;
+  events: TerminalEvent[];
+}
+
+

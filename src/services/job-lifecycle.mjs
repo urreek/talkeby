@@ -1,7 +1,12 @@
 import crypto from "node:crypto";
+import { buildThreadProviderPreferencePatch } from "./thread-provider-preferences.mjs";
+import {
+  RESUME_FROM_ERROR_TASK,
+  resolveResumeSourceTask,
+} from "./resume-request.mjs";
 
-function nextQueuePosition(state, jobRunner) {
-  return state.countQueuedJobs() + (jobRunner.getRunningJobId() ? 1 : 0) + 1;
+function nextQueuePosition(state, jobRunner, threadId = "") {
+  return state.countQueuedJobs(threadId) + (jobRunner.isThreadRunning(threadId) ? 1 : 0) + 1;
 }
 
 function resolvePendingJob(state, jobId) {
@@ -76,8 +81,24 @@ export function createJobFromTask({
   }
 
   const executionMode = state.getExecutionMode();
-  const queuePosition = nextQueuePosition(state, jobRunner);
+  const queuePosition = nextQueuePosition(state, jobRunner, threadResolution.thread.id);
   const now = new Date().toISOString();
+  const provider = typeof state.getProvider === "function" ? state.getProvider() : "";
+
+  try {
+    state.repository.updateThread(
+      threadResolution.thread.id,
+      buildThreadProviderPreferencePatch({
+        provider,
+        model: typeof state.getModel === "function" ? state.getModel() : "",
+        reasoningEffort: typeof state.getReasoningEffort === "function"
+          ? state.getReasoningEffort()
+          : "",
+      }),
+    );
+  } catch {
+    // Non-critical thread preference update.
+  }
 
   const job = state.createJob({
     id: crypto.randomUUID(),
@@ -85,6 +106,7 @@ export function createJobFromTask({
     request: normalizedTask,
     projectName: activeProject.name,
     workdir: activeProject.workdir,
+    provider,
     status: executionMode === "interactive" ? "pending_approval" : "queued",
     pendingApprovalAt: executionMode === "interactive" ? now : "",
     queuedAt: executionMode === "interactive" ? "" : now,
@@ -151,7 +173,7 @@ export function approveJob({
     return { error: approval.error };
   }
 
-  const queuePosition = nextQueuePosition(state, jobRunner);
+  const queuePosition = nextQueuePosition(state, jobRunner, approval.job.threadId || "");
   const queuedAt = new Date().toISOString();
 
   const queuedJob = state.patchJob(approval.job.id, {
@@ -273,12 +295,20 @@ export function resumeJobFromError({
     return { error: `Job ${jobId} is not failed; cannot resume from error.` };
   }
 
+  const resumeSourceTask = resolveResumeSourceTask({
+    job: original,
+    getJobById: (candidateJobId) => state.getJobById(candidateJobId),
+  });
+  if (!resumeSourceTask) {
+    return { error: `Job ${jobId} does not have a recoverable user task to resume.` };
+  }
+
   const created = createJobFromTask({
     state,
     eventBus,
     jobRunner,
     config,
-    task: "Continue from the last error in this thread and fix it.",
+    task: RESUME_FROM_ERROR_TASK,
     projectName: original.projectName,
     threadId: original.threadId || undefined,
   });

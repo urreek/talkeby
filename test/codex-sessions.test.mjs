@@ -78,6 +78,31 @@ test("validateCodexSession accepts native codex_exec session files", async () =>
   });
 });
 
+test("validateCodexSession accepts native codex desktop session files", async () => {
+  const tempDir = await fs.mkdtemp(path.join(os.tmpdir(), "talkeby-session-"));
+  const workdir = path.join(tempDir, "workdir");
+  await fs.mkdir(workdir, { recursive: true });
+  const sessionId = "cccccccc-1111-4ccc-8ddd-aaaaaaaaaaaa";
+
+  await withTemporaryHome(tempDir, async () => {
+    await createTalkebySessionFile({
+      homeDir: tempDir,
+      sessionId,
+      workdir,
+      taskMessages: ["desktop thread"],
+      originator: "codex desktop",
+    });
+
+    const validation = await validateCodexSession({
+      sessionId,
+      workdir,
+      minTaskMessages: 1,
+    });
+    assert.equal(validation.ok, true);
+    assert.equal(validation.session?.originator, "codex desktop");
+  });
+});
+
 test("validateCodexSession prefers the richest matching native session file", async () => {
   const tempDir = await fs.mkdtemp(path.join(os.tmpdir(), "talkeby-session-"));
   const workdir = path.join(tempDir, "workdir");

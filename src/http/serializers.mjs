@@ -1,13 +1,51 @@
-export function serializeJob(job) {
+import {
+  isGeneratedResumeTask,
+  resolveResumeSourceTask,
+} from "../services/resume-request.mjs";
+
+function buildJobResolver(jobs, fallbackGetJobById) {
+  const byId = new Map();
+  for (const job of Array.isArray(jobs) ? jobs : []) {
+    const id = String(job?.id || "").trim();
+    if (id) {
+      byId.set(id, job);
+    }
+  }
+
+  return (jobId) => {
+    const safeJobId = String(jobId || "").trim();
+    if (!safeJobId) {
+      return null;
+    }
+    return byId.get(safeJobId) || fallbackGetJobById?.(safeJobId) || null;
+  };
+}
+
+export function serializeJob(job, options = {}) {
   if (!job) {
     return null;
   }
   const { chatId, ...safeJob } = job;
-  return safeJob;
+  const request = String(safeJob.request || "");
+  const displayRequest = isGeneratedResumeTask(request)
+    ? (resolveResumeSourceTask({
+        job: safeJob,
+        getJobById: options.getJobById,
+      }) || request)
+    : request;
+  return {
+    ...safeJob,
+    displayRequest,
+  };
 }
 
-export function serializeJobs(jobs) {
-  return Array.isArray(jobs) ? jobs.map((job) => serializeJob(job)) : [];
+export function serializeJobs(jobs, options = {}) {
+  if (!Array.isArray(jobs)) {
+    return [];
+  }
+
+  const getJobById = buildJobResolver(jobs, options.getJobById);
+  return jobs.map((job) => serializeJob(job, { getJobById }));
 }
 
 export function serializeEvent(event) {

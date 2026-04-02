@@ -21,6 +21,7 @@ import {
   deleteThread,
   denyJob,
   denyRuntimeApproval,
+  setProvider,
   fetchProjects,
   fetchRuntimeApprovals,
   fetchThreadJobs,
@@ -61,6 +62,41 @@ function readErrorMessage(error: unknown, fallback: string) {
   return fallback;
 }
 
+function threadStatusRank(status: string | null) {
+  switch (status) {
+    case "running":
+      return 0;
+    case "pending_approval":
+      return 1;
+    case "queued":
+      return 2;
+    default:
+      return 3;
+  }
+}
+
+function threadTimestamp(thread: Thread) {
+  const parsedUpdated = Date.parse(String(thread.updatedAt || ""));
+  if (!Number.isNaN(parsedUpdated)) {
+    return parsedUpdated;
+  }
+  const parsedCreated = Date.parse(String(thread.createdAt || ""));
+  if (!Number.isNaN(parsedCreated)) {
+    return parsedCreated;
+  }
+  return 0;
+}
+
+function sortThreadsByPriority(threads: Thread[]) {
+  return [...threads].sort((left, right) => {
+    const statusDelta = threadStatusRank(left.latestJobStatus) - threadStatusRank(right.latestJobStatus);
+    if (statusDelta !== 0) {
+      return statusDelta;
+    }
+    return threadTimestamp(right) - threadTimestamp(left);
+  });
+}
+
 function JobsScreen() {
   const navigate = jobsRoute.useNavigate();
   const search = jobsRoute.useSearch();
@@ -90,7 +126,7 @@ function JobsScreen() {
     refetchInterval: 5000,
   });
 
-  const threads = threadsQuery.data?.threads ?? [];
+  const threads = sortThreadsByPriority(threadsQuery.data?.threads ?? []);
   const activeThread = threads.find((thread) => thread.id === search.thread) ?? threads[0] ?? null;
 
   const threadJobsQuery = useQuery({
@@ -261,6 +297,25 @@ function JobsScreen() {
     }
   }, [activeProject, activeThread?.id]);
 
+  useEffect(() => {
+    if (!activeThread?.id) {
+      return;
+    }
+
+    let cancelled = false;
+    void setProvider({ threadId: activeThread.id }).then((response) => {
+      if (!cancelled) {
+        queryClient.setQueryData(["provider"], response);
+      }
+    }).catch(() => {
+      // The provider query surfaces API errors elsewhere.
+    });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [activeThread?.id, queryClient]);
+
   const handleSelectProject = (projectName: string) => {
     selectProjectMutation.mutate(projectName);
     void navigate({
@@ -343,15 +398,17 @@ function JobsScreen() {
           activeThread={activeThread}
         />
 
-        <div className="order-2 space-y-4 lg:order-1">
-          <RuntimeApprovalCards
-            approvals={runtimeApprovals}
-            approvingId={approveRuntimeMutation.variables ?? ""}
-            denyingId={denyRuntimeMutation.variables ?? ""}
-            onApprove={(id) => approveRuntimeMutation.mutate(id)}
-            onDeny={(id) => denyRuntimeMutation.mutate(id)}
-          />
-        </div>
+        {runtimeApprovals.length > 0 ? (
+          <div className="order-2 space-y-4 lg:order-1">
+            <RuntimeApprovalCards
+              approvals={runtimeApprovals}
+              approvingId={approveRuntimeMutation.variables ?? ""}
+              denyingId={denyRuntimeMutation.variables ?? ""}
+              onApprove={(id) => approveRuntimeMutation.mutate(id)}
+              onDeny={(id) => denyRuntimeMutation.mutate(id)}
+            />
+          </div>
+        ) : null}
 
         <div className="order-1 min-h-0 flex flex-1 flex-col lg:order-2">
           {activeThread ? (
@@ -378,6 +435,7 @@ function JobsScreen() {
                   <CreateJobForm
                     projects={projects}
                     activeProject={activeProject}
+                    activeThreadId={activeThread.id}
                     isSubmitting={createJobMutation.isPending}
                     submitError={createJobErrorMessage}
                     variant="embedded"

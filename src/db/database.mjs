@@ -19,6 +19,9 @@ export function bootstrapDatabase(sqlite) {
       project_name TEXT NOT NULL,
       title TEXT NOT NULL,
       status TEXT NOT NULL DEFAULT 'active',
+      last_provider TEXT,
+      last_model TEXT,
+      last_reasoning_effort TEXT,
       bootstrap_prompt TEXT,
       bootstrap_applied_at TEXT,
       auto_trim_context INTEGER NOT NULL DEFAULT 1,
@@ -30,6 +33,16 @@ export function bootstrapDatabase(sqlite) {
       updated_at TEXT NOT NULL
     );
 
+    CREATE TABLE IF NOT EXISTS thread_provider_sessions (
+      id TEXT PRIMARY KEY,
+      thread_id TEXT NOT NULL,
+      provider TEXT NOT NULL,
+      session_id TEXT NOT NULL,
+      synced_job_id TEXT,
+      created_at TEXT NOT NULL,
+      updated_at TEXT NOT NULL
+    );
+
     CREATE TABLE IF NOT EXISTS jobs (
       id TEXT PRIMARY KEY,
       chat_id TEXT NOT NULL,
@@ -37,6 +50,7 @@ export function bootstrapDatabase(sqlite) {
       request TEXT NOT NULL,
       project_name TEXT NOT NULL,
       workdir TEXT NOT NULL,
+      provider TEXT,
       status TEXT NOT NULL,
       created_at TEXT NOT NULL,
       queued_at TEXT,
@@ -113,6 +127,21 @@ export function bootstrapDatabase(sqlite) {
   // Phase 2: Migrations (must run before indexes on new columns)
   try {
     sqlite.exec(`ALTER TABLE jobs ADD COLUMN thread_id TEXT`);
+  } catch {
+    // Column already exists
+  }
+  try {
+    sqlite.exec(`ALTER TABLE threads ADD COLUMN last_provider TEXT`);
+  } catch {
+    // Column already exists
+  }
+  try {
+    sqlite.exec(`ALTER TABLE threads ADD COLUMN last_model TEXT`);
+  } catch {
+    // Column already exists
+  }
+  try {
+    sqlite.exec(`ALTER TABLE threads ADD COLUMN last_reasoning_effort TEXT`);
   } catch {
     // Column already exists
   }
@@ -201,6 +230,11 @@ export function bootstrapDatabase(sqlite) {
   } catch {
     // Column already exists
   }
+  try {
+    sqlite.exec(`ALTER TABLE jobs ADD COLUMN provider TEXT`);
+  } catch {
+    // Column already exists
+  }
 
   // Phase 3: Indexes (safe now that all columns exist)
   sqlite.exec(`
@@ -208,7 +242,9 @@ export function bootstrapDatabase(sqlite) {
     CREATE INDEX IF NOT EXISTS idx_jobs_status ON jobs (status);
     CREATE INDEX IF NOT EXISTS idx_jobs_created_at ON jobs (created_at);
     CREATE INDEX IF NOT EXISTS idx_jobs_thread_id ON jobs (thread_id);
+    CREATE INDEX IF NOT EXISTS idx_jobs_thread_provider ON jobs (thread_id, provider, created_at);
     CREATE INDEX IF NOT EXISTS idx_threads_project ON threads (project_name);
+    CREATE INDEX IF NOT EXISTS idx_thread_provider_sessions_thread_provider ON thread_provider_sessions (thread_id, provider);
     CREATE INDEX IF NOT EXISTS idx_projects_name ON projects (name);
     CREATE INDEX IF NOT EXISTS idx_app_settings_key ON app_settings (key);
     CREATE INDEX IF NOT EXISTS idx_job_events_job_id ON job_events (job_id);

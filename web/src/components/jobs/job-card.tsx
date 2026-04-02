@@ -9,6 +9,7 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
+import { getJobDisplayRequest } from "@/lib/job-display";
 import type { Job } from "@/lib/types";
 
 function formatTimestamp(value: string) {
@@ -38,7 +39,7 @@ export function JobCard({ job }: { job: Job }) {
         </CardDescription>
       </CardHeader>
       <CardContent className="relative z-10">
-        <p className="text-sm leading-relaxed text-foreground">{job.request}</p>
+        <p className="text-sm leading-relaxed text-foreground">{getJobDisplayRequest(job)}</p>
         <p className="mt-3 text-[11px] font-medium uppercase tracking-wider text-muted-foreground/70">
           Created: {formatTimestamp(job.createdAt)}
         </p>

@@ -5,6 +5,9 @@ export const threadsTable = sqliteTable("threads", {
   projectName: text("project_name").notNull(),
   title: text("title").notNull(),
   status: text("status").notNull().default("active"),
+  lastProvider: text("last_provider"),
+  lastModel: text("last_model"),
+  lastReasoningEffort: text("last_reasoning_effort"),
   cliSessionId: text("cli_session_id"),
   bootstrapPrompt: text("bootstrap_prompt"),
   bootstrapAppliedAt: text("bootstrap_applied_at"),
@@ -13,6 +16,16 @@ export const threadsTable = sqliteTable("threads", {
   tokenUsed: integer("token_used").notNull().default(0),
   tokenUsedExact: integer("token_used_exact").notNull().default(0),
   tokenUsedEstimated: integer("token_used_estimated").notNull().default(0),
+  createdAt: text("created_at").notNull(),
+  updatedAt: text("updated_at").notNull(),
+});
+
+export const threadProviderSessionsTable = sqliteTable("thread_provider_sessions", {
+  id: text("id").primaryKey(),
+  threadId: text("thread_id").notNull(),
+  provider: text("provider").notNull(),
+  sessionId: text("session_id").notNull(),
+  syncedJobId: text("synced_job_id"),
   createdAt: text("created_at").notNull(),
   updatedAt: text("updated_at").notNull(),
 });
@@ -30,6 +43,7 @@ export const jobsTable = sqliteTable("jobs", {
   request: text("request").notNull(),
   projectName: text("project_name").notNull(),
   workdir: text("workdir").notNull(),
+  provider: text("provider"),
   status: text("status").notNull(),
   createdAt: text("created_at").notNull(),
   queuedAt: text("queued_at"),

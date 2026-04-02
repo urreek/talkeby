@@ -7,6 +7,7 @@ import {
   jobsTable,
   projectsTable,
   runtimeApprovalsTable,
+  threadProviderSessionsTable,
   threadsTable,
 } from "./schema.mjs";
 
@@ -30,6 +31,23 @@ function serializeEventPayload(payload) {
     return null;
   }
   return JSON.stringify(payload);
+}
+
+function normalizeProvider(value) {
+  return String(value || "").trim().toLowerCase();
+}
+
+function textValue(value) {
+  return typeof value === "string" ? value.trim() : "";
+}
+
+function buildThreadProviderSessionId(threadId, provider) {
+  const safeThreadId = String(threadId || "").trim();
+  const safeProvider = normalizeProvider(provider);
+  if (!safeThreadId || !safeProvider) {
+    return "";
+  }
+  return `${safeThreadId}:${safeProvider}`;
 }
 
 export class TalkebyRepository {
@@ -69,6 +87,7 @@ export class TalkebyRepository {
       request: String(job.request),
       projectName: String(job.projectName),
       workdir: String(job.workdir),
+      provider: job.provider ? normalizeProvider(job.provider) : null,
       status: String(job.status),
       createdAt: job.createdAt || nowIso(),
       queuedAt: job.queuedAt || null,
@@ -138,6 +157,7 @@ export class TalkebyRepository {
     if ("projectName" in patch) update.projectName = patch.projectName || null;
     if ("workdir" in patch) update.workdir = patch.workdir || null;
     if ("request" in patch) update.request = patch.request || null;
+    if ("provider" in patch) update.provider = patch.provider ? normalizeProvider(patch.provider) : null;
 
     if (Object.keys(update).length === 0) {
       return this.getJobById(jobId);
@@ -347,7 +367,10 @@ export class TalkebyRepository {
     return this.db
       .select()
       .from(threadsTable)
-      .where(eq(threadsTable.projectName, String(projectName)))
+      .where(and(
+        eq(threadsTable.projectName, String(projectName)),
+        eq(threadsTable.status, "active"),
+      ))
       .orderBy(desc(threadsTable.updatedAt))
       .all();
   }
@@ -357,6 +380,7 @@ export class TalkebyRepository {
     return this.db
       .select()
       .from(threadsTable)
+      .where(eq(threadsTable.status, "active"))
       .orderBy(desc(threadsTable.updatedAt))
       .limit(safeLimit)
       .all();
@@ -372,26 +396,52 @@ export class TalkebyRepository {
       .get();
   }
 
+  getThreadByCliSessionId(cliSessionId) {
+    if (!cliSessionId) return null;
+    return this.db
+      .select()
+      .from(threadsTable)
+      .where(eq(threadsTable.cliSessionId, String(cliSessionId)))
+      .limit(1)
+      .get();
+  }
+
   createThread({
     id,
     projectName,
     title,
+    status = "active",
+    lastProvider = "",
+    lastModel = "",
+    lastReasoningEffort = "",
+    cliSessionId = "",
     tokenBudget = 12000,
     autoTrimContext = true,
+    createdAt = "",
+    updatedAt = "",
+    tokenUsed = 0,
+    tokenUsedExact = 0,
+    tokenUsedEstimated = 0,
   }) {
     const now = nowIso();
+    const safeCreatedAt = createdAt || now;
+    const safeUpdatedAt = updatedAt || safeCreatedAt;
     const row = {
       id: String(id),
       projectName: String(projectName),
       title: String(title),
-      status: "active",
+      status: String(status || "active"),
+      lastProvider: textValue(lastProvider).toLowerCase() || null,
+      lastModel: textValue(lastModel) || null,
+      lastReasoningEffort: textValue(lastReasoningEffort).toLowerCase() || null,
+      cliSessionId: cliSessionId ? String(cliSessionId) : null,
       autoTrimContext: autoTrimContext ? 1 : 0,
       tokenBudget: Math.max(0, Number.parseInt(String(tokenBudget || 0), 10) || 0),
-      tokenUsed: 0,
-      tokenUsedExact: 0,
-      tokenUsedEstimated: 0,
-      createdAt: now,
-      updatedAt: now,
+      tokenUsed: Math.max(0, Number.parseInt(String(tokenUsed || 0), 10) || 0),
+      tokenUsedExact: Math.max(0, Number.parseInt(String(tokenUsedExact || 0), 10) || 0),
+      tokenUsedEstimated: Math.max(0, Number.parseInt(String(tokenUsedEstimated || 0), 10) || 0),
+      createdAt: safeCreatedAt,
+      updatedAt: safeUpdatedAt,
     };
     this.db.insert(threadsTable).values(row).run();
     return this.getThread(id);
@@ -402,6 +452,11 @@ export class TalkebyRepository {
     const update = { updatedAt: nowIso() };
     if ("title" in patch) update.title = patch.title;
     if ("status" in patch) update.status = patch.status;
+    if ("lastProvider" in patch) update.lastProvider = textValue(patch.lastProvider).toLowerCase() || null;
+    if ("lastModel" in patch) update.lastModel = textValue(patch.lastModel) || null;
+    if ("lastReasoningEffort" in patch) {
+      update.lastReasoningEffort = textValue(patch.lastReasoningEffort).toLowerCase() || null;
+    }
     if ("cliSessionId" in patch) update.cliSessionId = patch.cliSessionId;
     if ("autoTrimContext" in patch) update.autoTrimContext = patch.autoTrimContext ? 1 : 0;
     if ("tokenBudget" in patch) {
@@ -426,6 +481,111 @@ export class TalkebyRepository {
       .where(eq(threadsTable.id, String(threadId)))
       .run();
     return this.getThread(threadId);
+  }
+
+  listThreadProviderSessions(threadId) {
+    if (!threadId) {
+      return [];
+    }
+    return this.db
+      .select()
+      .from(threadProviderSessionsTable)
+      .where(eq(threadProviderSessionsTable.threadId, String(threadId)))
+      .orderBy(asc(threadProviderSessionsTable.provider))
+      .all();
+  }
+
+  getThreadProviderSession(threadId, provider) {
+    const id = buildThreadProviderSessionId(threadId, provider);
+    if (!id) {
+      return null;
+    }
+
+    const session = this.db
+      .select()
+      .from(threadProviderSessionsTable)
+      .where(eq(threadProviderSessionsTable.id, id))
+      .limit(1)
+      .get();
+    if (session) {
+      return session;
+    }
+
+    if (normalizeProvider(provider) !== "codex") {
+      return null;
+    }
+
+    const thread = this.getThread(threadId);
+    const sessionId = String(thread?.cliSessionId || "").trim();
+    if (!sessionId) {
+      return null;
+    }
+
+    const latestCompleted = this.listJobsByThread(threadId, 5000)
+      .filter((job) => {
+        if (String(job?.status || "").toLowerCase() !== "completed") {
+          return false;
+        }
+        const jobProvider = normalizeProvider(job?.provider);
+        return !jobProvider || jobProvider === "codex";
+      })
+      .at(-1);
+
+    return {
+      id,
+      threadId: String(threadId),
+      provider: "codex",
+      sessionId,
+      syncedJobId: latestCompleted?.id || "",
+      createdAt: thread?.createdAt || nowIso(),
+      updatedAt: thread?.updatedAt || thread?.createdAt || nowIso(),
+    };
+  }
+
+  upsertThreadProviderSession({
+    threadId,
+    provider,
+    sessionId,
+    syncedJobId = "",
+  }) {
+    const id = buildThreadProviderSessionId(threadId, provider);
+    const safeSessionId = String(sessionId || "").trim();
+    const safeProvider = normalizeProvider(provider);
+    if (!id || !safeSessionId) {
+      return null;
+    }
+
+    const existing = this.getThreadProviderSession(threadId, safeProvider);
+    const row = {
+      id,
+      threadId: String(threadId),
+      provider: safeProvider,
+      sessionId: safeSessionId,
+      syncedJobId: syncedJobId ? String(syncedJobId) : null,
+      createdAt: existing?.createdAt || nowIso(),
+      updatedAt: nowIso(),
+    };
+
+    this.db
+      .insert(threadProviderSessionsTable)
+      .values(row)
+      .onConflictDoUpdate({
+        target: threadProviderSessionsTable.id,
+        set: {
+          sessionId: row.sessionId,
+          syncedJobId: row.syncedJobId,
+          updatedAt: row.updatedAt,
+        },
+      })
+      .run();
+
+    if (safeProvider === "codex") {
+      this.updateThread(threadId, {
+        cliSessionId: safeSessionId,
+      });
+    }
+
+    return this.getThreadProviderSession(threadId, safeProvider);
   }
 
   addThreadTokenUsage({ threadId, total, source = "estimate" }) {
@@ -512,6 +672,10 @@ export class TalkebyRepository {
     this.db
       .delete(jobsTable)
       .where(eq(jobsTable.threadId, String(threadId)))
+      .run();
+    this.db
+      .delete(threadProviderSessionsTable)
+      .where(eq(threadProviderSessionsTable.threadId, String(threadId)))
       .run();
     this.db
       .delete(threadsTable)

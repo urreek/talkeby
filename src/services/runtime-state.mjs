@@ -1,6 +1,6 @@
 import { resolveExecutionMode } from "./command-parser.mjs";
 import { OWNER_SETTING_KEYS, OWNER_SUBJECT_ID } from "./owner-context.mjs";
-import { isSupportedProvider } from "../providers/catalog.mjs";
+import { getProviderMeta, isSupportedProvider } from "../providers/catalog.mjs";
 
 function textValue(value) {
   return typeof value === "string" ? value.trim() : "";
@@ -18,6 +18,16 @@ function toStatus(value) {
   return String(value || "").trim().toLowerCase();
 }
 
+function resolveModelForProvider(providerName, modelName) {
+  const normalizedProvider = String(providerName || "").trim().toLowerCase();
+  const normalizedModel = String(modelName || "").trim();
+  if (normalizedModel) {
+    return normalizedModel;
+  }
+
+  return getProviderMeta(normalizedProvider)?.defaultModel || "";
+}
+
 export class RuntimeState {
   constructor({ config, repository }) {
     this.config = config;
@@ -30,7 +40,7 @@ export class RuntimeState {
     this.activeProjectName = "";
     this.executionMode = config.app?.defaultExecutionMode || "auto";
     this.provider = config.runner?.provider || "codex";
-    this.model = config.runner?.model || "";
+    this.model = resolveModelForProvider(this.provider, config.runner?.model || "");
     this.reasoningEffort = "medium";
     this.planMode = false;
     this.runtimeApprovalWaiters = new Map();
@@ -139,11 +149,11 @@ export class RuntimeState {
   }
 
   getModel() {
-    return this.model;
+    return resolveModelForProvider(this.provider, this.model);
   }
 
   setModel(modelName) {
-    this.model = String(modelName || "").trim();
+    this.model = resolveModelForProvider(this.provider, modelName);
     return this.model;
   }
 
@@ -306,12 +316,17 @@ export class RuntimeState {
     return resolved;
   }
 
-  countQueuedJobs() {
+  countQueuedJobs(threadId = "") {
+    const normalizedThreadId = String(threadId || "").trim();
     let queued = 0;
     for (const job of this.jobHistory.values()) {
-      if (job.status === "queued") {
-        queued += 1;
+      if (job.status !== "queued") {
+        continue;
       }
+      if (normalizedThreadId && String(job.threadId || "") !== normalizedThreadId) {
+        continue;
+      }
+      queued += 1;
     }
     return queued;
   }
@@ -384,6 +399,7 @@ export class RuntimeState {
     const job = this.repository.insertJob({
       ...row,
       chatId: row.chatId || this.ownerId,
+      provider: row.provider || this.getProvider(),
       createdAt: row.createdAt || new Date().toISOString(),
       queuedAt: safeTimestamp(row.queuedAt),
       pendingApprovalAt: safeTimestamp(row.pendingApprovalAt),
