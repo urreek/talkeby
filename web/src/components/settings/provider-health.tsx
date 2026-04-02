@@ -14,6 +14,7 @@ const DISPLAY_NAMES: Record<string, string> = {
   codex: "OpenAI Codex",
   claude: "Claude Code",
   gemini: "Gemini CLI",
+  copilot: "GitHub Copilot CLI",
   groq: "Groq (Free Tier)",
   openrouter: "OpenRouter (Free Models)",
 };

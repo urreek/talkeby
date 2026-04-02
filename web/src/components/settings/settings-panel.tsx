@@ -17,6 +17,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import type { ThemePreference } from "@/lib/storage";
+import { getReasoningConfig, resolveReasoningEffort } from "@/lib/reasoning";
 import type {
   AIProvider,
   ExecutionMode,
@@ -30,6 +31,7 @@ type SettingsPanelProps = {
   model: string;
   reasoningEffort: ReasoningEffort;
   planMode: boolean;
+  sandboxMode?: string;
   codexParityMode?: boolean;
   codexSessionResumeEnabled?: boolean;
   providerCatalog: ProviderCatalogItem[];
@@ -59,6 +61,7 @@ export function SettingsPanel({
   model,
   reasoningEffort,
   planMode,
+  sandboxMode,
   codexParityMode,
   codexSessionResumeEnabled,
   providerCatalog,
@@ -87,13 +90,16 @@ export function SettingsPanel({
   );
   const codexConfigKnown = typeof codexParityMode === "boolean"
     && typeof codexSessionResumeEnabled === "boolean";
+  const activeSandboxMode = String(sandboxMode || "workspace-write").trim() || "workspace-write";
   const codexNativeMode = provider === "codex"
     && codexConfigKnown
     && codexParityMode === true
     && codexSessionResumeEnabled === true;
 
   const modelValue = model || "__default__";
-  const supportsReasoning = Boolean(activeProvider?.supportsReasoningEffort);
+  const reasoningConfig = getReasoningConfig(activeProvider, modelValue);
+  const canSelectReasoning = reasoningConfig.canSelectReasoning;
+  const resolvedReasoningEffort = resolveReasoningEffort(activeProvider, modelValue, reasoningEffort);
   const supportsPlan = Boolean(activeProvider?.supportsPlanMode);
 
   return (
@@ -194,24 +200,41 @@ export function SettingsPanel({
 
           <div className="mt-3 space-y-3">
             {provider === "codex" && codexConfigKnown ? (
-              <div
-                className={`rounded-lg border px-3 py-2 text-xs ${
-                  codexNativeMode
-                    ? "border-emerald-500/30 bg-emerald-500/10 text-emerald-700 dark:text-emerald-300"
-                    : "border-amber-500/40 bg-amber-500/10 text-amber-700 dark:text-amber-300"
-                }`}
-              >
-                {codexNativeMode
-                  ? "Native Codex thread mode is active. Talkeby resumes the same Codex session per thread and does not inject managed thread summaries into prompts."
-                  : [
-                    "Native Codex thread mode is not fully active.",
-                    codexParityMode === false
-                      ? "CODEX_PARITY_MODE is off, so Talkeby may inject managed thread context."
-                      : "",
-                    codexSessionResumeEnabled === false
-                      ? "CODEX_DISABLE_SESSION_RESUME is on, so each run starts a fresh Codex session."
-                      : "",
-                  ].filter(Boolean).join(" ")}
+              <div className="space-y-2">
+                <div
+                  className={`rounded-lg border px-3 py-2 text-xs ${
+                    codexNativeMode
+                      ? "border-emerald-500/30 bg-emerald-500/10 text-emerald-700 dark:text-emerald-300"
+                      : "border-amber-500/40 bg-amber-500/10 text-amber-700 dark:text-amber-300"
+                  }`}
+                >
+                  {codexNativeMode
+                    ? "Native Codex thread mode is active. Talkeby resumes the same Codex session per thread and does not inject managed thread summaries into prompts."
+                    : [
+                      "Native Codex thread mode is not fully active.",
+                      codexParityMode === false
+                        ? "CODEX_PARITY_MODE is off, so Talkeby may inject managed thread context."
+                        : "",
+                      codexSessionResumeEnabled === false
+                        ? "CODEX_DISABLE_SESSION_RESUME is on, so each run starts a fresh Codex session."
+                        : "",
+                    ].filter(Boolean).join(" ")}
+                </div>
+                <div
+                  className={`rounded-lg border px-3 py-2 text-xs ${
+                    activeSandboxMode === "danger-full-access"
+                      ? "border-red-500/40 bg-red-500/10 text-red-700 dark:text-red-300"
+                      : activeSandboxMode === "read-only"
+                        ? "border-sky-500/30 bg-sky-500/10 text-sky-700 dark:text-sky-300"
+                        : "border-emerald-500/30 bg-emerald-500/10 text-emerald-700 dark:text-emerald-300"
+                  }`}
+                >
+                  {activeSandboxMode === "danger-full-access"
+                    ? "Sandbox: danger-full-access. Codex can operate with broad machine access. Keep this to trusted machines and prefer interactive mode."
+                    : activeSandboxMode === "read-only"
+                      ? "Sandbox: read-only. Codex can inspect the workspace but should not apply file changes."
+                      : "Sandbox: workspace-write. Codex can modify files inside the configured workspace but not outside it."}
+                </div>
               </div>
             ) : null}
 
@@ -249,36 +272,26 @@ export function SettingsPanel({
                 Reasoning Effort
               </p>
               <Select
-                value={reasoningEffort || "__default__"}
-                disabled={isUpdatingProvider || !supportsReasoning}
-                onValueChange={(value) =>
-                  onChangeReasoningEffort(
-                    value === "__default__" ? "" : (value as ReasoningEffort),
-                  )
-                }
+                value={canSelectReasoning ? (resolvedReasoningEffort || reasoningConfig.defaultReasoningEffort) : ""}
+                disabled={isUpdatingProvider || !canSelectReasoning}
+                onValueChange={(value) => onChangeReasoningEffort(value as ReasoningEffort)}
               >
                 <SelectTrigger className="bg-background text-foreground">
                   <SelectValue
                     className="text-foreground"
-                    placeholder={supportsReasoning ? "Default" : "Not supported"}
+                    placeholder={canSelectReasoning ? "Default" : "Unavailable"}
                   />
                 </SelectTrigger>
                 <SelectContent className="bg-popover text-popover-foreground">
-                  <SelectItem
-                    className="text-popover-foreground"
-                    value="__default__"
-                  >
-                    Default
-                  </SelectItem>
-                  <SelectItem className="text-popover-foreground" value="low">
-                    Low
-                  </SelectItem>
-                  <SelectItem className="text-popover-foreground" value="medium">
-                    Medium
-                  </SelectItem>
-                  <SelectItem className="text-popover-foreground" value="high">
-                    High
-                  </SelectItem>
+                  {reasoningConfig.options.map((option) => (
+                    <SelectItem
+                      className="text-popover-foreground"
+                      key={option.value}
+                      value={option.value}
+                    >
+                      {option.label}
+                    </SelectItem>
+                  ))}
                 </SelectContent>
               </Select>
             </div>
@@ -377,3 +390,5 @@ export function SettingsPanel({
     </div>
   );
 }
+
+

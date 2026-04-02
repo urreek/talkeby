@@ -2,7 +2,8 @@ import fs from "node:fs";
 import path from "node:path";
 import { spawnSync } from "node:child_process";
 
-import { isSupportedProvider, supportedProviderText } from "./providers/catalog.mjs";
+import { getProviderMeta, isSupportedProvider, supportedProviderText } from "./providers/catalog.mjs";
+import { parseSandboxMode } from "./services/sandbox-policy.mjs";
 
 function parseBoolean(value, fallback) {
   if (value === undefined) {
@@ -133,6 +134,40 @@ function binaryCandidates(command) {
   return Array.from(new Set(values));
 }
 
+function appendWindowsExecutableCandidates(filePath) {
+  const normalized = String(filePath || "").trim();
+  if (!normalized || process.platform !== "win32") {
+    return [];
+  }
+
+  const extension = path.extname(normalized).toLowerCase();
+  if (extension === ".cmd" || extension === ".exe" || extension === ".bat" || extension === ".ps1") {
+    return [normalized];
+  }
+
+  return [
+    `${normalized}.cmd`,
+    `${normalized}.exe`,
+    `${normalized}.bat`,
+    `${normalized}.ps1`,
+    normalized,
+  ];
+}
+
+function resolveExistingBinaryPath(value) {
+  const candidates = appendWindowsExecutableCandidates(value);
+  if (candidates.length === 0) {
+    return fs.existsSync(value) ? value : "";
+  }
+
+  for (const candidate of candidates) {
+    if (fs.existsSync(candidate)) {
+      return candidate;
+    }
+  }
+  return "";
+}
+
 function normalizeBinarySetting(value, fallbackCommand) {
   const raw = String(value || "").trim();
   const configured = raw || fallbackCommand;
@@ -140,8 +175,11 @@ function normalizeBinarySetting(value, fallbackCommand) {
     || configured.includes("/")
     || configured.includes("\\");
 
-  if (looksLikePath && fs.existsSync(configured)) {
-    return configured;
+  if (looksLikePath) {
+    const existingPath = resolveExistingBinaryPath(configured);
+    if (existingPath) {
+      return existingPath;
+    }
   }
 
   // If a copied config contains a foreign absolute path, reduce to basename first.
@@ -207,6 +245,8 @@ export function loadConfig() {
       `Invalid AI_PROVIDER "${provider}". Supported: ${supportedProviderText()}`,
     );
   }
+  const providerMeta = getProviderMeta(provider);
+  const defaultCodexModel = getProviderMeta("codex")?.defaultModel || "";
   const codexParityMode = parseBoolean(process.env.CODEX_PARITY_MODE, true);
 
   const codex = {
@@ -216,11 +256,15 @@ export function loadConfig() {
     projects,
     defaultProjectName,
     timeoutMs: codexTimeoutMs,
-    model: process.env.CODEX_MODEL?.trim() || "",
+    model: process.env.CODEX_MODEL?.trim() || defaultCodexModel,
     parityMode: codexParityMode,
     persistExtendedHistory: parseBoolean(
       process.env.CODEX_PERSIST_EXTENDED_HISTORY,
       codexParityMode,
+    ),
+    sandboxMode: parseSandboxMode(
+      process.env.CODEX_SANDBOX_MODE,
+      "workspace-write",
     ),
     disableSessionResume: parseBoolean(
       process.env.CODEX_DISABLE_SESSION_RESUME,
@@ -240,12 +284,14 @@ export function loadConfig() {
     model:
       process.env.AI_MODEL?.trim() ||
       process.env.CODEX_MODEL?.trim() ||
+      providerMeta?.defaultModel ||
       "",
     timeoutMs: codexTimeoutMs,
     binaries: {
       codex: normalizeBinarySetting(process.env.CODEX_BINARY, "codex"),
       claude: normalizeBinarySetting(process.env.CLAUDE_BINARY, "claude"),
       gemini: normalizeBinarySetting(process.env.GEMINI_BINARY, "gemini"),
+      copilot: normalizeBinarySetting(process.env.COPILOT_BINARY, "copilot"),
       groq: normalizeBinarySetting(process.env.AIDER_BINARY, "aider"),
       openrouter: normalizeBinarySetting(process.env.AIDER_BINARY, "aider"),
       aider: normalizeBinarySetting(process.env.AIDER_BINARY, "aider"),

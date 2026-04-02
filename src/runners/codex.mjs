@@ -37,6 +37,7 @@ const NOISE_PATTERNS = [
   /^FILES:/,
   /^NEXT:/,
   /^You are (Codex|Claude|Gemini)/,
+  /custom tool call output is missing for call id:/i,
   /^$/,
 ];
 
@@ -66,6 +67,15 @@ function extractMeaningfulError(rawOutput) {
 
 function buildPrompt(transcript) {
   return String(transcript || "").trim();
+}
+
+function appendCodexConfigArgs(args, config) {
+  if (config.model) {
+    args.push("--model", config.model);
+  }
+  if (config.reasoningEffort) {
+    args.push("-c", `model_reasoning_effort=${config.reasoningEffort}`);
+  }
 }
 
 function subtractUsageTotals(current, baseline) {
@@ -219,13 +229,16 @@ function runCodexSpawn({ binary, args, workdir, timeoutMs, outputPath, onLine, s
     child.on("close", async (code) => {
       clearTimeout(timeout);
       if (killed) {
-        reject(new Error("Codex execution timed out."));
+        const timeoutError = new Error("Codex execution timed out.");
+        timeoutError.nativeSessionId = detectedSessionId;
+        reject(timeoutError);
         return;
       }
       if (code !== 0 && code !== null) {
         const error = new Error(stderr.trim() || `Codex exited with code ${code}`);
         error.stderr = stderr;
         error.stdout = stdout;
+        error.nativeSessionId = detectedSessionId;
         reject(error);
         return;
       }
@@ -243,6 +256,9 @@ function runCodexSpawn({ binary, args, workdir, timeoutMs, outputPath, onLine, s
 
     child.on("error", (error) => {
       clearTimeout(timeout);
+      if (error && !error.nativeSessionId) {
+        error.nativeSessionId = detectedSessionId;
+      }
       reject(error);
     });
 
@@ -272,14 +288,14 @@ function runCodexSpawn({ binary, args, workdir, timeoutMs, outputPath, onLine, s
 function buildResumeArgs({ config, outputPath, sessionId }) {
   const args = ["exec", "--output-last-message", outputPath, "resume"];
 
+  appendCodexConfigArgs(args, config);
+
   if (sessionId) {
     args.push(sessionId);
   } else {
     args.push("--last");
   }
 
-  if (config.model) args.push("--model", config.model);
-  if (config.reasoningEffort) args.push("--reasoning-effort", config.reasoningEffort);
   if (config.planMode) args.push("--plan");
   args.push("--full-auto", "--skip-git-repo-check", "-");
   return args;
@@ -296,8 +312,7 @@ function buildFreshArgs({ config, outputPath }) {
     outputPath,
   ];
 
-  if (config.model) args.push("--model", config.model);
-  if (config.reasoningEffort) args.push("--reasoning-effort", config.reasoningEffort);
+  appendCodexConfigArgs(args, config);
   if (config.planMode) args.push("--plan");
   args.push("-");
   return args;
@@ -320,6 +335,7 @@ async function runWithRuntimeApprovals(config) {
       model: config.model,
       timeoutMs: config.timeoutMs,
       interactiveApprovalPolicy: "untrusted",
+      sandboxMode: config.sandboxMode || "workspace-write",
       sessionId: config.sessionId || "",
       persistExtendedHistory: Boolean(config.persistExtendedHistory),
     },
@@ -462,10 +478,27 @@ export async function run(config) {
     const rawStderr = String(error.stderr || "").trim();
     const rawStdout = String(error.stdout || "").trim();
     const raw = rawStderr || rawStdout || error.message || "";
+    let recoveredSessionId = String(error?.nativeSessionId || "").trim();
+    if (!recoveredSessionId) {
+      recoveredSessionId = extractCodexSessionIdFromText(raw);
+    }
+    if (!recoveredSessionId && !config.sessionId) {
+      recoveredSessionId = (await findNewTalkebySession({
+        afterMs: startTime,
+        workdir: config.workdir,
+      }))?.sessionId || "";
+    }
     const summary = extractMeaningfulError(raw) || "Codex execution failed with no details.";
-    throw new Error(summary);
+    const wrapped = new Error(summary);
+    if (recoveredSessionId) {
+      wrapped.nativeSessionId = recoveredSessionId;
+    }
+    throw wrapped;
   } finally {
     await fs.rm(outputPath, { force: true });
   }
 }
+
+
+
 

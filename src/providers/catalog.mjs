@@ -1,3 +1,10 @@
+const COPILOT_REASONING_OPTIONS = [
+  { value: "low", label: "low" },
+  { value: "medium", label: "medium" },
+  { value: "high", label: "high" },
+  { value: "xhigh", label: "xhigh" },
+];
+
 export const PROVIDER_CATALOG = {
   codex: {
     id: "codex",
@@ -5,8 +12,9 @@ export const PROVIDER_CATALOG = {
     binaryKey: "codex",
     envKey: "OPENAI_API_KEY",
     builtInAuth: true,
-    defaultModel: "",
+    defaultModel: "gpt-5.4",
     catalogModels: [
+      "gpt-5.4",
       "gpt-5-codex",
       "gpt-5",
       "gpt-5-mini",
@@ -58,6 +66,20 @@ export const PROVIDER_CATALOG = {
     ],
     supportsReasoningEffort: true,
     supportsPlanMode: true,
+  },
+  copilot: {
+    id: "copilot",
+    label: "GitHub Copilot CLI",
+    binaryKey: "copilot",
+    envKey: "GITHUB_TOKEN",
+    builtInAuth: true,
+    defaultModel: "",
+    catalogModels: [],
+    freeOnlyModels: [],
+    supportsReasoningEffort: true,
+    reasoningEfforts: COPILOT_REASONING_OPTIONS,
+    defaultReasoningEffort: "medium",
+    supportsPlanMode: false,
   },
   groq: {
     id: "groq",
@@ -143,6 +165,8 @@ export function listProviderCatalog() {
       label: meta.label,
       defaultModel: meta.defaultModel,
       supportsReasoningEffort: meta.supportsReasoningEffort,
+      reasoningEfforts: Array.isArray(meta.reasoningEfforts) ? meta.reasoningEfforts : [],
+      defaultReasoningEffort: meta.defaultReasoningEffort || "",
       supportsPlanMode: meta.supportsPlanMode,
       models: [
         {

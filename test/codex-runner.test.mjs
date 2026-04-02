@@ -143,4 +143,65 @@ test("CLI session id output wins over fallback session-file discovery", async ()
     }
   });
 });
+test("Codex runs pass model_reasoning_effort via config overrides", async () => {
+  const tempDir = await fs.mkdtemp(path.join(os.tmpdir(), "talkeby-codex-runner-"));
+  const workdir = path.join(tempDir, "workdir");
+  const freshLogPath = path.join(tempDir, "fresh-args.json");
+  const resumeLogPath = path.join(tempDir, "resume-args.json");
+  await fs.mkdir(workdir, { recursive: true });
+  const binary = await createFakeCodexBinary(tempDir, workdir);
+  const sessionId = "99999999-2222-4333-8444-aaaaaaaaaaaa";
+
+  await withTemporaryHome(tempDir, async () => {
+    setCodexSpawnCompatForTests(createMockCodexSpawn());
+    try {
+      await withFakeCodexEnv({
+        FAKE_CODEX_LOG: freshLogPath,
+        FAKE_CODEX_MESSAGE: "runner fresh reasoning ok",
+        FAKE_CODEX_WORKDIR: workdir,
+      }, async () => {
+        await run({
+          task: "fresh run with reasoning configured",
+          workdir,
+          model: "gpt-5",
+          reasoningEffort: "medium",
+          planMode: false,
+          timeoutMs: 5000,
+          binary,
+          nativeCodexThreadMode: true,
+        });
+      });
+
+      await withFakeCodexEnv({
+        FAKE_CODEX_LOG: resumeLogPath,
+        FAKE_CODEX_MESSAGE: "runner resume reasoning ok",
+        FAKE_CODEX_WORKDIR: workdir,
+      }, async () => {
+        await run({
+          task: "resume run with reasoning configured",
+          workdir,
+          model: "gpt-5",
+          reasoningEffort: "medium",
+          planMode: false,
+          timeoutMs: 5000,
+          binary,
+          sessionId,
+          nativeCodexThreadMode: true,
+        });
+      });
+
+      const freshLogged = JSON.parse(await fs.readFile(freshLogPath, "utf8"));
+      const resumeLogged = JSON.parse(await fs.readFile(resumeLogPath, "utf8"));
+      assert.equal(freshLogged.args.includes("--reasoning-effort"), false);
+      assert.equal(resumeLogged.args.includes("--reasoning-effort"), false);
+      assert.equal(freshLogged.args.includes("-c"), true);
+      assert.equal(resumeLogged.args.includes("-c"), true);
+      assert.equal(freshLogged.args.includes("model_reasoning_effort=medium"), true);
+      assert.equal(resumeLogged.args.includes("model_reasoning_effort=medium"), true);
+    } finally {
+      setCodexSpawnCompatForTests();
+    }
+  });
+});
+
 

@@ -1,6 +1,7 @@
 import { run as runCodex } from "./codex.mjs";
 import { run as runClaude } from "./claude.mjs";
 import { run as runGemini } from "./gemini.mjs";
+import { run as runCopilot } from "./copilot.mjs";
 import { run as runGroq } from "./groq.mjs";
 import { run as runOpenRouter } from "./openrouter.mjs";
 
@@ -8,6 +9,7 @@ const runners = {
   codex: runCodex,
   claude: runClaude,
   gemini: runGemini,
+  copilot: runCopilot,
   groq: runGroq,
   openrouter: runOpenRouter,
 };

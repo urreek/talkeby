@@ -17,14 +17,15 @@ import {
 import {
   addProject,
   fetchMode,
+  fetchProvider,
   fetchProviderCatalog,
   fetchProjects,
-  fetchProvider,
   fetchSessionStatus,
   logout,
   setMode,
   setProvider,
 } from "@/lib/api";
+import { resolveReasoningEffort } from "@/lib/reasoning";
 import { isSoundsEnabled, playCompleted, setSoundsEnabled } from "@/lib/sounds";
 import { useTheme } from "@/lib/theme";
 import type { AIProvider, ExecutionMode } from "@/lib/types";
@@ -101,20 +102,23 @@ function SettingsScreen() {
   });
 
   const errorMessage =
-    getErrorMessage(sessionQuery.error) ||
-    getErrorMessage(modeMutation.error) ||
-    getErrorMessage(providerMutation.error) ||
-    getErrorMessage(addProjectMutation.error) ||
-    getErrorMessage(providerCatalogQuery.error) ||
-    getErrorMessage(projectsQuery.error) ||
-    getErrorMessage(modeQuery.error) ||
-    "";
+    getErrorMessage(sessionQuery.error)
+    || getErrorMessage(modeMutation.error)
+    || getErrorMessage(providerMutation.error)
+    || getErrorMessage(addProjectMutation.error)
+    || getErrorMessage(providerCatalogQuery.error)
+    || getErrorMessage(projectsQuery.error)
+    || getErrorMessage(modeQuery.error)
+    || "";
 
-  const projects = projectsQuery.data?.projects ?? [];
   const projectsBasePath = projectsQuery.data?.basePath ?? "";
+  const providerCatalog = providerCatalogQuery.data?.providers ?? [];
+  const activeProvider = providerCatalog.find(
+    (item) => item.id === (providerQuery.data?.provider ?? "codex"),
+  ) || providerCatalog[0];
 
   return (
-    <div className="mx-auto w-full max-w-5xl space-y-4 px-3 pb-4 sm:px-4 animate-in fade-in slide-in-from-bottom-4 duration-500 fill-mode-both">
+    <div className="w-full animate-in fade-in slide-in-from-bottom-4 space-y-4 px-3 pb-4 duration-500 fill-mode-both sm:px-4">
       <div className="flex items-center justify-end">
         <Button asChild variant="outline" className="h-9 rounded-xl">
           <Link to="/">Back to Workspace</Link>
@@ -153,9 +157,10 @@ function SettingsScreen() {
         model={providerQuery.data?.model ?? ""}
         reasoningEffort={providerQuery.data?.reasoningEffort ?? ""}
         planMode={providerQuery.data?.planMode ?? false}
+        sandboxMode={providerQuery.data?.sandboxMode}
         codexParityMode={providerQuery.data?.codexParityMode}
         codexSessionResumeEnabled={providerQuery.data?.codexSessionResumeEnabled}
-        providerCatalog={providerCatalogQuery.data?.providers ?? []}
+        providerCatalog={providerCatalog}
         projectsBasePath={projectsBasePath}
         theme={theme}
         showLogout={Boolean(sessionQuery.data?.required)}
@@ -163,13 +168,20 @@ function SettingsScreen() {
         onChangeTheme={setTheme}
         onChangeMode={(mode) => modeMutation.mutate(mode)}
         onChangeProvider={(provider) => providerMutation.mutate(provider)}
-        onChangeModel={(model) =>
+        onChangeModel={(model) => {
+          const nextModel = model === "__default__" ? "" : model;
+          const nextReasoningEffort = resolveReasoningEffort(
+            activeProvider,
+            model,
+            providerQuery.data?.reasoningEffort ?? "medium",
+          );
           setProvider({
-            model: model === "__default__" ? "" : model,
+            model: nextModel,
+            reasoningEffort: nextReasoningEffort,
           }).then(() =>
             queryClient.invalidateQueries({ queryKey: ["provider"] }),
-          )
-        }
+          );
+        }}
         onChangeReasoningEffort={(effort) =>
           setProvider({ reasoningEffort: effort }).then(() =>
             queryClient.invalidateQueries({ queryKey: ["provider"] }),
@@ -196,9 +208,9 @@ function SoundsToggle() {
   const [enabled, setEnabled] = useState(isSoundsEnabled());
 
   return (
-      <Card className="theme-surface">
-        <CardHeader>
-          <CardTitle>Sound Effects</CardTitle>
+    <Card className="theme-surface">
+      <CardHeader>
+        <CardTitle>Sound Effects</CardTitle>
         <CardDescription>
           Play sounds when jobs complete, fail, or need approval.
         </CardDescription>
@@ -217,7 +229,7 @@ function SoundsToggle() {
         >
           {enabled ? "Enabled" : "Disabled"}
         </Button>
-        {enabled && (
+        {enabled ? (
           <Button
             size="sm"
             variant="ghost"
@@ -226,7 +238,7 @@ function SoundsToggle() {
           >
             Test
           </Button>
-        )}
+        ) : null}
       </CardContent>
     </Card>
   );

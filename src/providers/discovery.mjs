@@ -1,11 +1,12 @@
 import { listCodexModels } from "../codex-app-server.mjs";
 import { getProviderMeta, listProviderCatalog } from "./catalog.mjs";
-import { execFile } from "node:child_process";
-import { promisify } from "node:util";
+import { promises as fs } from "node:fs";
+import os from "node:os";
+import path from "node:path";
+import { spawnCompat } from "../lib/spawn-compat.mjs";
 
 const DISCOVERY_TIMEOUT_MS = 8_000;
 const DISCOVERY_USER_AGENT = "talkeby/0.1";
-const execFileAsync = promisify(execFile);
 
 function textValue(value) {
   return typeof value === "string" ? value.trim() : "";
@@ -17,6 +18,26 @@ function baseOption(meta) {
     label: "Provider default",
     free: meta.freeOnlyModels.length > 0,
   };
+}
+function normalizeReasoningEfforts(reasoningEfforts) {
+  if (!Array.isArray(reasoningEfforts)) {
+    return [];
+  }
+  const seen = new Set();
+  const normalized = [];
+  for (const item of reasoningEfforts) {
+    const value = textValue(item?.value || item?.reasoningEffort || "").toLowerCase();
+    if (!value || seen.has(value)) {
+      continue;
+    }
+    seen.add(value);
+    normalized.push({
+      value,
+      label: textValue(item?.label || item?.reasoningEffort || value) || value,
+      description: textValue(item?.description || ""),
+    });
+  }
+  return normalized;
 }
 
 function applyFreeModelsOnlyToProvider(provider, meta, freeModelsOnly) {
@@ -64,21 +85,47 @@ function applyFreeModelsOnlyToProvider(provider, meta, freeModelsOnly) {
 }
 
 function dedupeDiscoveredModels(models) {
-  const seen = new Set();
-  const entries = [];
+  const byValue = new Map();
+  const ordered = [];
+
   for (const item of models) {
     const value = textValue(item?.value || item?.model || "");
-    if (!value || seen.has(value)) {
+    if (!value) {
       continue;
     }
-    seen.add(value);
     const label = textValue(item?.label || item?.displayName || value);
-    entries.push({
-      value,
-      label,
-    });
+    const reasoningEfforts = normalizeReasoningEfforts(
+      item?.reasoningEfforts || item?.supportedReasoningEfforts,
+    );
+    const defaultReasoningEffort = textValue(item?.defaultReasoningEffort || "").toLowerCase();
+    const isDefault = Boolean(item?.isDefault);
+
+    if (!byValue.has(value)) {
+      byValue.set(value, {
+        value,
+        label,
+        reasoningEfforts,
+        defaultReasoningEffort,
+        isDefault,
+      });
+      ordered.push(value);
+      continue;
+    }
+
+    const current = byValue.get(value);
+    if (label) {
+      current.label = label;
+    }
+    if (reasoningEfforts.length > 0) {
+      current.reasoningEfforts = reasoningEfforts;
+    }
+    if (defaultReasoningEffort) {
+      current.defaultReasoningEffort = defaultReasoningEffort;
+    }
+    current.isDefault = Boolean(current.isDefault || isDefault);
   }
-  return entries;
+
+  return ordered.map((value) => byValue.get(value));
 }
 
 function enforceFreeModelsOnly(discovered, meta, freeModelsOnly) {
@@ -116,6 +163,8 @@ function toCatalogModels(discovered, meta, freeModelsOnly) {
       value: item.value,
       label: item.label,
       free: meta.freeOnlyModels.includes(item.value),
+      reasoningEfforts: item.reasoningEfforts || [],
+      defaultReasoningEffort: item.defaultReasoningEffort || "",
     })),
   ];
 }
@@ -130,12 +179,16 @@ function mergeCatalogModels(dynamicModels, existingModels) {
     if (!value && value !== "") {
       return;
     }
+    const reasoningEfforts = normalizeReasoningEfforts(option?.reasoningEfforts);
+    const defaultReasoningEffort = textValue(option?.defaultReasoningEffort || "").toLowerCase();
 
     if (!byValue.has(value)) {
       const normalized = {
         value,
         label: label || (value || "Provider default"),
         free: Boolean(option?.free),
+        reasoningEfforts,
+        defaultReasoningEffort,
       };
       byValue.set(value, normalized);
       ordered.push(value);
@@ -147,6 +200,12 @@ function mergeCatalogModels(dynamicModels, existingModels) {
       current.label = label;
     }
     current.free = Boolean(current.free || option?.free);
+    if (reasoningEfforts.length > 0) {
+      current.reasoningEfforts = reasoningEfforts;
+    }
+    if (defaultReasoningEffort) {
+      current.defaultReasoningEffort = defaultReasoningEffort;
+    }
   }
 
   for (const option of dynamicModels) {
@@ -183,15 +242,304 @@ async function fetchJson(url, headers = {}, timeoutMs = DISCOVERY_TIMEOUT_MS) {
 
 async function safeExecCapture(binary, args = [], timeoutMs = DISCOVERY_TIMEOUT_MS) {
   try {
-    const { stdout } = await execFileAsync(binary, args, {
-      timeout: timeoutMs,
-      maxBuffer: 4 * 1024 * 1024,
+    const child = spawnCompat(binary, args, {
+      cwd: process.cwd(),
       env: process.env,
+      stdio: ["ignore", "pipe", "ignore"],
     });
-    return textValue(stdout);
+
+    let stdout = "";
+    let settled = false;
+    const result = await new Promise((resolve) => {
+      const timer = setTimeout(() => {
+        if (settled) {
+          return;
+        }
+        settled = true;
+        child.kill("SIGTERM");
+        resolve("");
+      }, timeoutMs);
+      if (typeof timer.unref === "function") {
+        timer.unref();
+      }
+
+      child.stdout?.setEncoding("utf8");
+      child.stdout?.on("data", (chunk) => {
+        stdout += chunk;
+        if (stdout.length > 4 * 1024 * 1024) {
+          stdout = stdout.slice(0, 4 * 1024 * 1024);
+        }
+      });
+
+      child.on("error", () => {
+        if (settled) {
+          return;
+        }
+        settled = true;
+        clearTimeout(timer);
+        resolve("");
+      });
+
+      child.on("close", (code) => {
+        if (settled) {
+          return;
+        }
+        settled = true;
+        clearTimeout(timer);
+        resolve(code === 0 ? stdout : "");
+      });
+    });
+
+    return textValue(result);
   } catch {
     return "";
   }
+}
+
+export function extractCopilotModelsFromConfigHelp(helpText) {
+  const normalized = textValue(helpText);
+  if (!normalized) {
+    return [];
+  }
+
+  const sectionMatch = normalized.match(/`model`:[\s\S]*?(?=\r?\n\s*`[a-zA-Z]|\s*$)/);
+  if (!sectionMatch) {
+    return [];
+  }
+
+  const seen = new Set();
+  const discovered = [];
+  for (const match of sectionMatch[0].matchAll(/-\s+"([^"]+)"/g)) {
+    const value = textValue(match[1]);
+    if (!value || seen.has(value)) {
+      continue;
+    }
+    seen.add(value);
+    discovered.push({
+      value,
+      label: value,
+    });
+  }
+  return discovered;
+}
+
+export function extractCopilotReasoningEffortsFromHelp(helpText) {
+  const normalized = textValue(helpText);
+  if (!normalized) {
+    return [];
+  }
+
+  const choicesMatch = normalized.match(
+    /--effort,\s+--reasoning-effort\s+<level>[\s\S]*?\(choices:\s*([^)]+)\)/i,
+  );
+  if (!choicesMatch) {
+    return [];
+  }
+
+  const choices = [...choicesMatch[1].matchAll(/"([^"]+)"/g)]
+    .map((match) => textValue(match[1]).toLowerCase())
+    .filter(Boolean);
+
+  return normalizeReasoningEfforts(
+    choices.map((value) => ({
+      value,
+      label: value,
+    })),
+  );
+}
+
+function resolveCopilotHomeDir() {
+  const configured = textValue(process.env.COPILOT_HOME || "");
+  if (configured) {
+    return configured;
+  }
+  return path.join(os.homedir(), ".copilot");
+}
+
+function collectTextParts(value, output = []) {
+  if (typeof value === "string") {
+    const text = textValue(value);
+    if (text) {
+      output.push(text);
+    }
+    return output;
+  }
+
+  if (Array.isArray(value)) {
+    for (const item of value) {
+      collectTextParts(item, output);
+    }
+    return output;
+  }
+
+  if (!value || typeof value !== "object") {
+    return output;
+  }
+
+  for (const key of ["message", "text", "content", "response", "delta", "body", "value"]) {
+    if (key in value) {
+      collectTextParts(value[key], output);
+    }
+  }
+
+  return output;
+}
+
+function dedupeModelEntries(models) {
+  const seen = new Set();
+  const deduped = [];
+  for (const item of models) {
+    const value = textValue(item?.value || "");
+    if (!value || seen.has(value)) {
+      continue;
+    }
+    seen.add(value);
+    deduped.push({
+      value,
+      label: textValue(item?.label || value) || value,
+    });
+  }
+  return deduped;
+}
+
+function extractCopilotModelTokens(text) {
+  const normalized = textValue(text);
+  if (!normalized) {
+    return [];
+  }
+
+  const matches = normalized.match(
+    /\b(?:gpt-[a-z0-9.-]+|claude-[a-z0-9.-]+|gemini-[a-z0-9.-]+|grok-[a-z0-9.-]+|raptor-[a-z0-9.-]+|o[0-9]+(?:-[a-z0-9.-]+)?)\b/gi,
+  ) || [];
+  return dedupeModelEntries(
+    matches
+      .map((token) => textValue(token))
+      .filter((token) => token && !token.includes("/"))
+      .map((value) => ({ value, label: value })),
+  );
+}
+
+export function extractCopilotModelsFromModelCommandOutput(outputText) {
+  const normalized = textValue(outputText);
+  if (!normalized) {
+    return [];
+  }
+
+  const textParts = [];
+  for (const line of normalized.split(/\r?\n/)) {
+    const candidate = textValue(line);
+    if (!candidate) {
+      continue;
+    }
+    try {
+      const payload = JSON.parse(candidate);
+      collectTextParts(payload, textParts);
+    } catch {
+      textParts.push(candidate);
+    }
+  }
+
+  return extractCopilotModelTokens(textParts.join("\n"));
+}
+
+export function extractCopilotModelsFromSessionEvents(eventsText) {
+  const normalized = textValue(eventsText);
+  if (!normalized) {
+    return [];
+  }
+
+  const textParts = [];
+  for (const line of normalized.split(/\r?\n/)) {
+    const candidate = textValue(line);
+    if (!candidate) {
+      continue;
+    }
+
+    try {
+      const payload = JSON.parse(candidate);
+      const data = payload?.data && typeof payload.data === "object" ? payload.data : payload;
+      for (const value of [
+        data?.selectedModel,
+        data?.previousModel,
+        data?.newModel,
+        data?.currentModel,
+        data?.model,
+      ]) {
+        const text = textValue(value);
+        if (text) {
+          textParts.push(text);
+        }
+      }
+
+      if (data?.modelMetrics && typeof data.modelMetrics === "object") {
+        textParts.push(...Object.keys(data.modelMetrics).map((value) => textValue(value)).filter(Boolean));
+      }
+    } catch {
+      textParts.push(candidate);
+    }
+  }
+
+  return extractCopilotModelTokens(textParts.join("\n"));
+}
+
+export function extractCopilotModelsFromLogOutput(logText) {
+  const normalized = textValue(logText);
+  if (!normalized) {
+    return [];
+  }
+
+  const relevantLines = normalized
+    .split(/\r?\n/)
+    .map((line) => textValue(line))
+    .filter((line) => line.includes("Using default model:") || line.includes("Model changed to:"));
+  return extractCopilotModelTokens(relevantLines.join("\n"));
+}
+
+async function safeReadTextFile(filename) {
+  try {
+    return await fs.readFile(filename, "utf8");
+  } catch {
+    return "";
+  }
+}
+
+async function discoverCopilotModelsFromCache() {
+  const copilotHome = resolveCopilotHomeDir();
+  const discovered = [];
+
+  const sessionStateDir = path.join(copilotHome, "session-state");
+  let sessionEntries = [];
+  try {
+    sessionEntries = await fs.readdir(sessionStateDir, { withFileTypes: true });
+  } catch {
+    sessionEntries = [];
+  }
+
+  for (const entry of sessionEntries) {
+    if (!entry.isDirectory()) {
+      continue;
+    }
+    const eventsText = await safeReadTextFile(path.join(sessionStateDir, entry.name, "events.jsonl"));
+    discovered.push(...extractCopilotModelsFromSessionEvents(eventsText));
+  }
+
+  const logsDir = path.join(copilotHome, "logs");
+  let logEntries = [];
+  try {
+    logEntries = await fs.readdir(logsDir, { withFileTypes: true });
+  } catch {
+    logEntries = [];
+  }
+
+  for (const entry of logEntries) {
+    if (!entry.isFile() || !entry.name.endsWith(".log")) {
+      continue;
+    }
+    const logText = await safeReadTextFile(path.join(logsDir, entry.name));
+    discovered.push(...extractCopilotModelsFromLogOutput(logText));
+  }
+
+  return dedupeModelEntries(discovered);
 }
 
 function extractModelTokens(text) {
@@ -224,6 +572,9 @@ async function discoverCodexModels(config) {
   return models.map((item) => ({
     value: textValue(item?.model),
     label: textValue(item?.displayName) || textValue(item?.model),
+    reasoningEfforts: normalizeReasoningEfforts(item?.supportedReasoningEfforts),
+    defaultReasoningEffort: textValue(item?.defaultReasoningEffort || "").toLowerCase(),
+    isDefault: Boolean(item?.isDefault),
   }));
 }
 
@@ -311,6 +662,45 @@ async function discoverGeminiModels(config) {
   return discovered;
 }
 
+async function discoverCopilotModels(config) {
+  const binary = config.runner?.binaries?.copilot || "copilot";
+  const discovered = [];
+
+  const modelCommandOutput = await safeExecCapture(
+    binary,
+    ["-p", "/model", "--output-format", "json", "--allow-all-tools", "--allow-all-paths", "--no-ask-user"],
+  );
+  const fromSession = extractCopilotModelsFromModelCommandOutput(modelCommandOutput);
+  discovered.push(...fromSession);
+
+  const fromCache = await discoverCopilotModelsFromCache();
+  discovered.push(...fromCache);
+
+  const configHelpText = await safeExecCapture(binary, ["help", "config"]);
+  const fromConfigHelp = extractCopilotModelsFromConfigHelp(configHelpText);
+  discovered.push(...fromConfigHelp);
+
+  return dedupeModelEntries(discovered);
+}
+
+async function discoverCopilotReasoningConfig(config) {
+  const helpText = await safeExecCapture(
+    config.runner?.binaries?.copilot || "copilot",
+    ["--help"],
+  );
+  const reasoningEfforts = extractCopilotReasoningEffortsFromHelp(helpText);
+  if (reasoningEfforts.length === 0) {
+    return null;
+  }
+
+  return {
+    reasoningEfforts,
+    defaultReasoningEffort: reasoningEfforts.some((option) => option.value === "medium")
+      ? "medium"
+      : (reasoningEfforts[0]?.value || ""),
+  };
+}
+
 async function discoverGroqModels() {
   const apiKey = textValue(process.env.GROQ_API_KEY || "");
   if (!apiKey) {
@@ -362,6 +752,9 @@ async function discoverModelsForProvider(providerId, config) {
   if (providerId === "gemini") {
     return discoverGeminiModels(config);
   }
+  if (providerId === "copilot") {
+    return discoverCopilotModels(config);
+  }
   if (providerId === "groq") {
     return discoverGroqModels();
   }
@@ -405,24 +798,34 @@ export async function buildProviderCatalogWithDiscovery({ config, log }) {
   );
 
   const discoveredMap = new Map(discoveredPerProvider);
+  const copilotReasoningConfig = await discoverCopilotReasoningConfig(config).catch(() => null);
   return providers.map((provider) => {
     const providerId = textValue(provider.id).toLowerCase();
     const discovered = discoveredMap.get(providerId) || [];
+    const nextProvider = providerId === "copilot" && copilotReasoningConfig
+      ? {
+        ...provider,
+        reasoningEfforts: copilotReasoningConfig.reasoningEfforts,
+        defaultReasoningEffort: copilotReasoningConfig.defaultReasoningEffort || provider.defaultReasoningEffort,
+      }
+      : provider;
     if (!Array.isArray(discovered) || discovered.length === 0) {
-      return provider;
+      return nextProvider;
     }
     const meta = getProviderMeta(providerId);
     if (!meta) {
-      return provider;
+      return nextProvider;
     }
     const dynamicModels = toCatalogModels(discovered, meta, freeModelsOnly);
+    const dynamicDefaultModel = dedupeDiscoveredModels(discovered).find((item) => item.isDefault)?.value || "";
     if (!dynamicModels || dynamicModels.length <= 1) {
-      return provider;
+      return nextProvider;
     }
 
-    const mergedModels = mergeCatalogModels(dynamicModels, provider.models);
+    const mergedModels = mergeCatalogModels(dynamicModels, nextProvider.models);
     return {
-      ...provider,
+      ...nextProvider,
+      defaultModel: dynamicDefaultModel || nextProvider.defaultModel,
       models: mergedModels,
     };
   }).map((provider) => {
@@ -430,3 +833,4 @@ export async function buildProviderCatalogWithDiscovery({ config, log }) {
     return applyFreeModelsOnlyToProvider(provider, meta, freeModelsOnly);
   });
 }
+

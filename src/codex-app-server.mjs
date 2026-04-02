@@ -258,12 +258,23 @@ export async function listCodexModels({
               continue;
             }
             seen.add(model);
+            const supportedReasoningEfforts = Array.isArray(item?.supportedReasoningEfforts)
+              ? item.supportedReasoningEfforts
+                .map((entry) => ({
+                  value: toSafeString(entry?.reasoningEffort),
+                  label: toSafeString(entry?.reasoningEffort),
+                  description: toSafeString(entry?.description),
+                }))
+                .filter((entry) => entry.value)
+              : [];
             models.push({
               id: toSafeString(item?.id),
               model,
               displayName: toSafeString(item?.displayName) || model,
               hidden: Boolean(item?.hidden),
               isDefault: Boolean(item?.isDefault),
+              supportedReasoningEfforts,
+              defaultReasoningEffort: toSafeString(item?.defaultReasoningEffort),
             });
           }
 
@@ -589,7 +600,7 @@ export async function runCodexWithRuntimeApprovals({
       cwd: codexConfig.workdir,
       model: codexConfig.model || null,
       approvalPolicy: codexConfig.interactiveApprovalPolicy || "untrusted",
-      sandbox: "workspace-write",
+      sandbox: codexConfig.sandboxMode || "workspace-write",
       experimentalRawEvents: false,
       persistExtendedHistory: codexConfig.persistExtendedHistory === true,
     };
@@ -651,3 +662,5 @@ export async function runCodexWithRuntimeApprovals({
     }
   }
 }
+
+
