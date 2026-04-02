@@ -2,16 +2,15 @@
 
 ## Runtime Topology
 
-- `src/server.mjs`: composition root (config, DB, services, HTTP, Telegram poll loop)
+- `src/server.mjs`: composition root (config, DB, services, HTTP)
 - `src/http/*`: Fastify route registration
 - `src/services/*`: domain logic (state, lifecycle, runner, event bus)
-- `src/telegram/*`: Telegram command parsing/handling and message formatting
 - `src/db/*`: SQLite bootstrap + Drizzle repository
 - `web/*`: mobile PWA UI
 
 ## Job Lifecycle
 
-1. Job is created via Telegram command or `POST /api/jobs`.
+1. Job is created via `POST /api/jobs`.
 2. In `interactive` mode, it is persisted as `pending_approval`.
 3. Approval transitions to `queued` and enters serialized `JobRunner` queue.
 4. Runner transitions to `running`, executes `codex exec`, then `completed` or `failed`.

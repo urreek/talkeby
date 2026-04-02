@@ -36,10 +36,6 @@ Build and maintain Talkeby as a secure, local-first, mobile-control coding syste
 - Extended providers: Groq and OpenRouter via Aider bridge (`aider --model groq/...|openrouter/...`)
 - Each runner implements: `async function run({ task, workdir, model, timeoutMs, binary }) → { message }`
 
-4. Optional channel:
-
-- Telegram integration remains supported
-
 ## Architecture Rules
 
 1. Keep transport, domain, and persistence layers separated.

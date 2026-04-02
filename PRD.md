@@ -50,7 +50,7 @@ Developers want to code while away from their computer (travel, outdoors, commut
 
 1. Job creation:
 
-- Create job from mobile UI and optional Telegram channel.
+- Create job from mobile UI.
 - Include task text, selected project, mode, metadata.
 
 2. Execution modes:
@@ -94,8 +94,6 @@ Developers want to code while away from their computer (travel, outdoors, commut
 9. Security:
 
 - Restrict API access with authenticated sessions.
-- Restrict Telegram chats by allowlist.
-- Optional command PIN for Telegram commands.
 
 10. Setup:
 
@@ -146,11 +144,7 @@ Developers want to code while away from their computer (travel, outdoors, commut
 - Local AI runner process via pluggable runners (`codex exec`, `claude -p`, `gemini`)
 - Runner registry pattern: `src/runners/{codex,claude,gemini,groq,openrouter}.mjs`
 
-4. Optional channel:
-
-- Telegram bot integration retained as fallback/control channel
-
-5. Source control and distribution:
+4. Source control and distribution:
 
 - Git repository as the single source of truth
 - Remote Git host for sync between development and deployment environments
@@ -268,8 +262,7 @@ Developers want to code while away from their computer (travel, outdoors, commut
 
 1. M1: Persistent backend foundation (Fastify + DB + job states + SSE).
 2. M2: Mobile PWA with create/approve/deny/status.
-3. M3: Telegram parity with same mode/approval semantics.
-4. M4: Installer + doctor + production-hardening pass.
+3. M3: Installer + doctor + production-hardening pass.
 
 ## Risks & Mitigations
 
