@@ -184,11 +184,11 @@ function summarizeHealth({
       : (jobRunner.getRunningJobId() ? 1 : 0),
     queuedJobs: state.countQueuedJobs(),
     defaultExecutionMode: config.app.defaultExecutionMode,
-    defaultProject: config.codex.defaultProjectName,
+    defaultProject: config.workspace.defaultProjectName,
     activeProject: state.getProject().name,
-    projects: Object.fromEntries(config.codex.projects),
-    projectsBaseDir: config.codex.projectsBaseDir,
-    workdir: config.codex.workdir,
+    projects: Object.fromEntries(config.workspace.projects),
+    projectsBaseDir: config.workspace.projectsBaseDir,
+    workdir: config.workspace.workdir,
     databaseFile: config.storage.databaseFile,
     codexParityMode,
     codexSessionResumeEnabled,
@@ -582,7 +582,7 @@ export function registerRoutes({
 
     const jobs = repository.listJobsByThread(threadId);
     let transcriptJobs = [];
-    const workdir = textValue(config.codex.projects.get(thread.projectName) || "");
+    const workdir = textValue(config.workspace.projects.get(thread.projectName) || "");
 
     if (thread.cliSessionId && workdir) {
       try {
@@ -844,12 +844,12 @@ export function registerRoutes({
 
   app.get("/api/projects", async () => ({
     activeProject: state.getProject().name,
-    basePath: config.codex.projectsBaseDir,
+    basePath: config.workspace.projectsBaseDir,
     projects: state.listProjects(),
   }));
 
   app.get("/api/projects/discover", async () => {
-    const baseDir = config.codex.projectsBaseDir;
+    const baseDir = config.workspace.projectsBaseDir;
     const existingProjects = state.listProjects();
     const existingNames = new Set(
       existingProjects.map((project) => String(project.name || "").toLowerCase()),
@@ -861,7 +861,7 @@ export function registerRoutes({
   });
 
   app.post("/api/projects/import-all", async () => {
-    const baseDir = config.codex.projectsBaseDir;
+    const baseDir = config.workspace.projectsBaseDir;
     const existingProjects = state.listProjects();
     const existingNames = new Set(
       existingProjects.map((project) => String(project.name || "").toLowerCase()),
@@ -923,7 +923,7 @@ export function registerRoutes({
     state.setProject(projectName);
     return {
       projectName,
-      path: config.codex.projects.get(projectName),
+      path: config.workspace.projects.get(projectName),
     };
   });
 
@@ -942,7 +942,7 @@ export function registerRoutes({
     const candidatePath = requestedPath || projectName;
     const resolvedPath = path.isAbsolute(candidatePath)
       ? path.resolve(candidatePath)
-      : path.resolve(config.codex.projectsBaseDir, candidatePath);
+      : path.resolve(config.workspace.projectsBaseDir, candidatePath);
     try {
       fs.mkdirSync(resolvedPath, { recursive: true });
     } catch (error) {
@@ -976,7 +976,7 @@ export function registerRoutes({
         alreadyExists: true,
         projectName: existingByPath.name,
         path: existingByPath.path,
-        basePath: config.codex.projectsBaseDir,
+        basePath: config.workspace.projectsBaseDir,
         activeProject: state.getProject().name,
         projects: state.listProjects(),
       };
@@ -1013,7 +1013,7 @@ export function registerRoutes({
       ok: true,
       projectName: created.project.name,
       path: created.project.path,
-      basePath: config.codex.projectsBaseDir,
+      basePath: config.workspace.projectsBaseDir,
       activeProject: state.getProject().name,
       projects: state.listProjects(),
     };

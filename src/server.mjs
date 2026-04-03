@@ -41,7 +41,7 @@ async function start() {
 
   const eventBus = new EventBus(repository);
   const terminalManager = new TerminalManager({
-    defaultCwd: config.codex.workdir,
+    defaultCwd: config.workspace.workdir,
     log: app.log,
   });
   const jobRunner = new JobRunner({
@@ -91,9 +91,9 @@ async function start() {
   });
 
   app.log.info(`Default execution mode: ${config.app.defaultExecutionMode}`);
-  app.log.info(`Codex default project: ${config.codex.defaultProjectName}`);
-  app.log.info(`Codex projects: ${safeList(state.availableProjectNames())}`);
-  app.log.info(`Workspace directory: ${config.codex.workdir}`);
+  app.log.info(`Default project: ${config.workspace.defaultProjectName}`);
+  app.log.info(`Projects: ${safeList(state.availableProjectNames())}`);
+  app.log.info(`Workspace directory: ${config.workspace.workdir}`);
   app.log.info(`Codex sandbox mode: ${config.codex.sandboxMode}`);
   app.log.info(`Database file: ${config.storage.databaseFile}`);
   app.log.info(`App access key: ${config.security.ownerKey ? "enabled" : "disabled"}`);

@@ -49,7 +49,7 @@ function parseProjectMap(value, fallbackWorkdir) {
     const separatorIndex = entry.indexOf("=");
     if (separatorIndex <= 0 || separatorIndex === entry.length - 1) {
       throw new Error(
-        `Invalid CODEX_PROJECTS entry "${entry}". Expected format: name=/path/to/project`,
+        `Invalid PROJECTS entry "${entry}". Expected format: name=/path/to/project`,
       );
     }
 
@@ -57,11 +57,11 @@ function parseProjectMap(value, fallbackWorkdir) {
     const projectPath = entry.slice(separatorIndex + 1).trim();
     if (!name || !projectPath) {
       throw new Error(
-        `Invalid CODEX_PROJECTS entry "${entry}". Expected format: name=/path/to/project`,
+        `Invalid PROJECTS entry "${entry}". Expected format: name=/path/to/project`,
       );
     }
     if (projects.has(name)) {
-      throw new Error(`Duplicate CODEX_PROJECTS name "${name}".`);
+      throw new Error(`Duplicate PROJECTS name "${name}".`);
     }
     projects.set(name, path.resolve(projectPath));
   }
@@ -86,7 +86,7 @@ function resolveDefaultProjectName(projects, configuredDefault) {
   }
 
   throw new Error(
-    `CODEX_DEFAULT_PROJECT "${requested}" was not found in CODEX_PROJECTS.`,
+    `DEFAULT_PROJECT "${requested}" was not found in PROJECTS.`,
   );
 }
 
@@ -202,12 +202,16 @@ function normalizeBinarySetting(value, fallbackCommand) {
 export function loadConfig() {
   const port = parseInteger(process.env.PORT, 3000);
   const codexTimeoutMs = parseInteger(process.env.CODEX_TIMEOUT_MS, 15 * 60 * 1000);
+  const configuredWorkspaceDir = process.env.WORKSPACE_DIR?.trim()
+    || process.env.CODEX_WORKDIR?.trim();
   const fallbackWorkdir = normalizeExistingDirectory(
-    process.env.CODEX_WORKDIR?.trim(),
+    configuredWorkspaceDir,
     process.cwd(),
   );
+  const configuredProjectsBaseDir = process.env.PROJECTS_BASE_DIR?.trim()
+    || process.env.CODEX_PROJECTS_BASE_DIR?.trim();
   const projectsBaseDir = normalizeExistingDirectory(
-    process.env.CODEX_PROJECTS_BASE_DIR?.trim(),
+    configuredProjectsBaseDir,
     path.dirname(fallbackWorkdir),
   );
   const dataDir = path.resolve(
@@ -216,10 +220,13 @@ export function loadConfig() {
   const databaseFile = path.resolve(
     process.env.DATABASE_FILE?.trim() || path.join(dataDir, "talkeby.db"),
   );
-  const projects = parseProjectMap(process.env.CODEX_PROJECTS, fallbackWorkdir);
+  const projects = parseProjectMap(
+    process.env.PROJECTS || process.env.CODEX_PROJECTS,
+    fallbackWorkdir,
+  );
   const defaultProjectName = resolveDefaultProjectName(
     projects,
-    process.env.CODEX_DEFAULT_PROJECT,
+    process.env.DEFAULT_PROJECT?.trim() || process.env.CODEX_DEFAULT_PROJECT?.trim(),
   );
   const app = {
     defaultExecutionMode: parseExecutionMode(
@@ -249,12 +256,19 @@ export function loadConfig() {
   const defaultCodexModel = getProviderMeta("codex")?.defaultModel || "";
   const codexParityMode = parseBoolean(process.env.CODEX_PARITY_MODE, true);
 
-  const codex = {
-    binary: normalizeBinarySetting(process.env.CODEX_BINARY, "codex"),
+  const workspace = {
     workdir: defaultProjectName ? projects.get(defaultProjectName) : fallbackWorkdir,
     projectsBaseDir,
     projects,
     defaultProjectName,
+  };
+
+  const codex = {
+    binary: normalizeBinarySetting(process.env.CODEX_BINARY, "codex"),
+    workdir: workspace.workdir,
+    projectsBaseDir: workspace.projectsBaseDir,
+    projects: workspace.projects,
+    defaultProjectName: workspace.defaultProjectName,
     timeoutMs: codexTimeoutMs,
     model: process.env.CODEX_MODEL?.trim() || defaultCodexModel,
     parityMode: codexParityMode,
@@ -341,6 +355,7 @@ export function loadConfig() {
       databaseFile,
     },
     app,
+    workspace,
     codex,
     threads,
     runner,

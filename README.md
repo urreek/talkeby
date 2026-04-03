@@ -112,8 +112,8 @@ If `APP_ACCESS_KEY` is configured, the app shows a login screen first.
 Minimum useful setup:
 
 - `APP_ACCESS_KEY=<long-random-secret>`
-- `CODEX_WORKDIR=<absolute-path-to-default-project>`
-- `CODEX_PROJECTS_BASE_DIR=<absolute-path-containing-projects>`
+- `WORKSPACE_DIR=<absolute-path-to-default-project>`
+- `PROJECTS_BASE_DIR=<absolute-path-containing-projects>`
 - `CODEX_BINARY=codex`
 
 See [`.env.example`](/Users/urimkrasniqi/Desktop/dev/talkeby/.env.example) for the full list.
@@ -123,8 +123,10 @@ Important variables:
 - `DEFAULT_EXECUTION_MODE=auto|interactive`
 - `PROGRESS_UPDATES=true|false`
 - `PROGRESS_UPDATE_SECONDS=<seconds>`
-- `CODEX_PROJECTS=name=/abs/path,name2=/abs/path2`
-- `CODEX_DEFAULT_PROJECT=<name>`
+- `WORKSPACE_DIR=<absolute-path-to-default-project>`
+- `PROJECTS_BASE_DIR=<absolute-path-containing-projects>`
+- `PROJECTS=name=/abs/path,name2=/abs/path2`
+- `DEFAULT_PROJECT=<name>`
 - `CODEX_MODEL=<model>`
   If unset, Codex defaults to `gpt-5.4`.
 - `CODEX_PARITY_MODE=true|false`
@@ -143,6 +145,13 @@ Important variables:
 - `RUNTIME_POLICY_AUTO_APPROVE_ALL=true|false`
 - `RUNTIME_POLICY_FILE_CHANGES_REQUIRE_APPROVAL=true|false`
 - `TALKEBY_TERMINAL_BINARY=<optional shell override for /terminal>`
+
+Legacy aliases remain supported for backward compatibility:
+
+- `CODEX_WORKDIR`
+- `CODEX_PROJECTS_BASE_DIR`
+- `CODEX_PROJECTS`
+- `CODEX_DEFAULT_PROJECT`
 
 When `AI_PROVIDER=copilot`, model discovery uses the local Copilot CLI on the host machine. Talkeby tries, in order:
 

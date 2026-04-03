@@ -69,7 +69,7 @@ export class RuntimeState {
       if (this.resolveProjectName(name)) {
         continue;
       }
-      this.config.codex.projects.set(name, projectPath);
+      this.config.workspace.projects.set(name, projectPath);
     }
   }
 
@@ -96,7 +96,7 @@ export class RuntimeState {
     const activeProjectSetting = this.repository.getAppSetting(OWNER_SETTING_KEYS.activeProject);
     const storedProjectName = textValue(activeProjectSetting?.value || "");
     this.activeProjectName = this.resolveProjectName(storedProjectName)
-      || this.config.codex.defaultProjectName
+      || this.config.workspace.defaultProjectName
       || "";
 
     const executionModeSetting = this.repository.getAppSetting(OWNER_SETTING_KEYS.executionMode);
@@ -186,7 +186,7 @@ export class RuntimeState {
   }
 
   listProjects() {
-    return Array.from(this.config.codex.projects.entries())
+    return Array.from(this.config.workspace.projects.entries())
       .map(([name, projectPath]) => ({
         name,
         path: String(projectPath),
@@ -208,7 +208,7 @@ export class RuntimeState {
       return "";
     }
 
-    for (const name of this.config.codex.projects.keys()) {
+    for (const name of this.config.workspace.projects.keys()) {
       if (name.toLowerCase() === requested.toLowerCase()) {
         return name;
       }
@@ -221,7 +221,7 @@ export class RuntimeState {
     if (resolved) {
       return resolved;
     }
-    return this.config.codex.defaultProjectName || "";
+    return this.config.workspace.defaultProjectName || "";
   }
 
   getProject() {
@@ -231,7 +231,7 @@ export class RuntimeState {
     }
     return {
       name,
-      workdir: this.config.codex.projects.get(name) || "",
+      workdir: this.config.workspace.projects.get(name) || "",
     };
   }
 
@@ -264,7 +264,7 @@ export class RuntimeState {
       return { error: `Project ${normalizedName} already exists.` };
     }
 
-    this.config.codex.projects.set(normalizedName, normalizedPath);
+    this.config.workspace.projects.set(normalizedName, normalizedPath);
     this.repository.upsertProject({
       name: normalizedName,
       path: normalizedPath,
@@ -285,11 +285,11 @@ export class RuntimeState {
       return { error: "Project was not found." };
     }
 
-    this.config.codex.projects.delete(resolvedName);
+    this.config.workspace.projects.delete(resolvedName);
     this.repository.deleteProject(resolvedName);
 
     if (!this.resolveProjectName(this.activeProjectName)) {
-      this.activeProjectName = this.config.codex.defaultProjectName || "";
+      this.activeProjectName = this.config.workspace.defaultProjectName || "";
       this.repository.setAppSetting({
         key: OWNER_SETTING_KEYS.activeProject,
         value: this.activeProjectName,

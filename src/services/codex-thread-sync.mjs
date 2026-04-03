@@ -63,7 +63,7 @@ function resolveProjectNameForWorkdir(config, workdir) {
 
   let bestProjectName = "";
   let bestLength = -1;
-  for (const [projectName, projectPath] of config.codex.projects.entries()) {
+  for (const [projectName, projectPath] of config.workspace.projects.entries()) {
     const normalizedProjectPath = normalizePath(projectPath);
     if (!normalizedProjectPath) {
       continue;
@@ -90,7 +90,7 @@ function parseGitMeta(meta = {}) {
 
 function talkebyThreadWorkdir(config, thread) {
   const projectName = textValue(thread?.projectName);
-  return projectName ? textValue(config.codex.projects.get(projectName)) : "";
+  return projectName ? textValue(config.workspace.projects.get(projectName)) : "";
 }
 
 function getFirstTalkebyUserMessage(repository, threadId, fallback = "") {
