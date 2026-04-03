@@ -71,6 +71,31 @@ function upsertEnvValues(filePath, entries) {
   fs.writeFileSync(filePath, `${lines.join("\n").replace(/\n+$/g, "")}\n`, "utf8");
 }
 
+function removeEnvKeys(filePath, keys) {
+  if (!fs.existsSync(filePath) || !Array.isArray(keys) || keys.length === 0) {
+    return;
+  }
+
+  const blocked = new Set(keys.map((key) => String(key || "").trim()).filter(Boolean));
+  if (blocked.size === 0) {
+    return;
+  }
+
+  const existing = fs.readFileSync(filePath, "utf8");
+  const lines = existing
+    .split(/\r?\n/)
+    .filter((line) => {
+      const separatorIndex = line.indexOf("=");
+      if (separatorIndex <= 0) {
+        return true;
+      }
+      const key = line.slice(0, separatorIndex).trim();
+      return !blocked.has(key);
+    });
+
+  fs.writeFileSync(filePath, `${lines.join("\n").replace(/\n+$/g, "")}\n`, "utf8");
+}
+
 function which(binary) {
   const candidate = String(binary || "").trim();
   if (!candidate) {
@@ -224,15 +249,13 @@ async function runInstall() {
     return answer || fallback;
   };
 
-  const defaultWorkdir = env.get("CODEX_WORKDIR") || ROOT_DIR;
-  const defaultProjectsBase = env.get("CODEX_PROJECTS_BASE_DIR") || path.dirname(defaultWorkdir);
+  const defaultWorkdir = env.get("WORKSPACE_DIR") || env.get("CODEX_WORKDIR") || ROOT_DIR;
   const defaultPort = env.get("PORT") || "3000";
   const defaultAccessKey = env.get("APP_ACCESS_KEY") || generateAccessKey();
   const codexBinary = which("codex") || env.get("CODEX_BINARY") || "codex";
 
   const accessKey = await ask("APP_ACCESS_KEY", defaultAccessKey);
-  const workdir = await ask("CODEX_WORKDIR", defaultWorkdir);
-  const projectsBaseDir = await ask("CODEX_PROJECTS_BASE_DIR", defaultProjectsBase);
+  const workdir = await ask("WORKSPACE_DIR", defaultWorkdir);
   const port = await ask("PORT", defaultPort);
   const installDepsAnswer = (await ask("Install npm dependencies now? (yes/no)", "yes")).toLowerCase();
   const installLaunchdAnswer = (await ask("Install launchd service now? (yes/no)", "no")).toLowerCase();
@@ -243,9 +266,15 @@ async function runInstall() {
     ["PORT", port],
     ["APP_ACCESS_KEY", accessKey],
     ["CODEX_BINARY", codexBinary],
-    ["CODEX_WORKDIR", path.resolve(workdir)],
-    ["CODEX_PROJECTS_BASE_DIR", path.resolve(projectsBaseDir)],
+    ["WORKSPACE_DIR", path.resolve(workdir)],
     ["DEFAULT_EXECUTION_MODE", env.get("DEFAULT_EXECUTION_MODE") || "auto"],
+  ]);
+  removeEnvKeys(ENV_PATH, [
+    "CODEX_WORKDIR",
+    "CODEX_PROJECTS_BASE_DIR",
+    "PROJECTS_BASE_DIR",
+    "COPILOT_WORKDIR",
+    "COPILOT_PROJECTS_BASE_DIR",
   ]);
 
   console.log(`Updated ${ENV_PATH}`);
@@ -288,14 +317,9 @@ async function runBootstrap() {
     updates.push(["PORT", "3000"]);
   }
 
-  const workdir = String(env.get("CODEX_WORKDIR") || "").trim();
+  const workdir = String(env.get("WORKSPACE_DIR") || env.get("CODEX_WORKDIR") || "").trim();
   if (!workdir || isPlaceholderPath(workdir)) {
-    updates.push(["CODEX_WORKDIR", ROOT_DIR]);
-  }
-
-  const projectsBaseDir = String(env.get("CODEX_PROJECTS_BASE_DIR") || "").trim();
-  if (!projectsBaseDir || isPlaceholderPath(projectsBaseDir)) {
-    updates.push(["CODEX_PROJECTS_BASE_DIR", path.dirname(ROOT_DIR)]);
+    updates.push(["WORKSPACE_DIR", ROOT_DIR]);
   }
 
   const currentBinary = String(env.get("CODEX_BINARY") || "").trim();
@@ -311,6 +335,13 @@ async function runBootstrap() {
   if (updates.length > 0) {
     upsertEnvValues(ENV_PATH, updates);
   }
+  removeEnvKeys(ENV_PATH, [
+    "CODEX_WORKDIR",
+    "CODEX_PROJECTS_BASE_DIR",
+    "PROJECTS_BASE_DIR",
+    "COPILOT_WORKDIR",
+    "COPILOT_PROJECTS_BASE_DIR",
+  ]);
 
   printHeader("Installing Dependencies");
   if (!runCommand("npm", ["install"])) {
@@ -321,7 +352,7 @@ async function runBootstrap() {
   printHeader("Bootstrap Complete");
   console.log(`Environment file: ${ENV_PATH}`);
   console.log("Next steps:");
-  console.log("1) Run `npm run setup` to confirm access key and project paths.");
+  console.log("1) Run `npm run setup` to confirm access key and workspace path.");
   console.log("2) Run `npm start` for the backend.");
   console.log("3) Run `npm run web:dev` in another terminal for the PWA.");
 }
@@ -363,8 +394,7 @@ async function runDoctor() {
     );
   }
 
-  const workdir = String(env.get("CODEX_WORKDIR") || "").trim();
-  const projectsBaseDir = String(env.get("CODEX_PROJECTS_BASE_DIR") || path.dirname(ROOT_DIR)).trim();
+  const workdir = String(env.get("WORKSPACE_DIR") || env.get("CODEX_WORKDIR") || "").trim();
   const selectedProvider = String(env.get("AI_PROVIDER") || "codex").trim().toLowerCase();
   const binaries = {
     codex: String(env.get("CODEX_BINARY") || "codex").trim(),
@@ -421,18 +451,11 @@ async function runDoctor() {
   }
 
   if (!workdir) {
-    addFailure("CODEX_WORKDIR is missing.", "Set CODEX_WORKDIR=/absolute/path/to/project in .env.");
+    addFailure("WORKSPACE_DIR is missing.", "Set WORKSPACE_DIR=/absolute/path/to/project in .env.");
   } else if (!fs.existsSync(workdir) || !fs.statSync(workdir).isDirectory()) {
     addFailure(
-      `CODEX_WORKDIR does not exist or is not a directory: ${workdir}`,
-      "Update CODEX_WORKDIR in .env to an existing project folder.",
-    );
-  }
-
-  if (!projectsBaseDir || !fs.existsSync(projectsBaseDir) || !fs.statSync(projectsBaseDir).isDirectory()) {
-    addWarning(
-      `CODEX_PROJECTS_BASE_DIR does not exist or is not a directory: ${projectsBaseDir}`,
-      "Set CODEX_PROJECTS_BASE_DIR to an existing folder containing your projects.",
+      `WORKSPACE_DIR does not exist or is not a directory: ${workdir}`,
+      "Update WORKSPACE_DIR in .env to an existing project folder.",
     );
   }
 

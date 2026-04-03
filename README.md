@@ -113,7 +113,6 @@ Minimum useful setup:
 
 - `APP_ACCESS_KEY=<long-random-secret>`
 - `WORKSPACE_DIR=<absolute-path-to-default-project>`
-- `PROJECTS_BASE_DIR=<absolute-path-containing-projects>`
 - `CODEX_BINARY=codex`
 
 See [`.env.example`](/Users/urimkrasniqi/Desktop/dev/talkeby/.env.example) for the full list.
@@ -124,7 +123,6 @@ Important variables:
 - `PROGRESS_UPDATES=true|false`
 - `PROGRESS_UPDATE_SECONDS=<seconds>`
 - `WORKSPACE_DIR=<absolute-path-to-default-project>`
-- `PROJECTS_BASE_DIR=<absolute-path-containing-projects>`
 - `PROJECTS=name=/abs/path,name2=/abs/path2`
 - `DEFAULT_PROJECT=<name>`
 - `CODEX_MODEL=<model>`
@@ -146,12 +144,7 @@ Important variables:
 - `RUNTIME_POLICY_FILE_CHANGES_REQUIRE_APPROVAL=true|false`
 - `TALKEBY_TERMINAL_BINARY=<optional shell override for /terminal>`
 
-Legacy aliases remain supported for backward compatibility:
-
-- `CODEX_WORKDIR`
-- `CODEX_PROJECTS_BASE_DIR`
-- `CODEX_PROJECTS`
-- `CODEX_DEFAULT_PROJECT`
+Project discovery/import uses the parent directory of `WORKSPACE_DIR`.
 
 When `AI_PROVIDER=copilot`, model discovery uses the local Copilot CLI on the host machine. Talkeby tries, in order:
 
