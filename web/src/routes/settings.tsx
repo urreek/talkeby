@@ -4,7 +4,6 @@ import { createRoute, Link } from "@tanstack/react-router";
 
 import { DiscoverProjects } from "@/components/settings/discover-projects";
 import { ProviderHealth } from "@/components/settings/provider-health";
-import { ProviderSetup } from "@/components/settings/provider-setup";
 import { SettingsPanel } from "@/components/settings/settings-panel";
 import { Button } from "@/components/ui/button";
 import {
@@ -133,14 +132,7 @@ function SettingsScreen() {
         </Card>
       ) : null}
 
-      <div className="grid gap-4 md:grid-cols-2">
-        <div className="min-w-0">
-          <ProviderHealth />
-        </div>
-        <div className="min-w-0">
-          <ProviderSetup />
-        </div>
-      </div>
+      <ProviderHealth />
 
       <div className="grid gap-4 md:grid-cols-2">
         <div className="min-w-0">
@@ -157,9 +149,6 @@ function SettingsScreen() {
         model={providerQuery.data?.model ?? ""}
         reasoningEffort={providerQuery.data?.reasoningEffort ?? ""}
         planMode={providerQuery.data?.planMode ?? false}
-        sandboxMode={providerQuery.data?.sandboxMode}
-        codexParityMode={providerQuery.data?.codexParityMode}
-        codexSessionResumeEnabled={providerQuery.data?.codexSessionResumeEnabled}
         providerCatalog={providerCatalog}
         projectsBasePath={projectsBasePath}
         theme={theme}

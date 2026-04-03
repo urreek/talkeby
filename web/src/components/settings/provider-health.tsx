@@ -114,38 +114,10 @@ export function ProviderHealth() {
           <StatusDot ok={data.ok} />
         </CardTitle>
         <CardDescription>
-          CLI binary and API key status for each provider.
+          Provider readiness at a glance.
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-2">
-        {data.summary ? (
-          <div className="rounded-lg border border-border bg-muted/20 px-3 py-2 text-xs text-muted-foreground">
-            System checks: failures {data.summary.failures}, warnings {data.summary.warnings}
-          </div>
-        ) : null}
-        {data.checks && data.checks.length > 0 ? (
-          <div className="space-y-1">
-            {data.checks.map((check) => (
-              <div
-                key={check.id}
-                className={`rounded border px-3 py-2 text-xs ${
-                  check.ok
-                    ? "border-border bg-background text-muted-foreground"
-                    : check.severity === "error"
-                      ? "border-destructive/40 bg-destructive/5 text-destructive"
-                      : "border-amber-500/40 bg-amber-500/10 text-amber-600"
-                }`}
-              >
-                <p className="font-medium">{check.message}</p>
-                {check.fix ? (
-                  <p className="mt-1 text-[11px] opacity-80">
-                    Fix: <code className="break-all rounded bg-muted px-1">{check.fix}</code>
-                  </p>
-                ) : null}
-              </div>
-            ))}
-          </div>
-        ) : null}
         {data.providers.map((check) => (
           <ProviderRow key={check.provider} check={check} />
         ))}
