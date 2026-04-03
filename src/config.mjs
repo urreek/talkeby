@@ -208,7 +208,7 @@ export function loadConfig() {
     configuredWorkspaceDir,
     process.cwd(),
   );
-  const projectsBaseDir = path.dirname(fallbackWorkdir);
+  const projectsBaseDir = fallbackWorkdir;
   const dataDir = path.resolve(
     process.env.DATA_DIR?.trim() || path.join(process.cwd(), "data"),
   );

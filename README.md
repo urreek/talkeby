@@ -144,7 +144,7 @@ Important variables:
 - `RUNTIME_POLICY_FILE_CHANGES_REQUIRE_APPROVAL=true|false`
 - `TALKEBY_TERMINAL_BINARY=<optional shell override for /terminal>`
 
-Project discovery/import uses the parent directory of `WORKSPACE_DIR`.
+Project discovery/import uses `WORKSPACE_DIR` directly.
 
 When `AI_PROVIDER=copilot`, model discovery uses the local Copilot CLI on the host machine. Talkeby tries, in order:
 
