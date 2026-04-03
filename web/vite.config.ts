@@ -111,6 +111,7 @@ export default defineConfig(async () => {
   server: {
     host: true,
     allowedHosts: [
+      "nkdev.urimkrasniqi.com",
       "talkeby.urimkrasniqi.com"
     ],
     port: resolvedPort,
