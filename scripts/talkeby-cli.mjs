@@ -451,11 +451,14 @@ async function runDoctor() {
   }
 
   if (!workdir) {
-    addFailure("WORKSPACE_DIR is missing.", "Set WORKSPACE_DIR=/absolute/path/to/workspace in .env.");
+    addWarning(
+      `WORKSPACE_DIR is missing. Falling back to the Talkeby directory: ${ROOT_DIR}`,
+      "Optional: set WORKSPACE_DIR=/absolute/path/to/workspace in .env.",
+    );
   } else if (!fs.existsSync(workdir) || !fs.statSync(workdir).isDirectory()) {
-    addFailure(
+    addWarning(
       `WORKSPACE_DIR does not exist or is not a directory: ${workdir}`,
-      "Update WORKSPACE_DIR in .env to an existing workspace folder on this machine.",
+      `Talkeby will fall back to its own directory: ${ROOT_DIR}`,
     );
   }
 

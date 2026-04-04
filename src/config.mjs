@@ -109,7 +109,7 @@ function resolveDirectorySetting(value, fallbackDir, label = "directory") {
   if (isExistingDirectory(resolved)) {
     return resolved;
   }
-  throw new Error(`${label} does not exist or is not a directory: ${resolved}`);
+  return fallback;
 }
 
 function findBinaryOnPath(command) {

@@ -47,16 +47,16 @@ test("loadConfig uses WORKSPACE_DIR as the workspace root", async () => {
   });
 });
 
-test("loadConfig fails clearly when WORKSPACE_DIR does not exist", () => {
+test("loadConfig falls back to the Talkeby directory when WORKSPACE_DIR does not exist", () => {
   const missingDir = path.join(os.tmpdir(), `talkeby-missing-${Date.now()}`);
 
   withEnv({
     WORKSPACE_DIR: missingDir,
     CODEX_WORKDIR: undefined,
   }, () => {
-    assert.throws(
-      () => loadConfig(),
-      /WORKSPACE_DIR does not exist or is not a directory:/,
-    );
+    const config = loadConfig();
+    const expectedFallback = path.resolve(process.cwd());
+    assert.equal(config.workspace.workdir, expectedFallback);
+    assert.equal(config.workspace.projectsBaseDir, expectedFallback);
   });
 });

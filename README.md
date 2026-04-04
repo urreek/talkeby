@@ -144,7 +144,7 @@ Important variables:
 - `RUNTIME_POLICY_FILE_CHANGES_REQUIRE_APPROVAL=true|false`
 - `TALKEBY_TERMINAL_BINARY=<optional shell override for /terminal>`
 
-`WORKSPACE_DIR` is machine-local. If you copy the same `.env` to another PC, update it there too unless the same path exists on that machine. Relative paths are supported and resolve from the Talkeby backend working directory.
+`WORKSPACE_DIR` is machine-local. If you copy the same `.env` to another PC, update it there too unless the same path exists on that machine. If the configured path is missing, Talkeby falls back to its own repo directory. Relative paths are supported and resolve from the Talkeby backend working directory.
 
 When `AI_PROVIDER=copilot`, model discovery uses the local Copilot CLI on the host machine. Talkeby tries, in order:
 
