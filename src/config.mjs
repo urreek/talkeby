@@ -90,14 +90,26 @@ function resolveDefaultProjectName(projects, configuredDefault) {
   );
 }
 
-function normalizeExistingDirectory(value, fallbackDir) {
+function isExistingDirectory(value) {
+  const resolved = path.resolve(String(value || "").trim() || process.cwd());
+  try {
+    return fs.statSync(resolved).isDirectory();
+  } catch {
+    return false;
+  }
+}
+
+function resolveDirectorySetting(value, fallbackDir, label = "directory") {
   const fallback = path.resolve(String(fallbackDir || process.cwd()));
   const raw = String(value || "").trim();
   if (!raw) {
     return fallback;
   }
   const resolved = path.resolve(raw);
-  return fs.existsSync(resolved) ? resolved : fallback;
+  if (isExistingDirectory(resolved)) {
+    return resolved;
+  }
+  throw new Error(`${label} does not exist or is not a directory: ${resolved}`);
 }
 
 function findBinaryOnPath(command) {
@@ -204,9 +216,10 @@ export function loadConfig() {
   const codexTimeoutMs = parseInteger(process.env.CODEX_TIMEOUT_MS, 15 * 60 * 1000);
   const configuredWorkspaceDir = process.env.WORKSPACE_DIR?.trim()
     || process.env.CODEX_WORKDIR?.trim();
-  const fallbackWorkdir = normalizeExistingDirectory(
+  const fallbackWorkdir = resolveDirectorySetting(
     configuredWorkspaceDir,
     process.cwd(),
+    "WORKSPACE_DIR",
   );
   const projectsBaseDir = fallbackWorkdir;
   const dataDir = path.resolve(

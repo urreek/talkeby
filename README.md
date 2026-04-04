@@ -81,7 +81,7 @@ cd talkeby
 npm run setup:auto
 ```
 
-3. Run guided setup to confirm access key and project paths.
+3. Run guided setup to confirm access key and workspace path.
 
 ```bash
 npm run setup
@@ -112,7 +112,7 @@ If `APP_ACCESS_KEY` is configured, the app shows a login screen first.
 Minimum useful setup:
 
 - `APP_ACCESS_KEY=<long-random-secret>`
-- `WORKSPACE_DIR=<absolute-path-to-default-project>`
+- `WORKSPACE_DIR=<path-to-your-local-workspace-root>`
 - `CODEX_BINARY=codex`
 
 See [`.env.example`](/Users/urimkrasniqi/Desktop/dev/talkeby/.env.example) for the full list.
@@ -122,7 +122,7 @@ Important variables:
 - `DEFAULT_EXECUTION_MODE=auto|interactive`
 - `PROGRESS_UPDATES=true|false`
 - `PROGRESS_UPDATE_SECONDS=<seconds>`
-- `WORKSPACE_DIR=<absolute-path-to-default-project>`
+- `WORKSPACE_DIR=<path-to-your-local-workspace-root>`
 - `PROJECTS=name=/abs/path,name2=/abs/path2`
 - `DEFAULT_PROJECT=<name>`
 - `CODEX_MODEL=<model>`
@@ -144,7 +144,7 @@ Important variables:
 - `RUNTIME_POLICY_FILE_CHANGES_REQUIRE_APPROVAL=true|false`
 - `TALKEBY_TERMINAL_BINARY=<optional shell override for /terminal>`
 
-Project discovery/import uses `WORKSPACE_DIR` directly.
+`WORKSPACE_DIR` is machine-local. If you copy the same `.env` to another PC, update it there too unless the same path exists on that machine. Relative paths are supported and resolve from the Talkeby backend working directory.
 
 When `AI_PROVIDER=copilot`, model discovery uses the local Copilot CLI on the host machine. Talkeby tries, in order:
 

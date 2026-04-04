@@ -352,7 +352,7 @@ async function runBootstrap() {
   printHeader("Bootstrap Complete");
   console.log(`Environment file: ${ENV_PATH}`);
   console.log("Next steps:");
-  console.log("1) Run `npm run setup` to confirm access key and workspace path.");
+  console.log("1) Run `npm run setup` to confirm access key and workspace root.");
   console.log("2) Run `npm start` for the backend.");
   console.log("3) Run `npm run web:dev` in another terminal for the PWA.");
 }
@@ -451,11 +451,11 @@ async function runDoctor() {
   }
 
   if (!workdir) {
-    addFailure("WORKSPACE_DIR is missing.", "Set WORKSPACE_DIR=/absolute/path/to/project in .env.");
+    addFailure("WORKSPACE_DIR is missing.", "Set WORKSPACE_DIR=/absolute/path/to/workspace in .env.");
   } else if (!fs.existsSync(workdir) || !fs.statSync(workdir).isDirectory()) {
     addFailure(
       `WORKSPACE_DIR does not exist or is not a directory: ${workdir}`,
-      "Update WORKSPACE_DIR in .env to an existing project folder.",
+      "Update WORKSPACE_DIR in .env to an existing workspace folder on this machine.",
     );
   }
 
