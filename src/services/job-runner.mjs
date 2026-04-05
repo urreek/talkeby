@@ -17,6 +17,7 @@ import {
   getLatestPriorProvider,
   isFinalizedThreadJob,
   normalizeProvider,
+  providerLabel,
   supportsNativeProviderSessions,
 } from "./provider-thread-continuity.mjs";
 import { buildProviderSwitchContext } from "./provider-switch-context.mjs";
@@ -524,11 +525,13 @@ export class JobRunner {
               }
               if (bootstrapPrompt) {
                 const handoffSource = previousThreadProvider || "talkeby";
+                const handoffSourceLabel = providerLabel(handoffSource);
+                const handoffTargetLabel = providerLabel(provider);
                 this.eventBus.publish({
                   jobId: activeJob.id,
                   chatId: activeJob.chatId,
                   eventType: "provider_switch_context_applied",
-                  message: `Applied compact ${handoffSource}->${provider} thread handoff.`,
+                  message: `Applied compact ${handoffSourceLabel} -> ${handoffTargetLabel} thread handoff.`,
                   payload: {
                     threadId: activeJob.threadId,
                     fromProvider: handoffSource,

@@ -306,7 +306,7 @@ test("switching from Codex to Copilot injects a compact handoff instead of full 
     const prompt = promptFromArgs(records[0]?.args || []);
     assert.equal(records.length, 1);
     assert.equal(prompt.includes("Bootstrap instructions:"), true);
-    assert.equal(prompt.includes("Switch context: codex -> copilot."), true);
+    assert.equal(prompt.includes("Switch context: Codex -> GitHub Copilot."), true);
     assert.equal(prompt.includes("Plan the auth flow"), true);
     assert.equal(prompt.includes("Add the login route"), true);
     assert.equal(prompt.includes("Thread context:"), false);
@@ -383,7 +383,7 @@ test("switching back to Copilot only replays the unseen delta after its last syn
     const prompt = promptFromArgs(records[0]?.args || []);
     assert.equal(records.length, 1);
     assert.equal(records[0].args.includes("--resume=copilot-session-333333"), true);
-    assert.equal(prompt.includes("Switch context: codex -> copilot."), true);
+    assert.equal(prompt.includes("Switch context: Codex -> GitHub Copilot."), true);
     assert.equal(prompt.includes("Codex follow-up one"), true);
     assert.equal(prompt.includes("Codex follow-up two"), true);
     assert.equal(prompt.includes("Original copilot plan"), false);

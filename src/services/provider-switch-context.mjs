@@ -1,3 +1,5 @@
+import { providerLabel } from "./provider-thread-continuity.mjs";
+
 function normalizeText(value) {
   return String(value || "").replace(/\s+/g, " ").trim();
 }
@@ -65,8 +67,8 @@ function sliceJobsAfterSync(jobs, syncedJobId = "", currentJobId = "") {
 }
 
 function serializeTurns(turns, { fromProvider = "", toProvider = "" } = {}) {
-  const source = normalizeProvider(fromProvider) || "another-provider";
-  const target = normalizeProvider(toProvider) || "current-provider";
+  const source = providerLabel(fromProvider);
+  const target = providerLabel(toProvider);
   const lines = [
     `Switch context: ${source} -> ${target}.`,
     "Preserve decisions and avoid repeating completed work.",

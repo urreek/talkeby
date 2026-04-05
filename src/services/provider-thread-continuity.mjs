@@ -20,7 +20,7 @@ function normalizeStatus(value) {
   return textValue(String(value || "")).toLowerCase();
 }
 
-function providerLabel(provider) {
+export function providerLabel(provider) {
   const normalized = normalizeProvider(provider);
   if (normalized === "codex") return "Codex";
   if (normalized === "claude") return "Claude";
