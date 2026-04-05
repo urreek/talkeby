@@ -57,6 +57,12 @@ function buildTestConfig({
       progressUpdates: false,
       progressUpdateSeconds: 60,
     },
+    workspace: {
+      workdir,
+      projectsBaseDir: workdir,
+      projects: new Map([[projectName, workdir]]),
+      defaultProjectName: projectName,
+    },
     codex: {
       binary,
       workdir,

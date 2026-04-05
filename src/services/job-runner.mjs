@@ -487,9 +487,15 @@ export class JobRunner {
                 String(job?.id || "") !== String(activeJob.id)
                 && isFinalizedThreadJob(job)
               ));
+              const isCrossProviderSwitch = previousThreadProvider
+                && previousThreadProvider !== provider;
+              const isUnknownProviderBootstrap = !previousThreadProvider
+                && !sessionId
+                && hasPriorVisibleThreadHistory
+                && providerContinuityTurns === 0;
               const isProviderSwitch = providerNativeThreadMode && (
-                (previousThreadProvider && previousThreadProvider !== provider)
-                || (!sessionId && hasPriorVisibleThreadHistory && providerContinuityTurns === 0)
+                isCrossProviderSwitch
+                || isUnknownProviderBootstrap
               );
               bootstrapPrompt = isProviderSwitch
                 ? buildProviderSwitchContext({

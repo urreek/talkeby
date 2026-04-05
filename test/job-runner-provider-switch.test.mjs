@@ -26,6 +26,12 @@ function buildConfig({ workdir, databaseFile }) {
       progressUpdates: false,
       progressUpdateSeconds: 60,
     },
+    workspace: {
+      workdir,
+      projectsBaseDir: workdir,
+      projects: new Map([[projectName, workdir]]),
+      defaultProjectName: projectName,
+    },
     codex: {
       binary: "codex",
       workdir,
@@ -169,6 +175,32 @@ function createQueuedJob({
   });
 }
 
+function createFailedJob({
+  state,
+  threadId,
+  request,
+  provider,
+  workdir,
+  offsetMs,
+  error = "preflight failed",
+}) {
+  const createdAt = new Date(Date.now() + offsetMs).toISOString();
+  return state.createJob({
+    id: `job-${Math.random().toString(36).slice(2, 10)}`,
+    chatId: state.getOwnerId(),
+    threadId,
+    request,
+    projectName: "demo",
+    workdir,
+    provider,
+    status: "failed",
+    createdAt,
+    startedAt: createdAt,
+    completedAt: createdAt,
+    error,
+  });
+}
+
 function promptFromArgs(args) {
   const promptIndex = args.indexOf("-p");
   return promptIndex >= 0 ? String(args[promptIndex + 1] || "") : "";
@@ -252,6 +284,57 @@ test("same-provider native Copilot turns resume without replaying Talkeby thread
     assert.equal(
       repository.getThreadProviderSession(thread.id, "copilot")?.syncedJobId,
       queuedJob.id,
+    );
+  } finally {
+    harness.sqlite.close();
+    setCopilotSpawnCompatForTests();
+  }
+});
+
+test("same-provider native Copilot turns without a saved session do not emit provider switch context", async () => {
+  const tempDir = await fs.mkdtemp(path.join(os.tmpdir(), "talkeby-provider-switch-"));
+  const records = [];
+  setCopilotSpawnCompatForTests(createCopilotSpawnRecorder(records, {
+    message: "copilot fresh session ok",
+    sessionId: "copilot-session-444444",
+  }));
+
+  const harness = await createHarness(tempDir);
+  try {
+    const { repository, state, jobRunner, workdir } = harness;
+    state.setProvider("copilot");
+
+    const thread = createThread(repository, "Copilot missing session");
+    createFailedJob({
+      state,
+      threadId: thread.id,
+      request: "Initial copilot attempt",
+      provider: "copilot",
+      workdir,
+      offsetMs: -2_000,
+    });
+    const queuedJob = createQueuedJob({
+      state,
+      threadId: thread.id,
+      request: "Retry the copilot task",
+      provider: "copilot",
+      workdir,
+      offsetMs: -1_000,
+    });
+
+    jobRunner.enqueue(queuedJob);
+    await jobRunner.queue;
+
+    const prompt = promptFromArgs(records[0]?.args || []);
+    assert.equal(records.length, 1);
+    assert.equal(records[0].args.some((value) => value.startsWith("--resume=")), false);
+    assert.equal(prompt, "Retry the copilot task");
+    assert.equal(prompt.includes("Switch context:"), false);
+    assert.equal(prompt.includes("Bootstrap instructions:"), false);
+    assert.equal(repository.getJobById(queuedJob.id)?.status, "completed");
+    assert.equal(
+      repository.getThreadProviderSession(thread.id, "copilot")?.sessionId,
+      "copilot-session-444444",
     );
   } finally {
     harness.sqlite.close();
