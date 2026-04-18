@@ -29,6 +29,66 @@ export interface ThreadsResponse {
   threads: Thread[];
 }
 
+export type ThreadContextMode =
+  | "native_resume"
+  | "compact_provider_handoff"
+  | "fresh_context"
+  | "missing_native_session"
+  | "managed_thread_context";
+
+export interface ThreadMemoryProviderRef {
+  id: AIProvider | string;
+  label: string;
+}
+
+export interface ThreadMemoryCurrentProvider extends ThreadMemoryProviderRef {
+  model: string;
+}
+
+export interface ThreadMemoryNativeSession {
+  provider: AIProvider | string;
+  label: string;
+  active: boolean;
+  nativeSessionsSupported: boolean;
+  status: "active" | "missing" | "not_supported" | string;
+  hasSession: boolean;
+  syncedJobId: string;
+  updatedAt: string;
+}
+
+export interface ThreadMemoryInspector {
+  threadId: string;
+  projectName: string;
+  workspacePath: string;
+  currentProvider: ThreadMemoryCurrentProvider;
+  lastProvider: ThreadMemoryProviderRef | null;
+  latestJobProvider: ThreadMemoryProviderRef | null;
+  context: {
+    mode: ThreadContextMode | string;
+    label: string;
+    description: string;
+  };
+  nativeSessions: ThreadMemoryNativeSession[];
+  history: {
+    hasPriorVisibleHistory: boolean;
+    latestJobStatus: string | null;
+    visibleTurns: number;
+    activeProviderCompletedTurns: number;
+  };
+  tokenBudget: {
+    autoTrimContext: boolean;
+    budget: number;
+    used: number;
+    remaining: number;
+    percentUsed: number;
+  };
+  updatedAt: string;
+}
+
+export interface ThreadMemoryResponse {
+  memory: ThreadMemoryInspector;
+}
+
 export interface Job {
   id: string;
   threadId: string | null;

@@ -13,6 +13,7 @@ import { buildObservabilitySummary } from "../services/observability.mjs";
 import { inspectCodexSession } from "../services/codex-sessions.mjs";
 import { resolveProviderReasoningEffort } from "../services/provider-reasoning.mjs";
 import { buildSandboxDoctorCheck } from "../services/sandbox-policy.mjs";
+import { buildThreadMemoryInspector } from "../services/thread-memory-inspector.mjs";
 import {
   buildThreadProviderPreferencePatch,
   resolveThreadProviderPreferences,
@@ -565,6 +566,30 @@ export function registerRoutes({
       autoTrimContext: config.threads?.autoTrimContextDefault !== false,
     });
     return { thread };
+  });
+
+  app.get("/api/threads/:threadId/memory", async (request, reply) => {
+    const threadId = textValue(request.params?.threadId || "");
+    if (!threadId) {
+      reply.code(400);
+      return { error: "threadId is required." };
+    }
+
+    const thread = repository.getThread(threadId);
+    if (!thread) {
+      reply.code(404);
+      return { error: "Thread not found." };
+    }
+
+    return {
+      memory: buildThreadMemoryInspector({
+        repository,
+        threadId,
+        activeProvider: state.getProvider(),
+        activeModel: state.getModel(),
+        workspacePath: config.workspace.projects.get(thread.projectName) || "",
+      }),
+    };
   });
 
   app.get("/api/threads/:threadId/jobs", async (request, reply) => {

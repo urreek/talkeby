@@ -5,6 +5,7 @@ import { createRoute } from "@tanstack/react-router";
 import { CreateJobForm } from "@/components/jobs/create-job-form";
 import { JobChatFeed } from "@/components/jobs/job-chat-feed";
 import { RuntimeApprovalCards } from "@/components/jobs/runtime-approval-cards";
+import { ThreadMemoryPanel } from "@/components/jobs/thread-memory-panel";
 import {
   WorkspaceDesktopSidebar,
   WorkspaceDrawer,
@@ -25,6 +26,7 @@ import {
   fetchProjects,
   fetchRuntimeApprovals,
   fetchThreadJobs,
+  fetchThreadMemory,
   fetchThreads,
   resumeJobFromError,
   selectProject,
@@ -138,6 +140,13 @@ function JobsScreen() {
 
   const threadJobs = threadJobsQuery.data?.jobs ?? [];
 
+  const threadMemoryQuery = useQuery({
+    queryKey: ["threadMemory", activeThread?.id],
+    queryFn: () => fetchThreadMemory(activeThread!.id),
+    enabled: Boolean(activeThread?.id),
+    refetchInterval: 5000,
+  });
+
   const runtimeApprovalsQuery = useQuery({
     queryKey: ["runtimeApprovals"],
     queryFn: () => fetchRuntimeApprovals({ status: "pending", limit: 100 }),
@@ -199,6 +208,7 @@ function JobsScreen() {
       }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["threadJobs", activeThread?.id] });
+      queryClient.invalidateQueries({ queryKey: ["threadMemory", activeThread?.id] });
       queryClient.invalidateQueries({ queryKey: ["threads", activeProject] });
     },
   });
@@ -207,6 +217,7 @@ function JobsScreen() {
     mutationFn: (jobId: string) => approveJob({ jobId }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["threadJobs", activeThread?.id] });
+      queryClient.invalidateQueries({ queryKey: ["threadMemory", activeThread?.id] });
       queryClient.invalidateQueries({ queryKey: ["threads", activeProject] });
     },
   });
@@ -215,6 +226,7 @@ function JobsScreen() {
     mutationFn: (jobId: string) => denyJob({ jobId }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["threadJobs", activeThread?.id] });
+      queryClient.invalidateQueries({ queryKey: ["threadMemory", activeThread?.id] });
       queryClient.invalidateQueries({ queryKey: ["threads", activeProject] });
     },
   });
@@ -223,6 +235,7 @@ function JobsScreen() {
     mutationFn: (jobId: string) => resumeJobFromError({ jobId }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["threadJobs", activeThread?.id] });
+      queryClient.invalidateQueries({ queryKey: ["threadMemory", activeThread?.id] });
       queryClient.invalidateQueries({ queryKey: ["threads", activeProject] });
     },
   });
@@ -231,6 +244,7 @@ function JobsScreen() {
     mutationFn: (jobId: string) => stopJob({ jobId }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["threadJobs", activeThread?.id] });
+      queryClient.invalidateQueries({ queryKey: ["threadMemory", activeThread?.id] });
       queryClient.invalidateQueries({ queryKey: ["threads", activeProject] });
       queryClient.invalidateQueries({ queryKey: ["runtimeApprovals"] });
     },
@@ -241,6 +255,7 @@ function JobsScreen() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["runtimeApprovals"] });
       queryClient.invalidateQueries({ queryKey: ["threadJobs", activeThread?.id] });
+      queryClient.invalidateQueries({ queryKey: ["threadMemory", activeThread?.id] });
     },
   });
 
@@ -249,6 +264,7 @@ function JobsScreen() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["runtimeApprovals"] });
       queryClient.invalidateQueries({ queryKey: ["threadJobs", activeThread?.id] });
+      queryClient.invalidateQueries({ queryKey: ["threadMemory", activeThread?.id] });
     },
   });
 
@@ -257,6 +273,7 @@ function JobsScreen() {
     onSuccess: (_, threadId) => {
       queryClient.invalidateQueries({ queryKey: ["threads", activeProject] });
       queryClient.removeQueries({ queryKey: ["threadJobs", threadId] });
+      queryClient.removeQueries({ queryKey: ["threadMemory", threadId] });
       if (search.thread === threadId) {
         void navigate({
           search: (previous) => ({
@@ -306,6 +323,7 @@ function JobsScreen() {
     void setProvider({ threadId: activeThread.id }).then((response) => {
       if (!cancelled) {
         queryClient.setQueryData(["provider"], response);
+        queryClient.invalidateQueries({ queryKey: ["threadMemory", activeThread.id] });
       }
     }).catch(() => {
       // The provider query surfaces API errors elsewhere.
@@ -416,19 +434,26 @@ function JobsScreen() {
               <div className="absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-primary/30 to-transparent" />
               <CardContent className="flex min-h-0 flex-1 flex-col p-0">
                 <div className="min-h-0 flex-1 px-3 pt-3 sm:px-4 sm:pt-4 lg:px-5 lg:pt-5">
-                  <JobChatFeed
-                    className="h-full pb-4"
-                    threadId={activeThread.id}
-                    jobs={threadJobs}
-                    approvingJobId={approveMutation.variables ?? ""}
-                    denyingJobId={denyMutation.variables ?? ""}
-                    resumingJobId={resumeMutation.variables ?? ""}
-                    stoppingJobId={stopMutation.variables ?? ""}
-                    onApprove={(jobId) => approveMutation.mutate(jobId)}
-                    onDeny={(jobId) => denyMutation.mutate(jobId)}
-                    onResumeError={(jobId) => resumeMutation.mutate(jobId)}
-                    onStop={(jobId) => stopMutation.mutate(jobId)}
-                  />
+                  <div className="flex h-full min-h-0 flex-col gap-3">
+                    <ThreadMemoryPanel
+                      memory={threadMemoryQuery.data?.memory}
+                      isLoading={threadMemoryQuery.isLoading}
+                      isError={threadMemoryQuery.isError}
+                    />
+                    <JobChatFeed
+                      className="min-h-0 flex-1 pb-4"
+                      threadId={activeThread.id}
+                      jobs={threadJobs}
+                      approvingJobId={approveMutation.variables ?? ""}
+                      denyingJobId={denyMutation.variables ?? ""}
+                      resumingJobId={resumeMutation.variables ?? ""}
+                      stoppingJobId={stopMutation.variables ?? ""}
+                      onApprove={(jobId) => approveMutation.mutate(jobId)}
+                      onDeny={(jobId) => denyMutation.mutate(jobId)}
+                      onResumeError={(jobId) => resumeMutation.mutate(jobId)}
+                      onStop={(jobId) => stopMutation.mutate(jobId)}
+                    />
+                  </div>
                 </div>
 
                 <div className="shrink-0 border-t border-border/40 bg-card/70 px-3 pb-[var(--talkeby-bottom-clearance)] pt-3 backdrop-blur-xl dark:border-white/10 dark:bg-slate-950/35 sm:px-4 sm:pt-4 lg:px-5 lg:pb-5 lg:pt-5">

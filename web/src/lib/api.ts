@@ -13,6 +13,7 @@ import type {
   RuntimeApprovalsResponse,
   TerminalSnapshotResponse,
   Thread,
+  ThreadMemoryResponse,
   ThreadsResponse,
 } from "@/lib/types";
 
@@ -336,6 +337,10 @@ export async function createThread(input: { projectName: string; title?: string 
 
 export async function fetchThreadJobs(threadId: string) {
   return requestJson<{ jobs: Job[] }>(`/api/threads/${encodeURIComponent(threadId)}/jobs`);
+}
+
+export async function fetchThreadMemory(threadId: string) {
+  return requestJson<ThreadMemoryResponse>(`/api/threads/${encodeURIComponent(threadId)}/memory`);
 }
 
 export interface DiscoveredProject {

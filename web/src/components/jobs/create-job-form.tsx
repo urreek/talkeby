@@ -88,6 +88,9 @@ export function CreateJobForm({
       threadId: activeThreadId || undefined,
     }).then((response) => {
       queryClient.setQueryData(["provider"], response);
+      if (activeThreadId) {
+        queryClient.invalidateQueries({ queryKey: ["threadMemory", activeThreadId] });
+      }
     });
   };
 
@@ -104,6 +107,9 @@ export function CreateJobForm({
       threadId: activeThreadId || undefined,
     }).then((response) => {
       queryClient.setQueryData(["provider"], response);
+      if (activeThreadId) {
+        queryClient.invalidateQueries({ queryKey: ["threadMemory", activeThreadId] });
+      }
     });
   };
 
@@ -113,6 +119,9 @@ export function CreateJobForm({
       threadId: activeThreadId || undefined,
     }).then((response) => {
       queryClient.setQueryData(["provider"], response);
+      if (activeThreadId) {
+        queryClient.invalidateQueries({ queryKey: ["threadMemory", activeThreadId] });
+      }
     });
   };
 

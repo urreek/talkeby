@@ -17,7 +17,7 @@
     "setup:guided": "node scripts/talkeby-cli.mjs install",
     "doctor": "node scripts/talkeby-cli.mjs doctor",
     "secrets:check": "node scripts/secrets-check.mjs",
-    "check": "npm run secrets:check && node --check scripts/ensure-native.mjs && node --check scripts/talkeby-cli.mjs && node --check src/server.mjs && node --check src/http/routes.mjs && node --check src/http/jobs-routes.mjs && node --check src/http/events-route.mjs && node --check src/http/shared.mjs && node --check src/http/security.mjs && node --check src/http/serializers.mjs && node --check src/runners/codex.mjs && node --check src/services/codex-native-continuity.mjs && node --check src/services/codex-sessions.mjs && node --check src/services/job-runner.mjs && node --check src/services/runtime-state.mjs",
+    "check": "npm run secrets:check && node --check scripts/ensure-native.mjs && node --check scripts/talkeby-cli.mjs && node --check src/server.mjs && node --check src/http/routes.mjs && node --check src/http/jobs-routes.mjs && node --check src/http/events-route.mjs && node --check src/http/shared.mjs && node --check src/http/security.mjs && node --check src/http/serializers.mjs && node --check src/runners/codex.mjs && node --check src/services/codex-native-continuity.mjs && node --check src/services/codex-sessions.mjs && node --check src/services/job-runner.mjs && node --check src/services/runtime-state.mjs && node --check src/services/thread-memory-inspector.mjs",
     "launchd:install": "bash ./scripts/install-launchd.sh",
     "launchd:uninstall": "bash ./scripts/uninstall-launchd.sh",
     "launchd:web:install": "bash ./scripts/install-launchd-web.sh",
