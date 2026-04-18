@@ -493,7 +493,7 @@ export class JobRunner {
                 && !sessionId
                 && hasPriorVisibleThreadHistory
                 && providerContinuityTurns === 0;
-              const isProviderSwitch = providerNativeThreadMode && (
+              const isProviderSwitch = providerNativeThreadMode && !nativeCodexThreadMode && (
                 isCrossProviderSwitch
                 || isUnknownProviderBootstrap
               );

@@ -176,7 +176,7 @@ function createThread(repository) {
   });
 }
 
-function createCompletedJob({ state, threadId, request, workdir, offsetMs }) {
+function createCompletedJob({ state, threadId, request, workdir, offsetMs, provider = "codex" }) {
   const timestamps = buildJobTimestamps(offsetMs);
   return state.createJob({
     id: `job-${Math.random().toString(36).slice(2, 10)}`,
@@ -185,6 +185,7 @@ function createCompletedJob({ state, threadId, request, workdir, offsetMs }) {
     request,
     projectName: "demo",
     workdir,
+    provider,
     status: "completed",
     createdAt: timestamps.createdAt,
     startedAt: timestamps.startedAt,
@@ -300,6 +301,71 @@ test("native Codex parity resumes validated sessions without injecting managed t
       assert.equal(logged.prompt.includes("Thread context:"), false);
       assert.equal(logged.prompt.includes("Previous error context:"), false);
       assert.equal(repository.getThread(thread.id)?.cliSessionId, sessionId);
+    } finally {
+      harness.sqlite.close();
+      setCodexSpawnCompatForTests();
+    }
+  });
+});
+
+test("native Codex parity starts clean when switching from another provider without injecting handoff context", async () => {
+  const tempDir = await fs.mkdtemp(path.join(os.tmpdir(), "talkeby-job-runner-"));
+  const workdir = path.join(tempDir, "workdir");
+  const logPath = path.join(tempDir, "clean-codex-switch-log.json");
+  await fs.mkdir(workdir, { recursive: true });
+  const binary = await createFakeCodexBinary(tempDir, workdir);
+
+  await withTemporaryHome(tempDir, async () => {
+    setCodexSpawnCompatForTests(createMockCodexSpawn());
+    const harness = await createHarness({
+      tempDir,
+      workdir,
+      binary,
+      runtimePolicyEnabled: false,
+    });
+
+    try {
+      const { repository, state, jobRunner } = harness;
+      const thread = createThread(repository);
+      createCompletedJob({
+        state,
+        threadId: thread.id,
+        request: "Build the Copilot version first",
+        workdir,
+        provider: "copilot",
+        offsetMs: -2_000,
+      });
+      const queuedJob = createQueuedJob({
+        state,
+        threadId: thread.id,
+        request: "Now run this cleanly in Codex",
+        workdir,
+        offsetMs: -1_000,
+      });
+
+      await withFakeCodexEnv({
+        FAKE_CODEX_LOG: logPath,
+        FAKE_CODEX_MESSAGE: "clean codex start ok",
+        FAKE_CODEX_WORKDIR: workdir,
+        FAKE_CODEX_SESSION_ID: "33333333-1111-4222-8333-aaaaaaaaaaaa",
+      }, async () => {
+        jobRunner.enqueue(queuedJob);
+        await jobRunner.queue;
+      });
+
+      const updatedJob = repository.getJobById(queuedJob.id);
+      const logged = JSON.parse(await fs.readFile(logPath, "utf8"));
+      const events = repository.listEventsForJob({ jobId: queuedJob.id });
+
+      assert.equal(updatedJob?.status, "completed");
+      assert.equal(logged.prompt, `${queuedJob.request}\n`);
+      assert.equal(logged.prompt.includes("Bootstrap instructions:"), false);
+      assert.equal(logged.prompt.includes("Switch context:"), false);
+      assert.equal(logged.prompt.includes("Thread context:"), false);
+      assert.equal(
+        events.some((event) => event.eventType === "provider_switch_context_applied"),
+        false,
+      );
     } finally {
       harness.sqlite.close();
       setCodexSpawnCompatForTests();
