@@ -1,10 +1,11 @@
 import fs from "node:fs";
+import type { IncomingMessage, ServerResponse } from "node:http";
 import net from "node:net";
 import path from "node:path";
 
 import react from "@vitejs/plugin-react";
 import { VitePWA } from "vite-plugin-pwa";
-import { defineConfig } from "vite";
+import { defineConfig, type Plugin } from "vite";
 
 function resolveBackendTarget() {
   const explicitTarget = process.env.TALKEBY_API_ORIGIN?.trim();
@@ -25,6 +26,22 @@ function resolveBackendTarget() {
 }
 
 const backendTarget = resolveBackendTarget();
+
+type NextFunction = (error?: unknown) => void;
+
+function parseBackendTarget(target: string) {
+  try {
+    const url = new URL(target);
+    const port = Number.parseInt(url.port || (url.protocol === "https:" ? "443" : "80"), 10);
+    return {
+      host: url.hostname,
+      port,
+      label: `${url.protocol}//${url.host}`,
+    };
+  } catch {
+    return null;
+  }
+}
 
 function checkPortAvailable(port: number, host = "0.0.0.0") {
   return new Promise<boolean>((resolve) => {
@@ -48,6 +65,107 @@ async function resolveDevPort(startPort: number) {
   return first;
 }
 
+function checkTcpReachable(host: string, port: number, timeoutMs = 250) {
+  return new Promise<boolean>((resolve) => {
+    const socket = net.createConnection({ host, port });
+    let settled = false;
+
+    function finish(reachable: boolean) {
+      if (settled) {
+        return;
+      }
+      settled = true;
+      socket.destroy();
+      resolve(reachable);
+    }
+
+    socket.setTimeout(timeoutMs);
+    socket.once("connect", () => finish(true));
+    socket.once("timeout", () => finish(false));
+    socket.once("error", () => finish(false));
+  });
+}
+
+function createApiBackendGuard(target: string): Plugin {
+  const parsed = parseBackendTarget(target);
+  let lastCheckedAt = 0;
+  let lastReachable = false;
+  let pendingCheck: Promise<boolean> | null = null;
+  let lastWarnedAt = 0;
+
+  async function isBackendReachable() {
+    if (!parsed) {
+      return true;
+    }
+
+    const now = Date.now();
+    if (now - lastCheckedAt < 500) {
+      return lastReachable;
+    }
+
+    if (!pendingCheck) {
+      pendingCheck = checkTcpReachable(parsed.host, parsed.port)
+        .then((reachable) => {
+          lastCheckedAt = Date.now();
+          lastReachable = reachable;
+          return reachable;
+        })
+        .finally(() => {
+          pendingCheck = null;
+        });
+    }
+
+    return pendingCheck;
+  }
+
+  function writeUnavailable(req: IncomingMessage, res: ServerResponse<IncomingMessage>) {
+    const now = Date.now();
+    if (now - lastWarnedAt > 5_000) {
+      lastWarnedAt = now;
+      console.warn(
+        `[talkeby:web] Backend unavailable at ${parsed?.label || target}; returning 503 for ${req.url || "/api"}.`,
+      );
+    }
+
+    if (res.headersSent || res.writableEnded) {
+      return;
+    }
+
+    res.writeHead(503, {
+      "Content-Type": "application/json; charset=utf-8",
+      "Cache-Control": "no-store",
+    });
+    res.end(JSON.stringify({
+      error: {
+        code: "backend_unavailable",
+        message: `Talkeby backend is not reachable at ${parsed?.label || target}. Start it with "npm run dev" or use "npm run dev:all".`,
+      },
+    }));
+  }
+
+  return {
+    name: "talkeby-api-backend-guard",
+    configureServer(server) {
+      server.middlewares.use((req, res, next: NextFunction) => {
+        if (!req.url?.startsWith("/api")) {
+          next();
+          return;
+        }
+
+        isBackendReachable()
+          .then((reachable) => {
+            if (reachable) {
+              next();
+              return;
+            }
+            writeUnavailable(req, res);
+          })
+          .catch(next);
+      });
+    },
+  };
+}
+
 export default defineConfig(async () => {
   const requestedPort = Number.parseInt(process.env.TALKEBY_WEB_PORT || "", 10) || 5173;
   const resolvedPort = await resolveDevPort(requestedPort);
@@ -60,6 +178,7 @@ export default defineConfig(async () => {
   return {
   plugins: [
     react(),
+    createApiBackendGuard(backendTarget),
     VitePWA({
       registerType: "autoUpdate",
       includeAssets: ["pwa-192.svg", "pwa-512.svg"],
