@@ -435,11 +435,13 @@ function JobsScreen() {
               <CardContent className="flex min-h-0 flex-1 flex-col p-0">
                 <div className="min-h-0 flex-1 px-3 pt-3 sm:px-4 sm:pt-4 lg:px-5 lg:pt-5">
                   <div className="flex h-full min-h-0 flex-col gap-3">
-                    <ThreadMemoryPanel
-                      memory={threadMemoryQuery.data?.memory}
-                      isLoading={threadMemoryQuery.isLoading}
-                      isError={threadMemoryQuery.isError}
-                    />
+                    <div className="hidden lg:block">
+                      <ThreadMemoryPanel
+                        memory={threadMemoryQuery.data?.memory}
+                        isLoading={threadMemoryQuery.isLoading}
+                        isError={threadMemoryQuery.isError}
+                      />
+                    </div>
                     <JobChatFeed
                       className="min-h-0 flex-1 pb-4"
                       threadId={activeThread.id}
