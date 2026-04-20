@@ -379,7 +379,7 @@ function JobsScreen() {
   };
 
   return (
-    <div className="relative flex min-h-0 flex-1 flex-col gap-4 lg:grid lg:grid-cols-[21rem_minmax(0,1fr)] lg:gap-5 xl:gap-6">
+    <div className="relative flex min-h-0 flex-1 flex-col gap-3 lg:grid lg:grid-cols-[21rem_minmax(0,1fr)] lg:gap-3 xl:gap-3">
       <WorkspaceDrawer
         open={workspaceDrawerOpen}
         activeProject={activeProject}
@@ -410,7 +410,7 @@ function JobsScreen() {
         }}
       />
 
-      <div className="min-h-0 flex flex-1 flex-col gap-3 lg:gap-4">
+      <div className="min-h-0 flex flex-1 flex-col gap-2">
         <WorkspaceToolbar
           activeProject={activeProject}
           activeThread={activeThread}
