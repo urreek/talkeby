@@ -14,13 +14,9 @@ import { validateCodexSession } from "./codex-sessions.mjs";
 import {
   buildProviderNativeContinuityError,
   countPriorProviderContinuityTurns,
-  getLatestPriorProvider,
-  isFinalizedThreadJob,
   normalizeProvider,
-  providerLabel,
   supportsNativeProviderSessions,
 } from "./provider-thread-continuity.mjs";
-import { buildProviderSwitchContext } from "./provider-switch-context.mjs";
 import {
   evaluateRuntimeApprovalRequest,
 } from "./runtime-policy.mjs";
@@ -434,7 +430,6 @@ export class JobRunner {
           let threadContext = "";
           let managedContextDisabled = false;
           let providerContinuityTurns = 0;
-          let previousThreadProvider = "";
           let providerSession = null;
 
           if (nativeCodexThreadMode && talkebyRuntimePolicyEnabled) {
@@ -478,36 +473,6 @@ export class JobRunner {
                     legacyFallbackProvider: provider === "codex" ? provider : "",
                   })
                 : 0;
-              previousThreadProvider = providerNativeThreadMode
-                ? getLatestPriorProvider(threadJobs, {
-                    currentJobId: activeJob.id,
-                  })
-                : "";
-              const hasPriorVisibleThreadHistory = threadJobs.some((job) => (
-                String(job?.id || "") !== String(activeJob.id)
-                && isFinalizedThreadJob(job)
-              ));
-              const isCrossProviderSwitch = previousThreadProvider
-                && previousThreadProvider !== provider;
-              const isUnknownProviderBootstrap = !previousThreadProvider
-                && !sessionId
-                && hasPriorVisibleThreadHistory
-                && providerContinuityTurns === 0;
-              const isProviderSwitch = providerNativeThreadMode && !nativeCodexThreadMode && (
-                isCrossProviderSwitch
-                || isUnknownProviderBootstrap
-              );
-              bootstrapPrompt = isProviderSwitch
-                ? buildProviderSwitchContext({
-                    repository: this.repository,
-                    threadId: activeJob.threadId,
-                    currentJobId: activeJob.id,
-                    syncedJobId: providerSession?.syncedJobId || "",
-                    fromProvider: previousThreadProvider || "talkeby",
-                    toProvider: provider,
-                  })
-                : "";
-
               if (
                 threadAutoTrimContext
                 && tokenBudget > 0
@@ -526,23 +491,6 @@ export class JobRunner {
                     threadId: activeJob.threadId,
                     tokenBudget,
                     tokenUsed,
-                  },
-                });
-              }
-              if (bootstrapPrompt) {
-                const handoffSource = previousThreadProvider || "talkeby";
-                const handoffSourceLabel = providerLabel(handoffSource);
-                const handoffTargetLabel = providerLabel(provider);
-                this.eventBus.publish({
-                  jobId: activeJob.id,
-                  chatId: activeJob.chatId,
-                  eventType: "provider_switch_context_applied",
-                  message: `Applied compact ${handoffSourceLabel} -> ${handoffTargetLabel} thread handoff.`,
-                  payload: {
-                    threadId: activeJob.threadId,
-                    fromProvider: handoffSource,
-                    toProvider: provider,
-                    syncedJobId: providerSession?.syncedJobId || "",
                   },
                 });
               }

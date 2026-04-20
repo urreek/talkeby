@@ -342,7 +342,7 @@ test("same-provider native Copilot turns without a saved session do not emit pro
   }
 });
 
-test("switching from Codex to Copilot injects a compact handoff instead of full thread replay", async () => {
+test("switching from Codex to Copilot starts a clean native Copilot session without handoff context", async () => {
   const tempDir = await fs.mkdtemp(path.join(os.tmpdir(), "talkeby-provider-switch-"));
   const records = [];
   setCopilotSpawnCompatForTests(createCopilotSpawnRecorder(records, {
@@ -388,12 +388,12 @@ test("switching from Codex to Copilot injects a compact handoff instead of full 
 
     const prompt = promptFromArgs(records[0]?.args || []);
     assert.equal(records.length, 1);
-    assert.equal(prompt.includes("Bootstrap instructions:"), true);
-    assert.equal(prompt.includes("Switch context: Codex -> GitHub Copilot."), true);
-    assert.equal(prompt.includes("Plan the auth flow"), true);
-    assert.equal(prompt.includes("Add the login route"), true);
+    assert.equal(prompt, "Continue from here with Copilot");
+    assert.equal(prompt.includes("Bootstrap instructions:"), false);
+    assert.equal(prompt.includes("Switch context:"), false);
+    assert.equal(prompt.includes("Plan the auth flow"), false);
+    assert.equal(prompt.includes("Add the login route"), false);
     assert.equal(prompt.includes("Thread context:"), false);
-    assert.equal(prompt.trim().endsWith("Continue from here with Copilot"), true);
     assert.equal(
       repository.getThreadProviderSession(thread.id, "copilot")?.sessionId,
       "copilot-session-222222",
@@ -404,7 +404,7 @@ test("switching from Codex to Copilot injects a compact handoff instead of full 
   }
 });
 
-test("switching back to Copilot only replays the unseen delta after its last synced job", async () => {
+test("switching back to Copilot resumes native session without replaying unseen provider deltas", async () => {
   const tempDir = await fs.mkdtemp(path.join(os.tmpdir(), "talkeby-provider-switch-"));
   const records = [];
   setCopilotSpawnCompatForTests(createCopilotSpawnRecorder(records, {
@@ -466,11 +466,11 @@ test("switching back to Copilot only replays the unseen delta after its last syn
     const prompt = promptFromArgs(records[0]?.args || []);
     assert.equal(records.length, 1);
     assert.equal(records[0].args.includes("--resume=copilot-session-333333"), true);
-    assert.equal(prompt.includes("Switch context: Codex -> GitHub Copilot."), true);
-    assert.equal(prompt.includes("Codex follow-up one"), true);
-    assert.equal(prompt.includes("Codex follow-up two"), true);
+    assert.equal(prompt, "Pick up the Copilot session again");
+    assert.equal(prompt.includes("Switch context:"), false);
+    assert.equal(prompt.includes("Codex follow-up one"), false);
+    assert.equal(prompt.includes("Codex follow-up two"), false);
     assert.equal(prompt.includes("Original copilot plan"), false);
-    assert.equal(prompt.trim().endsWith("Pick up the Copilot session again"), true);
     assert.equal(
       repository.getThreadProviderSession(thread.id, "copilot")?.syncedJobId,
       queuedJob.id,

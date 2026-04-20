@@ -28,7 +28,7 @@ function formatRelativeTime(value: string) {
 
 function modeTone(mode: string) {
   if (mode === "native_resume") return "border-emerald-500/30 bg-emerald-500/10 text-emerald-700 dark:text-emerald-300";
-  if (mode === "compact_provider_handoff") return "border-sky-500/30 bg-sky-500/10 text-sky-700 dark:text-sky-300";
+  if (mode === "clean_native_start") return "border-blue-500/30 bg-blue-500/10 text-blue-700 dark:text-blue-300";
   if (mode === "missing_native_session") return "border-amber-500/35 bg-amber-500/10 text-amber-700 dark:text-amber-300";
   return "border-border/60 bg-muted/70 text-muted-foreground";
 }

@@ -56,22 +56,6 @@ function resolveContextMode({
     };
   }
 
-  if (latestProvider && latestProvider !== activeProvider) {
-    return {
-      mode: "compact_provider_handoff",
-      label: "Compact provider handoff",
-      description: `Next run will bootstrap compact context from ${providerLabel(latestProvider)} into ${providerLabel(activeProvider)}.`,
-    };
-  }
-
-  if (!latestProvider && providerContinuityTurns === 0) {
-    return {
-      mode: "compact_provider_handoff",
-      label: "Compact provider handoff",
-      description: "Prior history has no provider metadata, so Talkeby will bootstrap compact context for the active provider.",
-    };
-  }
-
   if (providerContinuityTurns > 0) {
     return {
       mode: "missing_native_session",
@@ -81,9 +65,9 @@ function resolveContextMode({
   }
 
   return {
-    mode: "fresh_context",
-    label: "Fresh context",
-    description: `${providerLabel(activeProvider)} has no resumable native context for this thread yet.`,
+    mode: "clean_native_start",
+    label: "Clean native start",
+    description: `${providerLabel(activeProvider)} has no saved native session for this thread, so Talkeby will send only your next message and let the provider start its own native context.`,
   };
 }
 

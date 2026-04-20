@@ -85,7 +85,7 @@ test("thread memory inspector reports native resume when the active provider has
   assert.equal(memory.workspacePath, "C:/work/demo");
 });
 
-test("thread memory inspector reports compact handoff only for real provider changes", () => {
+test("thread memory inspector reports clean native start instead of provider handoff", () => {
   const repository = repositoryStub({
     thread: baseThread({ lastProvider: "codex" }),
     jobs: [
@@ -99,11 +99,11 @@ test("thread memory inspector reports compact handoff only for real provider cha
     activeProvider: "copilot",
   });
 
-  assert.equal(memory.context.mode, "compact_provider_handoff");
+  assert.equal(memory.context.mode, "clean_native_start");
   assert.equal(memory.latestJobProvider?.label, "Codex");
 });
 
-test("thread memory inspector does not call same-provider history a handoff", () => {
+test("thread memory inspector reports clean native start for same-provider history without a session", () => {
   const repository = repositoryStub({
     thread: baseThread({ lastProvider: "copilot" }),
     jobs: [
@@ -117,6 +117,5 @@ test("thread memory inspector does not call same-provider history a handoff", ()
     activeProvider: "copilot",
   });
 
-  assert.equal(memory.context.mode, "fresh_context");
-  assert.notEqual(memory.context.mode, "compact_provider_handoff");
+  assert.equal(memory.context.mode, "clean_native_start");
 });

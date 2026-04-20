@@ -31,7 +31,7 @@ export interface ThreadsResponse {
 
 export type ThreadContextMode =
   | "native_resume"
-  | "compact_provider_handoff"
+  | "clean_native_start"
   | "fresh_context"
   | "missing_native_session"
   | "managed_thread_context";
