@@ -434,7 +434,7 @@ function JobsScreen() {
               <div className="absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-primary/30 to-transparent" />
               <CardContent className="flex min-h-0 flex-1 flex-col p-0">
                 <div className="min-h-0 flex-1 px-3 pt-3 sm:px-4 sm:pt-4 lg:px-5 lg:pt-5">
-                  <div className="flex h-full min-h-0 flex-col gap-3">
+                  <div className="flex h-full min-h-0 flex-col gap-2">
                     <div className="hidden lg:block">
                       <ThreadMemoryPanel
                         memory={threadMemoryQuery.data?.memory}

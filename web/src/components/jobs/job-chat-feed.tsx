@@ -362,8 +362,8 @@ export function JobChatFeed({
           <div key={job.id}>
             {gap && <TimelineConnector duration={gap} />}
 
-            <div className="space-y-3 py-2">
-              <div className="theme-muted-surface ml-auto max-w-[90%] rounded-xl border border-white/5 p-4 shadow-sm transition-all hover:bg-muted/60">
+            <div className="space-y-2 py-1">
+              <div className="theme-muted-surface ml-auto max-w-[90%] rounded-xl border border-white/5 p-3 shadow-sm transition-all hover:bg-muted/60">
                 <div className="flex items-center justify-between gap-3">
                   <p className="text-xs font-medium text-muted-foreground">
                     You | {formatTimestamp(job.createdAt)}
@@ -378,7 +378,7 @@ export function JobChatFeed({
               </div>
 
               <div
-                className={`theme-surface mr-auto max-w-[94%] rounded-xl border p-4 shadow-md backdrop-blur-md transition-all ${
+                className={`theme-surface mr-auto max-w-[94%] rounded-xl border p-3 shadow-md backdrop-blur-md transition-all ${
                   isWorking
                     ? "border-violet-500/30 bg-gradient-to-br from-card to-violet-500/5"
                     : "border-primary/20 bg-gradient-to-br from-card to-primary/5"
@@ -460,12 +460,12 @@ export function JobChatFeed({
                   </div>
                 )}
 
-                <p className="mt-3 text-[11px] text-muted-foreground">
+                <p className="mt-2 text-[11px] text-muted-foreground">
                   {tokenUsageLine(job)}
                 </p>
 
                 {job.status === "pending_approval" && onApprove && onDeny && (
-                  <div className="mt-3 flex gap-2">
+                  <div className="mt-2 flex gap-2">
                     <Button
                       size="sm"
                       className="flex-1"
@@ -487,7 +487,7 @@ export function JobChatFeed({
                 )}
 
                 {job.status === "failed" && onResumeError && (
-                  <div className="mt-3 flex gap-2">
+                  <div className="mt-2 flex gap-2">
                     <Button
                       size="sm"
                       variant="outline"
@@ -504,7 +504,7 @@ export function JobChatFeed({
                   || job.status === "queued"
                   || job.status === "pending_approval")
                   && onStop && (
-                    <div className="mt-3 flex gap-2">
+                    <div className="mt-2 flex gap-2">
                       <Button
                         size="sm"
                         variant="outline"
