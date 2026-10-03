@@ -19,6 +19,7 @@ Developers want to code while away from their computer (travel, outdoors, commut
 
 1. Provide a mobile-first UI for creating, approving, and monitoring coding jobs.
 2. Support multiple AI coding providers (Codex, Claude Code, Gemini, Groq, OpenRouter) with a pluggable runner architecture.
+   OpenAI and Claude model pickers combine live discovery with current documented fallback models; Codex defaults to `gpt-6.1-sol` when no model is configured. Explicit model selections are preserved.
 3. Support two execution modes per user: `auto` and `interactive`.
 4. Stream live job progress and status updates with low latency.
 5. Keep sensitive data local-first by default.

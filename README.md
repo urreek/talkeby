@@ -126,7 +126,7 @@ Important variables:
 - `PROJECTS=name=/abs/path,name2=/abs/path2`
 - `DEFAULT_PROJECT=<name>`
 - `CODEX_MODEL=<model>`
-  If unset, Codex defaults to `gpt-5.4`.
+  If unset, Codex defaults to `gpt-6.1-sol`.
 - `CODEX_PARITY_MODE=true|false`
 - `CODEX_PERSIST_EXTENDED_HISTORY=true|false`
 - `CODEX_SANDBOX_MODE=read-only|workspace-write|danger-full-access`
@@ -145,6 +145,8 @@ Important variables:
 - `TALKEBY_TERMINAL_BINARY=<optional shell override for /terminal>`
 
 `WORKSPACE_DIR` is machine-local. If you copy the same `.env` to another PC, update it there too unless the same path exists on that machine. If the configured path is missing, Talkeby falls back to its own repo directory. Relative paths are supported and resolve from the Talkeby backend working directory.
+
+OpenAI Codex and Claude Code model pickers combine live discovery with a current fallback catalog. As of October 3, 2026, the fallback includes OpenAI `gpt-6.1-sol`, `gpt-6-astra`, `gpt-6-luna`, and `gpt-6-sol`, plus Claude `claude-sonnet-5-5`, `claude-opus-5-5`, `claude-fable-5-1`, and `claude-haiku-4-5`. Model IDs are verified against the [OpenAI Codex model documentation](https://learn.chatgpt.com/docs/models) and [Claude model overview](https://platform.claude.com/docs/en/models/overview). Account access and installed CLI versions determine which models can run. Claude Sonnet 5.5 requires Claude Code v2.1.284 or later; Opus 5.5 requires v2.1.280 or later. Upgrade with `claude update` ([Claude Code model configuration](https://code.claude.com/docs/en/model-config)). Claude's Provider default continues to use the CLI/account default. Explicit environment and saved thread model selections remain unchanged.
 
 When `AI_PROVIDER=copilot`, model discovery uses the local Copilot CLI on the host machine. Talkeby tries, in order:
 

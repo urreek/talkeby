@@ -60,3 +60,20 @@ test("loadConfig falls back to the Talkeby directory when WORKSPACE_DIR does not
     assert.equal(config.workspace.projectsBaseDir, expectedFallback);
   });
 });
+
+test("unconfigured Codex uses the current catalog default while explicit model overrides are preserved", () => {
+  const baseEnv = { AI_PROVIDER: "codex", AI_MODEL: undefined, CODEX_MODEL: undefined };
+  withEnv(baseEnv, () => {
+    const config = loadConfig();
+    assert.equal(config.codex.model, "gpt-6.1-sol");
+    assert.equal(config.runner.model, "gpt-6.1-sol");
+  });
+  withEnv({ ...baseEnv, CODEX_MODEL: "pinned-codex-model", AI_MODEL: "pinned-runner-model" }, () => {
+    const config = loadConfig();
+    assert.equal(config.codex.model, "pinned-codex-model");
+    assert.equal(config.runner.model, "pinned-runner-model");
+  });
+  withEnv({ ...baseEnv, AI_PROVIDER: "claude" }, () => {
+    assert.equal(loadConfig().runner.model, "");
+  });
+});
