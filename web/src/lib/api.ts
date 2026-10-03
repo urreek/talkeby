@@ -374,7 +374,7 @@ export async function renameThread(threadId: string, title: string) {
 }
 
 export async function deleteProject(name: string) {
-  return requestJson<{ ok: true }>(`/api/projects/${encodeURIComponent(name)}`, {
+  return requestJson<{ ok: true } & Pick<ProjectsResponse, "projects" | "activeProject">>(`/api/projects/${encodeURIComponent(name)}`, {
     method: "DELETE",
   });
 }

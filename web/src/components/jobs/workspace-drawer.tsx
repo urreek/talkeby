@@ -41,6 +41,9 @@ type WorkspaceSharedProps = {
   projects: ProjectInfo[];
   threads: Thread[];
   creatingThread: boolean;
+  deletingProject: boolean;
+  deleteProjectError: string;
+  onDeleteProject: (projectName: string) => void;
   onSelectProject: (projectName: string) => void;
   onCreateThread: () => void;
   onSelectThread: (threadId: string) => void;
@@ -53,6 +56,9 @@ function WorkspaceSidebarContent({
   projects,
   threads,
   creatingThread,
+  deletingProject,
+  deleteProjectError,
+  onDeleteProject,
   onSelectProject,
   onCreateThread,
   onSelectThread,
@@ -68,6 +74,9 @@ function WorkspaceSidebarContent({
           threads={threads}
           activeThreadId={activeThread?.id}
           creatingThread={creatingThread}
+          deletingProject={deletingProject}
+          deleteProjectError={deleteProjectError}
+          onDeleteProject={onDeleteProject}
           onSelectProject={onSelectProject}
           onCreateThread={onCreateThread}
           onSelectThread={onSelectThread}

@@ -1,5 +1,6 @@
-import { ChevronDown, FolderKanban, Plus, Trash2 } from "lucide-react";
+import { FolderKanban, Plus, Trash2 } from "lucide-react";
 
+import { ProjectListItem } from "@/components/jobs/project-list-item";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import type { ProjectInfo, Thread } from "@/lib/types";
@@ -54,20 +55,6 @@ function threadStatusBadgeClass(status: string | null) {
   }
 }
 
-function formatProjectPath(path: string) {
-  const normalized = String(path || "").trim();
-  if (!normalized) {
-    return "Path not available";
-  }
-
-  const parts = normalized.split(/[\\/]/).filter(Boolean);
-  if (parts.length <= 2) {
-    return normalized;
-  }
-
-  return `.../${parts.slice(-2).join("/")}`;
-}
-
 function formatThreadMeta(thread: Thread) {
   const tokens = Number(thread.tokenUsed || 0);
   if (tokens > 0) {
@@ -75,56 +62,6 @@ function formatThreadMeta(thread: Thread) {
   }
 
   return "No token usage yet";
-}
-
-function ProjectButton({
-  project,
-  isActive,
-  onClick,
-}: {
-  project: ProjectInfo;
-  isActive: boolean;
-  onClick: () => void;
-}) {
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      className={cn(
-        "group w-full rounded-2xl border px-4 py-3 text-left transition-all",
-        isActive
-          ? "border-primary/40 bg-primary/10 shadow-sm shadow-primary/10"
-          : "border-border/50 bg-muted/20 hover:border-primary/20 hover:bg-muted/40",
-      )}
-    >
-      <div className="flex items-start justify-between gap-3">
-        <div className="min-w-0">
-          <p className="truncate text-sm font-semibold text-foreground">
-            {project.name}
-          </p>
-          <p className="mt-1 truncate text-xs text-muted-foreground">
-            {formatProjectPath(project.path)}
-          </p>
-        </div>
-        <div className="flex items-center gap-2">
-          {isActive ? (
-            <Badge
-              variant="outline"
-              className="border-primary/30 bg-primary/10 text-primary"
-            >
-              Active
-            </Badge>
-          ) : null}
-          <ChevronDown
-            className={cn(
-              "size-4 shrink-0 text-muted-foreground transition-transform duration-200",
-              isActive ? "rotate-0 text-primary" : "-rotate-90",
-            )}
-          />
-        </div>
-      </div>
-    </button>
-  );
 }
 
 function ThreadListItem({
@@ -224,6 +161,9 @@ type WorkspaceSelectionPanelProps = {
   threads: Thread[];
   activeThreadId?: string;
   creatingThread: boolean;
+  deletingProject: boolean;
+  deleteProjectError: string;
+  onDeleteProject: (projectName: string) => void;
   onSelectProject: (projectName: string) => void;
   onCreateThread: () => void;
   onSelectThread: (threadId: string) => void;
@@ -236,6 +176,9 @@ export function WorkspaceSelectionPanel({
   threads,
   activeThreadId,
   creatingThread,
+  deletingProject,
+  deleteProjectError,
+  onDeleteProject,
   onSelectProject,
   onCreateThread,
   onSelectThread,
@@ -256,6 +199,10 @@ export function WorkspaceSelectionPanel({
         </div>
       </div>
 
+      {deleteProjectError ? (
+        <p role="alert" className="pt-3 text-sm text-destructive">{deleteProjectError}</p>
+      ) : null}
+
       {projects.length > 0 ? (
         <div className="min-h-0 flex-1 overflow-y-auto pt-3">
           <div className="space-y-3">
@@ -264,9 +211,11 @@ export function WorkspaceSelectionPanel({
 
               return (
                 <div key={project.name} className="space-y-2 pr-5">
-                  <ProjectButton
+                  <ProjectListItem
                     project={project}
                     isActive={isActiveProject}
+                    deleting={deletingProject}
+                    onDelete={() => onDeleteProject(project.name)}
                     onClick={() => onSelectProject(project.name)}
                   />
 

@@ -162,6 +162,8 @@ When `AI_PROVIDER=copilot`, model discovery uses the local Copilot CLI on the ho
 
 Thread URLs are the continuity mechanism for cross-device work.
 
+Use the trash button beside a project in the left workspace panel (or mobile workspace drawer) to delete it from Talkeby after confirmation. Project files and thread/job history are retained; add the project again from Settings to access its history. Deleting the active project selects a remaining project, or shows the empty workspace when none remain.
+
 ## Runtime Safety
 
 Talkeby supports two execution modes:

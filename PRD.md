@@ -43,8 +43,9 @@ Developers want to code while away from their computer (travel, outdoors, commut
 2. As a developer, I can set mode to `interactive` so no job runs without approval.
 3. As a developer, I can approve/deny pending jobs from a simple UI.
 4. As a developer, I can switch active project and run tasks in that project.
-5. As a developer, I can follow a live timeline to understand what the agent is doing.
-6. As a developer, I can install and run the system quickly on a new machine.
+5. As a developer, I can remove a project from the workspace sidebar or mobile drawer after confirmation, retaining its local files and history and switching safely to another project.
+6. As a developer, I can follow a live timeline to understand what the agent is doing.
+7. As a developer, I can install and run the system quickly on a new machine.
 
 ## Functional Requirements
 

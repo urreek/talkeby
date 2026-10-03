@@ -285,8 +285,12 @@ export class RuntimeState {
       return { error: "Project was not found." };
     }
 
-    this.config.workspace.projects.delete(resolvedName);
     this.repository.deleteProject(resolvedName);
+    this.config.workspace.projects.delete(resolvedName);
+
+    if (!this.resolveProjectName(this.config.workspace.defaultProjectName)) {
+      this.config.workspace.defaultProjectName = this.listProjects()[0]?.name || "";
+    }
 
     if (!this.resolveProjectName(this.activeProjectName)) {
       this.activeProjectName = this.config.workspace.defaultProjectName || "";

@@ -3,6 +3,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { createRoute } from "@tanstack/react-router";
 
 import { CreateJobForm } from "@/components/jobs/create-job-form";
+import { useDeleteProject } from "@/components/jobs/use-delete-project";
 import { JobChatFeed } from "@/components/jobs/job-chat-feed";
 import { RuntimeApprovalCards } from "@/components/jobs/runtime-approval-cards";
 import { ThreadMemoryPanel } from "@/components/jobs/thread-memory-panel";
@@ -104,6 +105,7 @@ function JobsScreen() {
   const search = jobsRoute.useSearch();
   const queryClient = useQueryClient();
   const { confirm, ConfirmDialog } = useConfirmDialog();
+  const projectDeletion = useDeleteProject(confirm);
   const [workspaceDrawerOpen, setWorkspaceDrawerOpen] = useState(false);
 
   const projectsQuery = useQuery({
@@ -387,6 +389,9 @@ function JobsScreen() {
         projects={projects}
         threads={threads}
         creatingThread={createThreadMutation.isPending}
+        deletingProject={projectDeletion.isDeleting}
+        deleteProjectError={projectDeletion.error}
+        onDeleteProject={(name) => { void projectDeletion.requestDelete(name); }}
         onOpenChange={setWorkspaceDrawerOpen}
         onSelectProject={handleSelectProject}
         onCreateThread={handleCreateThread}
@@ -402,6 +407,9 @@ function JobsScreen() {
         projects={projects}
         threads={threads}
         creatingThread={createThreadMutation.isPending}
+        deletingProject={projectDeletion.isDeleting}
+        deleteProjectError={projectDeletion.error}
+        onDeleteProject={(name) => { void projectDeletion.requestDelete(name); }}
         onSelectProject={handleSelectProject}
         onCreateThread={handleCreateThread}
         onSelectThread={handleSelectThread}
