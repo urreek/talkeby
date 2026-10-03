@@ -1,5 +1,6 @@
 import { listCodexModels } from "../codex-app-server.mjs";
 import { getProviderMeta, listProviderCatalog } from "./catalog.mjs";
+import { getModelReasoningMetadata } from "./model-reasoning.mjs";
 import { promises as fs } from "node:fs";
 import os from "node:os";
 import path from "node:path";
@@ -160,16 +161,20 @@ function toCatalogModels(discovered, meta, freeModelsOnly) {
   return [
     baseOption(meta),
     ...constrained.map((item) => ({
+      ...getModelReasoningMetadata(meta.id, item.value),
       value: item.value,
       label: item.label,
       free: meta.freeOnlyModels.includes(item.value),
-      reasoningEfforts: item.reasoningEfforts || [],
-      defaultReasoningEffort: item.defaultReasoningEffort || "",
+      reasoningEfforts: item.reasoningEfforts?.length > 0
+        ? item.reasoningEfforts
+        : getModelReasoningMetadata(meta.id, item.value).reasoningEfforts || [],
+      defaultReasoningEffort: item.defaultReasoningEffort
+        || getModelReasoningMetadata(meta.id, item.value).defaultReasoningEffort || "",
     })),
   ];
 }
 
-function mergeCatalogModels(dynamicModels, existingModels) {
+export function mergeCatalogModels(dynamicModels, existingModels) {
   const byValue = new Map();
   const ordered = [];
 
@@ -187,6 +192,8 @@ function mergeCatalogModels(dynamicModels, existingModels) {
         value,
         label: label || (value || "Provider default"),
         free: Boolean(option?.free),
+        ...(typeof option?.supportsReasoningEffort === "boolean"
+          ? { supportsReasoningEffort: option.supportsReasoningEffort } : {}),
         reasoningEfforts,
         defaultReasoningEffort,
       };
@@ -200,10 +207,10 @@ function mergeCatalogModels(dynamicModels, existingModels) {
       current.label = label;
     }
     current.free = Boolean(current.free || option?.free);
-    if (reasoningEfforts.length > 0) {
+    if (reasoningEfforts.length > 0 && (preferLabel || current.reasoningEfforts.length === 0)) {
       current.reasoningEfforts = reasoningEfforts;
     }
-    if (defaultReasoningEffort) {
+    if (defaultReasoningEffort && (preferLabel || !current.defaultReasoningEffort)) {
       current.defaultReasoningEffort = defaultReasoningEffort;
     }
   }

@@ -3,6 +3,7 @@ import os from "node:os";
 import path from "node:path";
 import { spawnCompat } from "../lib/spawn-compat.mjs";
 import { extractClaudeUsageFromJsonPayload } from "../services/usage-parser.mjs";
+import { getModelReasoningMetadata } from "../providers/model-reasoning.mjs";
 
 function buildPrompt(task) {
   return task;
@@ -67,7 +68,9 @@ export async function run(config) {
   const startTime = Date.now();
 
   if (config.model) args.push("--model", config.model);
-  if (config.reasoningEffort) args.push("--effort", config.reasoningEffort);
+  if (config.reasoningEffort && getModelReasoningMetadata("claude", config.model).supportsReasoningEffort !== false) {
+    args.push("--effort", config.reasoningEffort);
+  }
   if (config.planMode) args.push("--plan");
 
   // Session resume support

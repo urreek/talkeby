@@ -88,7 +88,9 @@ export function getProviderReasoningConfig({
   modelName,
 }) {
   const provider = findProvider(providerCatalog, providerId);
-  const supportsReasoning = Boolean(provider?.supportsReasoningEffort);
+  const model = findModel(provider, modelName);
+  const supportsReasoning = Boolean(provider?.supportsReasoningEffort)
+    && model?.supportsReasoningEffort !== false;
   if (!supportsReasoning) {
     return {
       supportsReasoning: false,
@@ -99,7 +101,6 @@ export function getProviderReasoningConfig({
     };
   }
 
-  const model = findModel(provider, modelName);
   const options = normalizeReasoningOptions(model?.reasoningEfforts);
   const resolvedOptions = options.length > 0 ? options : fallbackReasoningOptions(provider);
   const defaultReasoningEffort = resolveDefaultReasoningEffort(

@@ -1,3 +1,5 @@
+import { getModelReasoningMetadata } from "./model-reasoning.mjs";
+
 const COPILOT_REASONING_OPTIONS = [
   { value: "low", label: "low" },
   { value: "medium", label: "medium" },
@@ -154,6 +156,7 @@ export function listProviderCatalog() {
         value: modelValue,
         label: modelValue,
         free: meta.freeOnlyModels.includes(modelValue),
+        ...getModelReasoningMetadata(id, modelValue),
       });
     }
 

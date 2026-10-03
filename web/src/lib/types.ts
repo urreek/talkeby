@@ -177,6 +177,7 @@ export interface ProviderCatalogModel {
   value: string;
   label: string;
   free: boolean;
+  supportsReasoningEffort?: boolean;
   reasoningEfforts?: ProviderReasoningOption[];
   defaultReasoningEffort?: string;
 }

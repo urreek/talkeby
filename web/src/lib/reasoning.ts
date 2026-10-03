@@ -89,7 +89,9 @@ function resolveDefaultReasoningEffort(
 }
 
 export function getReasoningConfig(provider: ProviderCatalogItem | undefined, modelValue: string) {
-  const supportsReasoning = Boolean(provider?.supportsReasoningEffort);
+  const model = findReasoningModel(provider, modelValue);
+  const supportsReasoning = Boolean(provider?.supportsReasoningEffort)
+    && model?.supportsReasoningEffort !== false;
   if (!supportsReasoning) {
     return {
       supportsReasoning: false,
@@ -100,7 +102,6 @@ export function getReasoningConfig(provider: ProviderCatalogItem | undefined, mo
     };
   }
 
-  const model = findReasoningModel(provider, modelValue);
   const dynamicOptions = normalizeReasoningOptions(model?.reasoningEfforts);
   const options = dynamicOptions.length > 0
     ? dynamicOptions
