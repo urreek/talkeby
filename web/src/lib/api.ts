@@ -10,12 +10,18 @@ import type {
   ProjectsResponse,
   ProviderCatalogResponse,
   ProviderResponse,
+  AIProvider,
+  SubscriptionUsageResponse,
   RuntimeApprovalsResponse,
   TerminalSnapshotResponse,
   Thread,
   ThreadMemoryResponse,
   ThreadsResponse,
 } from "@/lib/types";
+
+export function fetchSubscriptionUsage(provider: AIProvider, refresh = false) {
+  return requestJson<SubscriptionUsageResponse>(`/api/subscription-usage?provider=${encodeURIComponent(provider)}&refresh=${refresh}`);
+}
 
 type CsrfTokenRecord = {
   token: string;

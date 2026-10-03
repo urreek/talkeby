@@ -2,6 +2,8 @@
 
 ## Runtime Topology
 
+Subscription usage is read-only and separate from job token accounting. `providers/codex-subscription.mjs` reads ChatGPT quota windows through the local Codex RPC transport, with a bounded timeout and subprocess cleanup. `services/subscription-usage.mjs` normalizes an allowlisted response, deduplicates concurrent reads, and caches for 30 seconds (manual refresh has a five-second throttle). `http/subscription-routes.mjs` validates provider input and returns only compact quota fields behind the existing owner authentication hooks. No credentials or raw provider payloads reach the frontend or persistence. The workspace UI polls only the selected provider and links Claude users to their documented usage dashboard.
+
 - `src/server.mjs`: composition root (config, DB, services, HTTP)
 - `src/http/*`: Fastify route registration
 - `src/services/*`: domain logic (state, lifecycle, runner, event bus)

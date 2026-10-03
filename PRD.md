@@ -48,6 +48,7 @@ Developers want to code while away from their computer (travel, outdoors, commut
 5. As a developer, I can remove a project from the workspace sidebar or mobile drawer after confirmation, retaining its local files and history and switching safely to another project.
 6. As a developer, I can follow a live timeline to understand what the agent is doing.
 7. As a developer, I can install and run the system quickly on a new machine.
+8. As a subscriber, I can see Codex account-wide usage remaining, quota reset times, and the last update in the workspace panel, and open Claude's usage dashboard when live subscription data is unavailable.
 
 ## Functional Requirements
 

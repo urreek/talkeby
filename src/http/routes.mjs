@@ -27,6 +27,7 @@ import { buildProviderCatalogWithDiscovery } from "../providers/discovery.mjs";
 import { registerEventRoute } from "./events-route.mjs";
 import { registerJobRoutes } from "./jobs-routes.mjs";
 import { registerTerminalRoutes } from "./terminal-routes.mjs";
+import { registerSubscriptionRoutes } from "./subscription-routes.mjs";
 import {
   serializeJob,
   serializeJobs,
@@ -1156,5 +1157,6 @@ export function registerRoutes({
 
   registerEventRoute(app, eventBus);
   registerTerminalRoutes(app, terminalManager);
+  registerSubscriptionRoutes(app, config);
 }
 

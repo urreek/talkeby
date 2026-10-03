@@ -3,6 +3,7 @@ import { Link } from "@tanstack/react-router";
 import { Settings, X } from "lucide-react";
 
 import { WorkspaceSelectionPanel } from "@/components/jobs/workspace-controls";
+import { SubscriptionUsage } from "@/components/jobs/subscription-usage";
 import { Button } from "@/components/ui/button";
 import type { ProjectInfo, Thread } from "@/lib/types";
 import { cn } from "@/lib/utils";
@@ -83,7 +84,8 @@ function WorkspaceSidebarContent({
           onDeleteThread={onDeleteThread}
         />
       </div>
-      <div className="shrink-0 border-t border-border/40 px-4 py-3 sm:px-5 dark:border-white/10">
+      <div className="shrink-0 space-y-3 border-t border-border/40 px-4 py-3 sm:px-5 dark:border-white/10">
+        <SubscriptionUsage />
         <Button asChild variant="outline" className="w-full justify-start gap-2">
           <Link to="/settings" onClick={onOpenSettings}>
             <Settings className="size-4" />

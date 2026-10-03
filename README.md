@@ -166,6 +166,8 @@ When `AI_PROVIDER=copilot`, model discovery uses the local Copilot CLI on the ho
 
 Thread URLs are the continuity mechanism for cross-device work.
 
+The workspace sidebar and mobile drawer show subscription usage for the selected provider. For Codex signed in with a ChatGPT subscription on the host, Talkeby reads `account/rateLimits/read` from the local Codex app-server and shows remaining percentages per quota window, reset times, and the last check time. It refreshes every 30 seconds and supports manual refresh (throttled to five seconds). These are account-wide subscription limits, separate from each thread's token budget. Missing limits and API-key-only sign-in show an unavailable message rather than an estimated allowance. For Claude, use the **Open Claude usage** link or `/usage` in Claude Code; Talkeby does not use an undocumented subscription API. Other providers show an unsupported message. No new environment variables are needed.
+
 Use the trash button beside a project in the left workspace panel (or mobile workspace drawer) to delete it from Talkeby after confirmation. Project files and thread/job history are retained; add the project again from Settings to access its history. Deleting the active project selects a remaining project, or shows the empty workspace when none remain.
 
 ## Runtime Safety

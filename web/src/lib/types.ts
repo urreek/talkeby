@@ -294,6 +294,25 @@ export interface ObservabilitySummary {
   };
 }
 
+export interface SubscriptionUsageWindow {
+  remainingPercent: number | null;
+  windowDurationMins: number | null;
+  resetsAt: string | null;
+}
+
+export interface SubscriptionUsageResponse {
+  provider: AIProvider;
+  status: "available" | "unavailable" | "unsupported";
+  checkedAt: string | null;
+  message: string;
+  limits: Array<{
+    name: string;
+    plan: string | null;
+    primary: SubscriptionUsageWindow | null;
+    secondary: SubscriptionUsageWindow | null;
+  }>;
+}
+
 export type TerminalSessionStatus = "running" | "closing" | "closed";
 
 export interface TerminalSession {
