@@ -97,7 +97,7 @@ test("resumed native Codex runs use codex exec resume <sessionId>", async () => 
 
         const logged = JSON.parse(await fs.readFile(logPath, "utf8"));
         assert.deepEqual(logged.args.slice(0, 4), ["exec", "--output-last-message", logged.args[2], "resume"]);
-        assert.equal(logged.args[4], sessionId);
+        assert.ok(logged.args.includes(sessionId));
         assert.equal(logged.args.at(-1), "-");
         assert.equal(logged.prompt, "continue this native session\n");
         assert.equal(result.message, "runner resume ok");
@@ -142,6 +142,57 @@ test("CLI session id output wins over fallback session-file discovery", async ()
       setCodexSpawnCompatForTests();
     }
   });
+});
+
+for (const sessionId of ["", "87654321-2222-4333-8444-cba987654321"]) {
+  for (const sandboxMode of [undefined, "read-only", "workspace-write", "danger-full-access"]) {
+    test(`Codex ${sessionId ? "resume" : "fresh"} uses explicit safety config (${sandboxMode || "default"})`, async () => {
+      const tempDir = await fs.mkdtemp(path.join(os.tmpdir(), "talkeby-codex-safety-"));
+      const logPath = path.join(tempDir, "args.json");
+      await withTemporaryHome(tempDir, async () => {
+        setCodexSpawnCompatForTests(createMockCodexSpawn());
+        try {
+          await withFakeCodexEnv({ FAKE_CODEX_LOG: logPath }, async () => {
+            await run({
+              task: "check safety config",
+              workdir: tempDir,
+              binary: "codex",
+              timeoutMs: 5000,
+              model: "gpt-6.1-sol",
+              reasoningEffort: "medium",
+              sessionId,
+              sandboxMode,
+            });
+            const { args, prompt } = JSON.parse(await fs.readFile(logPath, "utf8"));
+            const overrides = args.flatMap((arg, index) => arg === "-c" ? [args[index + 1]] : []);
+            assert.ok(!args.includes("--full-auto"));
+            assert.ok(!args.includes("--dangerously-bypass-approvals-and-sandbox"));
+            assert.ok(overrides.includes("approval_policy=on-request"));
+            assert.ok(overrides.includes(`sandbox_mode=${sandboxMode || "workspace-write"}`));
+            assert.ok(overrides.includes("model_reasoning_effort=medium"));
+            assert.equal(args[args.indexOf("--model") + 1], "gpt-6.1-sol");
+            assert.equal(args.includes("resume"), Boolean(sessionId));
+            assert.equal(args.at(-1), "-");
+            assert.equal(prompt, "check safety config\n");
+          });
+        } finally {
+          setCodexSpawnCompatForTests();
+        }
+      });
+      await fs.rm(tempDir, { recursive: true, force: true });
+    });
+  }
+}
+
+test("invalid Codex sandbox config is rejected before spawning", async () => {
+  let spawned = false;
+  setCodexSpawnCompatForTests(() => { spawned = true; });
+  try {
+    await assert.rejects(run({ task: "test", sessionId: "existing", sandboxMode: "invalid" }), /Invalid CODEX_SANDBOX_MODE/);
+    assert.equal(spawned, false);
+  } finally {
+    setCodexSpawnCompatForTests();
+  }
 });
 test("Codex runs pass model_reasoning_effort via config overrides", async () => {
   const tempDir = await fs.mkdtemp(path.join(os.tmpdir(), "talkeby-codex-runner-"));

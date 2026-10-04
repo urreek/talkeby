@@ -183,6 +183,8 @@ Runtime policy approvals are separate from execution mode. They protect risky op
 
 Codex sandboxing is configured separately with `CODEX_SANDBOX_MODE`:
 
+Fresh and resumed Codex CLI runs pass explicit `approval_policy=on-request` and `sandbox_mode` configuration, defaulting to `workspace-write`. This supports current Codex releases that removed `--full-auto`. If Codex reports `failed to load models cache: unknown variant 'max'`, update the standalone CLI with `npm install -g @openai/codex@latest` and restart Talkeby; an older CLI may be reading the newer desktop app's shared model cache.
+
 - `read-only`: inspect files only
 - `workspace-write`: allow writes inside the configured workspace
 - `danger-full-access`: broad machine access; use only on trusted machines and preferably with `interactive` mode

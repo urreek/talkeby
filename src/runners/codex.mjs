@@ -4,6 +4,7 @@ import path from "node:path";
 
 import { runCodexWithRuntimeApprovals } from "../codex-app-server.mjs";
 import { spawnCompat } from "../lib/spawn-compat.mjs";
+import { parseSandboxMode } from "../services/sandbox-policy.mjs";
 import {
   extractCodexSessionIdFromText,
   findNewTalkebySession,
@@ -70,6 +71,9 @@ function buildPrompt(transcript) {
 }
 
 function appendCodexConfigArgs(args, config) {
+  // Explicit config works for both exec and resume, including CLIs without --full-auto.
+  args.push("-c", "approval_policy=on-request");
+  args.push("-c", `sandbox_mode=${parseSandboxMode(config.sandboxMode)}`);
   if (config.model) {
     args.push("--model", config.model);
   }
@@ -297,14 +301,13 @@ function buildResumeArgs({ config, outputPath, sessionId }) {
   }
 
   if (config.planMode) args.push("--plan");
-  args.push("--full-auto", "--skip-git-repo-check", "-");
+  args.push("--skip-git-repo-check", "-");
   return args;
 }
 
 function buildFreshArgs({ config, outputPath }) {
   const args = [
     "exec",
-    "--full-auto",
     "--skip-git-repo-check",
     "--cd",
     config.workdir,
