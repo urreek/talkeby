@@ -105,6 +105,8 @@ npm run web:dev
 - Local machine: `http://localhost:5173`
 - Same-network device: `http://<your-computer-ip>:5173`
 
+For a network-accessible frontend, run `npm run web:dev -- --host 0.0.0.0` or `npm run dev:all`. Both `web:dev` and `dev:web` forward CLI options to Vite; include `--host` before the address. The Vite allowlist includes `talkeby.urimkrasniqi.com` and `nkdev.urimkrasniqi.com`.
+
 If `APP_ACCESS_KEY` is configured, the app shows a login screen first.
 
 ## Required Environment
