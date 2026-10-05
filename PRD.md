@@ -72,6 +72,7 @@ Developers want to code while away from their computer (travel, outdoors, commut
 
 - Supported states: `pending_approval`, `queued`, `running`, `completed`, `failed`, `denied`.
 - Fresh and resumed Codex CLI jobs use explicit approval (`on-request`) and configured sandbox settings instead of the removed `--full-auto` shortcut.
+- Reasoning effort defaults to `medium` when supported; explicit chat selections are preserved.
 - Persist all state transitions with timestamps.
 
 5. Live updates:

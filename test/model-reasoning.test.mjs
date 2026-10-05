@@ -18,6 +18,27 @@ const { getReasoningConfig, resolveReasoningEffort } = await import(
   `data:text/javascript;base64,${Buffer.from(outputText).toString("base64")}`
 );
 
+test("medium is the UI and backend default even when a model advertises another default", () => {
+  for (const advertisedDefault of ["low", "high", "xhigh"]) {
+    const provider = listProviderCatalog().find((item) => item.id === "codex");
+    const model = provider.models.find((item) => item.value === "gpt-6.1-sol");
+    model.defaultReasoningEffort = advertisedDefault;
+    const input = { providerCatalog: [provider], providerId: provider.id, modelName: model.value };
+    assert.equal(getReasoningConfig(provider, model.value).defaultReasoningEffort, "medium");
+    assert.equal(getProviderReasoningConfig(input).defaultReasoningEffort, "medium");
+    for (const currentEffort of ["", "invalid"]) {
+      assert.equal(resolveReasoningEffort(provider, model.value, currentEffort), "medium");
+      assert.equal(resolveProviderReasoningEffort({ ...input, currentEffort }), "medium");
+    }
+    assert.equal(resolveReasoningEffort(provider, model.value, "high"), "high");
+    assert.equal(resolveProviderReasoningEffort({ ...input, currentEffort: "high" }), "high");
+    model.reasoningEfforts = [{ value: "low", label: "low" }];
+    model.defaultReasoningEffort = "low";
+    assert.equal(resolveReasoningEffort(provider, model.value, ""), "low");
+    assert.equal(resolveProviderReasoningEffort({ ...input, currentEffort: "" }), "low");
+  }
+});
+
 test("current models enable matching effort selectors and backend validation without discovery", () => {
   const providers = listProviderCatalog();
   for (const provider of providers.filter((item) => ["codex", "claude"].includes(item.id))) {

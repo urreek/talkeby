@@ -74,15 +74,14 @@ function resolveDefaultReasoningEffort(
   defaultReasoningEffort: string | undefined,
   options: ProviderReasoningOption[],
 ) {
+  if (options.length === 0 || options.some((option) => option.value === "medium")) {
+    return "medium";
+  }
   const normalizedDefault = String(defaultReasoningEffort || "").trim().toLowerCase();
   if (normalizedDefault) {
     if (options.length === 0 || options.some((option) => option.value === normalizedDefault)) {
       return normalizedDefault;
     }
-  }
-
-  if (options.some((option) => option.value === "medium")) {
-    return "medium";
   }
 
   return options[0]?.value || normalizedDefault || "";
