@@ -8,6 +8,7 @@ It runs on one primary machine, keeps Codex-style thread memory on that machine,
 - Single-owner web access with session login and HTTP-only cookies
 - Per-thread memory with persisted Talkeby history and Codex resume sessions
 - Per-thread provider preferences for provider, model, and reasoning effort
+- New chats are selected immediately and listed newest-created first on desktop and mobile, regardless of older chats' job status or activity
 - Mobile-friendly PWA for jobs, threads, approvals, timeline, and settings
 - Shared host terminal view for remote shell access
 - Multi-project routing

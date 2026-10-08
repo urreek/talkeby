@@ -35,6 +35,7 @@ import {
 } from "@/lib/api";
 import type { Thread } from "@/lib/types";
 import { rootRoute } from "@/routes/__root";
+import { selectCreatedThread, sortThreadsNewestFirst } from "@/lib/thread-list";
 
 type JobsSearch = {
   project?: string;
@@ -63,41 +64,6 @@ function readErrorMessage(error: unknown, fallback: string) {
     return error.trim();
   }
   return fallback;
-}
-
-function threadStatusRank(status: string | null) {
-  switch (status) {
-    case "running":
-      return 0;
-    case "pending_approval":
-      return 1;
-    case "queued":
-      return 2;
-    default:
-      return 3;
-  }
-}
-
-function threadTimestamp(thread: Thread) {
-  const parsedUpdated = Date.parse(String(thread.updatedAt || ""));
-  if (!Number.isNaN(parsedUpdated)) {
-    return parsedUpdated;
-  }
-  const parsedCreated = Date.parse(String(thread.createdAt || ""));
-  if (!Number.isNaN(parsedCreated)) {
-    return parsedCreated;
-  }
-  return 0;
-}
-
-function sortThreadsByPriority(threads: Thread[]) {
-  return [...threads].sort((left, right) => {
-    const statusDelta = threadStatusRank(left.latestJobStatus) - threadStatusRank(right.latestJobStatus);
-    if (statusDelta !== 0) {
-      return statusDelta;
-    }
-    return threadTimestamp(right) - threadTimestamp(left);
-  });
 }
 
 function JobsScreen() {
@@ -130,7 +96,7 @@ function JobsScreen() {
     refetchInterval: 5000,
   });
 
-  const threads = sortThreadsByPriority(threadsQuery.data?.threads ?? []);
+  const threads = sortThreadsNewestFirst(threadsQuery.data?.threads ?? []);
   const activeThread = threads.find((thread) => thread.id === search.thread) ?? threads[0] ?? null;
 
   const threadJobsQuery = useQuery({
@@ -188,17 +154,20 @@ function JobsScreen() {
 
   const createThreadMutation = useMutation({
     mutationFn: () => createThread({ projectName: activeProject }),
-    onSuccess: (data) => {
-      queryClient.invalidateQueries({ queryKey: ["threads", activeProject] });
-      setWorkspaceDrawerOpen(false);
-      void navigate({
-        search: (previous) => ({
-          ...previous,
-          project: activeProject || undefined,
-          thread: data.thread.id,
-        }),
-      });
-    },
+    onSuccess: (data) => selectCreatedThread({
+      queryClient,
+      thread: data.thread,
+      onSelect: (thread) => {
+        setWorkspaceDrawerOpen(false);
+        return navigate({
+          search: (previous) => ({
+            ...previous,
+            project: thread.projectName,
+            thread: thread.id,
+          }),
+        });
+      },
+    }),
   });
 
   const createJobMutation = useMutation({

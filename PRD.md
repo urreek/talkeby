@@ -200,6 +200,7 @@ Developers want to code while away from their computer (travel, outdoors, commut
 1. Jobs screen:
 
 - New task composer
+- Creating a chat selects it immediately. Chat lists show newest-created chats first, above older running or pending chats.
 - Latest status card
 - Pending approvals list
 
