@@ -104,6 +104,7 @@ npm run web:dev
 5. Open the web app.
 
 - Local machine: `http://localhost:5173`
+- The web server always uses the same configured port on restart: `TALKEBY_WEB_PORT`, then `WEB_PORT`, then `5173`. Set it in the root `.env` or process environment. Dev and preview fail if that port is occupied instead of switching to another port; stop the previous instance before restarting. The backend uses `PORT` (default `3000`).
 - Same-network device: `http://<your-computer-ip>:5173`
 
 For a network-accessible frontend, run `npm run web:dev -- --host 0.0.0.0` or `npm run dev:all`. Both `web:dev` and `dev:web` forward CLI options to Vite; include `--host` before the address. The Vite allowlist includes `talkeby.urimkrasniqi.com` and `nkdev.urimkrasniqi.com`.

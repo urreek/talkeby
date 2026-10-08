@@ -5,7 +5,8 @@ import path from "node:path";
 
 import react from "@vitejs/plugin-react";
 import { VitePWA } from "vite-plugin-pwa";
-import { defineConfig, type Plugin } from "vite";
+import { defineConfig, loadEnv, type Plugin } from "vite";
+import { webPortOptions } from "./config/web-port";
 
 function resolveBackendTarget() {
   const explicitTarget = process.env.TALKEBY_API_ORIGIN?.trim();
@@ -41,28 +42,6 @@ function parseBackendTarget(target: string) {
   } catch {
     return null;
   }
-}
-
-function checkPortAvailable(port: number, host = "0.0.0.0") {
-  return new Promise<boolean>((resolve) => {
-    const server = net.createServer();
-    server.unref();
-    server.on("error", () => resolve(false));
-    server.listen({ port, host }, () => {
-      server.close(() => resolve(true));
-    });
-  });
-}
-
-async function resolveDevPort(startPort: number) {
-  const first = Number.isFinite(startPort) ? Math.max(1, startPort) : 5173;
-  for (let port = first; port < first + 50; port += 1) {
-    // eslint-disable-next-line no-await-in-loop
-    if (await checkPortAvailable(port)) {
-      return port;
-    }
-  }
-  return first;
 }
 
 function checkTcpReachable(host: string, port: number, timeoutMs = 250) {
@@ -166,14 +145,8 @@ function createApiBackendGuard(target: string): Plugin {
   };
 }
 
-export default defineConfig(async () => {
-  const requestedPort = Number.parseInt(process.env.TALKEBY_WEB_PORT || "", 10) || 5173;
-  const resolvedPort = await resolveDevPort(requestedPort);
-  if (resolvedPort !== requestedPort) {
-    console.info(`[talkeby:web] Port ${requestedPort} busy, using ${resolvedPort}.`);
-  } else {
-    console.info(`[talkeby:web] Using port ${resolvedPort}.`);
-  }
+export default defineConfig(({ mode }) => {
+  const webPort = webPortOptions(loadEnv(mode, path.resolve(__dirname, ".."), ""));
 
   return {
   plugins: [
@@ -233,14 +206,14 @@ export default defineConfig(async () => {
       "nkdev.urimkrasniqi.com",
       "talkeby.urimkrasniqi.com"
     ],
-    port: resolvedPort,
-    strictPort: true,
+    ...webPort,
     proxy: {
       "/api": {
         target: backendTarget,
         changeOrigin: true
       }
     }
-  }
+  },
+  preview: { ...webPort, host: true },
   };
 });

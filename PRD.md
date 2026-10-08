@@ -197,6 +197,8 @@ Developers want to code while away from their computer (travel, outdoors, commut
 
 ## Mobile UI Requirements (v1)
 
+- Web dev and preview servers use a fixed configured port across restarts, defaulting to 5173, and reject an occupied port instead of choosing another address.
+
 1. Jobs screen:
 
 - New task composer
