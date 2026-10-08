@@ -35,6 +35,7 @@ export function serializeJob(job, options = {}) {
     : request;
   return {
     ...safeJob,
+    images: options.getJobImages?.(job.id) || [],
     displayRequest,
   };
 }
@@ -45,7 +46,7 @@ export function serializeJobs(jobs, options = {}) {
   }
 
   const getJobById = buildJobResolver(jobs, options.getJobById);
-  return jobs.map((job) => serializeJob(job, { getJobById }));
+  return jobs.map((job) => serializeJob(job, { ...options, getJobById }));
 }
 
 export function serializeEvent(event) {

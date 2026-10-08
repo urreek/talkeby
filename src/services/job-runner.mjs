@@ -1,4 +1,5 @@
 import crypto from "node:crypto";
+import { materializeJobImages } from "./job-images.mjs";
 
 import { getRunner } from "../runners/index.mjs";
 import { getProviderMeta, isFreeModelAllowed } from "../providers/catalog.mjs";
@@ -396,6 +397,7 @@ export class JobRunner {
         let providerForRun = normalizeProvider(activeJob.provider) || this.state.getProvider();
         const abortController = new AbortController();
         this.abortControllers.set(activeJob.id, abortController);
+        let jobImages;
 
         try {
           const provider = normalizeProvider(activeJob.provider) || this.state.getProvider();
@@ -682,7 +684,9 @@ export class JobRunner {
             );
           }
 
+          jobImages = await materializeJobImages(this.repository, activeJob.id, provider);
           const result = await runner({
+            imagePaths: jobImages.paths,
             task: taskText,
             workdir: activeJob.workdir,
             model,
@@ -919,16 +923,28 @@ export class JobRunner {
             },
           });
         } finally {
-          this.abortControllers.delete(activeJob.id);
-          if (progressTimer) {
-            clearInterval(progressTimer);
+          try {
+            await jobImages?.cleanup();
+          } catch (error) {
+            this.eventBus.publish({
+              jobId: activeJob.id,
+              chatId: activeJob.chatId,
+              eventType: "job_cleanup_failed",
+              message: "Temporary image cleanup failed. Check permissions on the host temporary folder.",
+              payload: { code: String(error?.code || "CLEANUP_FAILED") },
+            });
+          } finally {
+            this.abortControllers.delete(activeJob.id);
+            if (progressTimer) {
+              clearInterval(progressTimer);
+            }
+            this.state.markPendingConsumed(activeJob.id);
+            this.runningJobIds.delete(activeJob.id);
+            this.runningThreadKeys.delete(laneKey);
+            // Free streaming output buffer
+            clearJobOutput(activeJob.id);
+            this.enqueuedJobIds.delete(activeJob.id);
           }
-          this.state.markPendingConsumed(activeJob.id);
-          this.runningJobIds.delete(activeJob.id);
-          this.runningThreadKeys.delete(laneKey);
-          // Free streaming output buffer
-          clearJobOutput(activeJob.id);
-          this.enqueuedJobIds.delete(activeJob.id);
         }
       })
       .catch((error) => {

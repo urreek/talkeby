@@ -33,7 +33,7 @@ import {
   selectProject,
   stopJob,
 } from "@/lib/api";
-import type { Thread } from "@/lib/types";
+import type { ImageAttachment, Thread } from "@/lib/types";
 import { rootRoute } from "@/routes/__root";
 import { selectCreatedThread, sortThreadsNewestFirst } from "@/lib/thread-list";
 
@@ -171,9 +171,10 @@ function JobsScreen() {
   });
 
   const createJobMutation = useMutation({
-    mutationFn: (input: { task: string; projectName: string }) =>
+    mutationFn: (input: { task: string; projectName: string; images: ImageAttachment[] }) =>
       createJob({
         task: input.task,
+        images: input.images,
         projectName: input.projectName,
         threadId: activeThread?.id || "",
       }),

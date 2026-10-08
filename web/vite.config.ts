@@ -7,6 +7,7 @@ import react from "@vitejs/plugin-react";
 import { VitePWA } from "vite-plugin-pwa";
 import { defineConfig, loadEnv, type Plugin } from "vite";
 import { webPortOptions } from "./config/web-port";
+import { shouldCacheApi } from "./config/api-cache";
 
 function resolveBackendTarget() {
   const explicitTarget = process.env.TALKEBY_API_ORIGIN?.trim();
@@ -181,7 +182,7 @@ export default defineConfig(({ mode }) => {
         globPatterns: ["**/*.{js,css,html,svg,png}"],
         runtimeCaching: [
           {
-            urlPattern: ({ url }) => url.pathname.startsWith("/api/"),
+            urlPattern: ({ url }) => shouldCacheApi(url),
             handler: "NetworkFirst",
             options: {
               cacheName: "talkeby-api",

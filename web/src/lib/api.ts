@@ -5,6 +5,7 @@ import type {
   ExecutionMode,
   ImportProjectsResponse,
   Job,
+  ImageAttachment,
   JobEvent,
   ObservabilitySummary,
   ProjectsResponse,
@@ -162,6 +163,7 @@ export async function fetchJobEvents(jobId: string, limit = 250) {
 
 export async function createJob(input: {
   task: string;
+  images?: ImageAttachment[];
   projectName?: string;
   threadId: string;
 }) {

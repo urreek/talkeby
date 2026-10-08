@@ -1,4 +1,5 @@
 import crypto from "node:crypto";
+import { validateJobImages, validateImageProvider } from "./job-images.mjs";
 import { buildThreadProviderPreferencePatch } from "./thread-provider-preferences.mjs";
 import {
   RESUME_FROM_ERROR_TASK,
@@ -53,7 +54,12 @@ export function createJobFromTask({
   projectName = "",
   threadId,
   resumedFromJobId = null,
+  images = [],
 }) {
+  const validated = validateJobImages(images);
+  if (validated.error) return { error: validated.error };
+  const imageProviderError = validateImageProvider(state.getProvider?.() || "", validated.images);
+  if (imageProviderError) return { error: imageProviderError };
   const normalizedTask = String(task || "").trim();
   if (!normalizedTask) {
     return { error: "Task is required." };
@@ -105,6 +111,7 @@ export function createJobFromTask({
     id: crypto.randomUUID(),
     threadId: threadResolution.thread.id,
     request: normalizedTask,
+    images: validated.images,
     projectName: activeProject.name,
     workdir: activeProject.workdir,
     provider,
@@ -270,12 +277,18 @@ export function retryJob({
     return { error: `Job ${jobId} cannot be retried while status is "${original.status}".` };
   }
 
+  const task = resolveResumeSourceTask({ job: original, getJobById: (id) => state.getJobById(id) });
+  if (!task) {
+    return { error: `Job ${jobId} does not have a recoverable user task to retry.` };
+  }
+
   return createJobFromTask({
     state,
     eventBus,
     jobRunner,
     config,
-    task: original.request,
+    task,
+    images: state.repository.listJobImages?.(original.id, true).map(({ name, mimeType, data }) => ({ name, mimeType, data })) || [],
     projectName: original.projectName,
     threadId: original.threadId || undefined,
   });
@@ -311,6 +324,7 @@ export function resumeJobFromError({
     jobRunner,
     config,
     task: RESUME_FROM_ERROR_TASK,
+    images: state.repository.listJobImages?.(original.id, true).map(({ name, mimeType, data }) => ({ name, mimeType, data })) || [],
     projectName: original.projectName,
     threadId: original.threadId || undefined,
     resumedFromJobId: original.id,

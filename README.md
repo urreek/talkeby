@@ -171,6 +171,10 @@ When `AI_PROVIDER=copilot`, model discovery uses the local Copilot CLI on the ho
 5. Open `/terminal` when you need direct shell access on the host machine.
 
 Thread URLs are the continuity mechanism for cross-device work.
+
+Codex tasks can include up to three PNG, JPEG, or WebP attachments (5 MB each, 10 MB total). Attachments remain available in chat history after approval, denial, retry, or restart. Retrying a generated continuation recovers its original user task; a missing source returns an actionable error.
+
+Assistant replies can display local PNG, JPEG, WebP, or GIF images through Markdown links or images, including imported Codex history. Only referenced files inside the configured project workspace are served, up to 5 MB, behind the normal owner authentication. Image responses are excluded from PWA caching. Temporary upload files are removed after execution; a cleanup failure records a `job_cleanup_failed` event and releases worker resources.
 “Resume from error” continues the saved native session when available. If the failed run created no session, Talkeby recovers the original user task (including through repeated resume attempts) before launching it again. The source job link is persisted before the new job is queued or awaits approval.
 If Codex rejects a resumed session because it already has an active writer in another client, Talkeby continues through `codex exec fork` using the saved native history and persists the new session id for later messages. Live output reports this branch. The original Codex conversation remains separate; later messages in either client do not sync into the other branch. This recovery requires a Codex CLI supporting `exec fork`; other resume errors are returned without starting a fresh session.
 

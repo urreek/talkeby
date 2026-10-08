@@ -89,7 +89,21 @@ export interface ThreadMemoryResponse {
   memory: ThreadMemoryInspector;
 }
 
+export interface ImageAttachment {
+  name: string;
+  mimeType: string;
+  data: string;
+}
+
+export interface JobImage {
+  id: string;
+  name: string;
+  mimeType: string;
+  size: number;
+}
+
 export interface Job {
+  images?: JobImage[];
   id: string;
   threadId: string | null;
   request: string;

@@ -65,6 +65,16 @@ export const jobsTable = sqliteTable("jobs", {
   error: text("error"),
 });
 
+export const jobImagesTable = sqliteTable("job_images", {
+  id: text("id").primaryKey(),
+  jobId: text("job_id").notNull().references(() => jobsTable.id, { onDelete: "cascade" }),
+  position: integer("position").notNull(),
+  name: text("name").notNull(),
+  mimeType: text("mime_type").notNull(),
+  size: integer("size").notNull(),
+  data: text("data").notNull(),
+});
+
 export const chatSettingsTable = sqliteTable("chat_settings", {
   chatId: text("chat_id").primaryKey(),
   executionMode: text("execution_mode").notNull(),

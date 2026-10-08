@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 
-import { createJobFromTask, resumeJobFromError } from "../src/services/job-lifecycle.mjs";
+import { createJobFromTask, resumeJobFromError, retryJob } from "../src/services/job-lifecycle.mjs";
 
 function createHarness() {
   const jobs = new Map();
@@ -94,6 +94,22 @@ function createHarness() {
     jobRunner,
   };
 }
+
+test("retrying a generated continuation recovers its original user task", () => {
+  const harness = createHarness();
+  harness.jobs.set("root", { id: "root", request: "Implement the feature", status: "failed" });
+  harness.jobs.set("resume", { id: "resume", request: "Continue from the last error in this thread and fix it.", resumedFromJobId: "root", status: "failed", projectName: "demo", threadId: "thread-1" });
+  const result = retryJob({ ...harness, config: {}, jobId: "resume" });
+  assert.equal(result.job.request, "Implement the feature");
+});
+
+test("retry rejects a generated continuation with a missing source", () => {
+  const harness = createHarness();
+  harness.jobs.set("resume", { id: "resume", request: "Continue from the last error in this thread and fix it.", resumedFromJobId: "missing", status: "failed", projectName: "demo", threadId: "thread-1" });
+  const result = retryJob({ ...harness, config: {}, jobId: "resume" });
+  assert.match(result.error, /recoverable user task/);
+  assert.equal(harness.jobs.size, 1);
+});
 
 test("resumeJobFromError queues a continuation task instead of replaying the original request", () => {
   const { jobs, state, eventBus, jobRunner } = createHarness();

@@ -56,6 +56,9 @@ Developers want to code while away from their computer (travel, outdoors, commut
 
 - Create job from mobile UI.
 - Include task text, selected project, mode, metadata.
+- Codex image attachments are validated at the service boundary and stored with the job. Chat history exposes metadata without embedding base64 payloads; approval and retry preserve attachments.
+- Referenced assistant images are available for persisted jobs and native Codex history, subject to owner authentication and workspace containment. Native transcript identifiers remain stable when other turns are persisted.
+- Retrying a generated continuation recovers its originating task. Temporary-file cleanup failures emit an actionable job event and still release all worker resources.
 - Resume from error persists its source job link on creation, continues saved sessions, and recovers the original task when no native session was created.
 - Codex session continuation resumes the saved thread. If another client owns its active writer, continue from a native fork of saved history, persist the fork id, and report the branch in live output. Never replace history with a fresh session on other failures.
 

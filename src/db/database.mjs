@@ -125,6 +125,18 @@ export function bootstrapDatabase(sqlite) {
   `);
 
   // Phase 2: Migrations (must run before indexes on new columns)
+  sqlite.exec(`
+    CREATE TABLE IF NOT EXISTS job_images (
+      id TEXT PRIMARY KEY,
+      job_id TEXT NOT NULL REFERENCES jobs(id) ON DELETE CASCADE,
+      position INTEGER NOT NULL,
+      name TEXT NOT NULL,
+      mime_type TEXT NOT NULL,
+      size INTEGER NOT NULL,
+      data TEXT NOT NULL
+    );
+    CREATE INDEX IF NOT EXISTS idx_job_images_job_id ON job_images (job_id);
+  `);
   try {
     sqlite.exec(`ALTER TABLE jobs ADD COLUMN thread_id TEXT`);
   } catch {

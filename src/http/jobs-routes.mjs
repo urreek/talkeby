@@ -21,8 +21,9 @@ export function registerJobRoutes({
   config,
 }) {
   const getJobById = (jobId) => state.getJobById(jobId);
+  const getJobImages = (jobId) => repository.listJobImages(jobId);
 
-  app.get("/jobs", async () => serializeJobs(state.listJobs(200), { getJobById }));
+  app.get("/jobs", async () => serializeJobs(state.listJobs(200), { getJobById, getJobImages }));
 
   app.get("/api/jobs", async (request) => {
     const limit = Number.parseInt(String(request.query?.limit || 100), 10);
@@ -37,7 +38,7 @@ export function registerJobRoutes({
     if (threadId) {
       jobs = jobs.filter((job) => String(job.threadId || "") === threadId);
     }
-    return serializeJobs(jobs.slice(0, safeLimit), { getJobById });
+    return serializeJobs(jobs.slice(0, safeLimit), { getJobById, getJobImages });
   });
 
   app.get("/api/jobs/:id", async (request, reply) => {
@@ -46,10 +47,19 @@ export function registerJobRoutes({
       reply.code(404);
       return { error: "Job not found." };
     }
-    return serializeJob(job, { getJobById });
+    return serializeJob(job, { getJobById, getJobImages });
   });
 
-  app.post("/api/jobs", async (request, reply) => {
+  app.get("/api/jobs/:id/images/:imageId", async (request, reply) => {
+    const image = repository.listJobImages(request.params.id, true)
+      .find((item) => item.id === request.params.imageId);
+    if (!image) return reply.code(404).send({ error: "Image not found." });
+    return reply.header("Cache-Control", "no-store")
+      .header("X-Content-Type-Options", "nosniff")
+      .type(image.mimeType).send(Buffer.from(image.data, "base64"));
+  });
+
+  app.post("/api/jobs", { bodyLimit: 15 * 1024 * 1024 }, async (request, reply) => {
     const task = textValue(request.body?.task || request.body?.request || "");
     const projectName = textValue(request.body?.projectName || "");
     const threadId = textValue(request.body?.threadId || "");
@@ -67,6 +77,7 @@ export function registerJobRoutes({
       jobRunner,
       config,
       task,
+      images: request.body?.images,
       projectName,
       threadId,
     });

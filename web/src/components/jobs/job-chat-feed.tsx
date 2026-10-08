@@ -1,5 +1,7 @@
 import { useEffect, useRef, useState } from "react";
-import Markdown from "react-markdown";
+import Markdown, { defaultUrlTransform } from "react-markdown";
+import { AssistantImage } from "./assistant-image";
+import { localImagePath } from "../../../../shared/assistant-images.mjs";
 
 import { Button } from "@/components/ui/button";
 import { getJobDisplayRequest } from "@/lib/job-display";
@@ -375,6 +377,17 @@ export function JobChatFeed({
                 <p className="mt-1.5 text-sm leading-relaxed text-foreground">
                   {getJobDisplayRequest(job)}
                 </p>
+                {job.images?.length ? (
+                  <div className="mt-2 flex flex-wrap gap-2">
+                    {job.images.map((image) => (
+                      <a key={image.id} href={`/api/jobs/${encodeURIComponent(job.id)}/images/${encodeURIComponent(image.id)}`}
+                        target="_blank" rel="noreferrer" aria-label={`View ${image.name}`}>
+                        <img src={`/api/jobs/${encodeURIComponent(job.id)}/images/${encodeURIComponent(image.id)}`}
+                          alt={image.name} loading="lazy" className="h-24 w-24 rounded-md border object-cover" />
+                      </a>
+                    ))}
+                  </div>
+                ) : null}
               </div>
 
               <div
@@ -421,7 +434,12 @@ export function JobChatFeed({
                 ) : (
                   <div className="prose prose-sm mt-1.5 max-w-none text-sm leading-relaxed text-foreground/90 prose-headings:my-2 prose-li:my-0 prose-ol:my-1 prose-p:my-1 prose-pre:my-2 prose-pre:rounded-lg prose-pre:border prose-pre:border-border/50 prose-pre:bg-muted/55 prose-code:text-xs prose-code:text-primary prose-a:text-primary prose-a:no-underline prose-ul:my-1 hover:prose-a:underline dark:prose-invert dark:prose-pre:border-white/5 dark:prose-pre:bg-black/30 dark:prose-code:text-violet-300">
                     <Markdown
+                      urlTransform={(url, key) => key === "src" || localImagePath(url) ? url : defaultUrlTransform(url)}
                       components={{
+                        img: ({ src, alt }) => <AssistantImage jobId={job.id} source={typeof src === "string" ? src : undefined} alt={alt} />,
+                        a: ({ href, children }) => localImagePath(href)
+                          ? <AssistantImage jobId={job.id} source={href} alt={typeof children === "string" ? children : "Session image"} />
+                          : <a href={defaultUrlTransform(href || "")}>{children}</a>,
                         pre: ({ children }) => (
                           <pre className="overflow-x-auto p-3 text-xs">
                             {children}

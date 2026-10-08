@@ -119,8 +119,9 @@ export async function buildCodexTranscriptJobs({
 
   const matchedTurnIndexes = collectMatchedTurnIndexes(turns, persistedJobs);
   return turns
-    .filter((_, index) => !matchedTurnIndexes.has(index))
-    .map((turn, index) => ({
+    .map((turn, index) => ({ turn, index }))
+    .filter(({ index }) => !matchedTurnIndexes.has(index))
+    .map(({ turn, index }) => ({
       id: `native-${threadId}-${index + 1}`,
       threadId: threadId || null,
       request: turn.request,

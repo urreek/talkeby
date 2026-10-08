@@ -26,6 +26,7 @@ import {
 import { buildProviderCatalogWithDiscovery } from "../providers/discovery.mjs";
 import { registerEventRoute } from "./events-route.mjs";
 import { registerJobRoutes } from "./jobs-routes.mjs";
+import { registerAssistantImagesRoute } from "./assistant-images-route.mjs";
 import { registerTerminalRoutes } from "./terminal-routes.mjs";
 import { registerSubscriptionRoutes } from "./subscription-routes.mjs";
 import {
@@ -637,6 +638,7 @@ export function registerRoutes({
     return {
       jobs: serializeJobs(mergedJobs, {
         getJobById: (jobId) => repository.getJobById(jobId),
+        getJobImages: (jobId) => repository.listJobImages(jobId),
       }),
     };
   });
@@ -1155,6 +1157,7 @@ export function registerRoutes({
     config,
   });
 
+  registerAssistantImagesRoute({ app, state, config, repository });
   registerEventRoute(app, eventBus);
   registerTerminalRoutes(app, terminalManager);
   registerSubscriptionRoutes(app, config);

@@ -10,9 +10,11 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
+import { ImageAttachmentPicker } from "./image-attachment-picker";
+import { useImageAttachments } from "@/lib/image-attachments";
 import { fetchProvider, fetchProviderCatalog, setProvider } from "@/lib/api";
 import { getReasoningConfig, resolveReasoningEffort } from "@/lib/reasoning";
-import type { AIProvider, ProjectInfo } from "@/lib/types";
+import type { AIProvider, ImageAttachment, ProjectInfo } from "@/lib/types";
 import { cn } from "@/lib/utils";
 
 type CreateJobFormProps = {
@@ -21,7 +23,7 @@ type CreateJobFormProps = {
   activeThreadId?: string;
   isSubmitting: boolean;
   submitError?: string;
-  onSubmit: (input: { task: string; projectName: string }) => Promise<void>;
+  onSubmit: (input: { task: string; projectName: string; images: ImageAttachment[] }) => Promise<void>;
   variant?: "card" | "embedded";
 };
 
@@ -37,6 +39,7 @@ export function CreateJobForm({
   const queryClient = useQueryClient();
   const [task, setTask] = useState("");
   const [projectName, setProjectName] = useState(activeProject);
+  const attachments = useImageAttachments(`${activeProject}:${activeThreadId}`);
   const embedded = variant === "embedded";
   const resolvedProjectValue = projects.some(
     (project) => project.name === projectName,
@@ -149,12 +152,15 @@ export function CreateJobForm({
             if (!cleanTask) {
               return;
             }
+            if (attachments.isReading || (attachments.images.length > 0 && provider !== "codex")) return;
             try {
               await onSubmit({
                 task: cleanTask,
+                images: attachments.images,
                 projectName: resolvedProjectValue,
               });
               setTask("");
+              attachments.setImages([]);
             } catch {
               // Error is surfaced by parent mutation state.
             }
@@ -167,7 +173,12 @@ export function CreateJobForm({
             onChange={(event) => setTask(event.target.value)}
           />
 
-          <div className="grid grid-cols-[repeat(3,minmax(0,1fr))_auto] items-center gap-2">
+          <ImageAttachmentPicker images={attachments.images} supported={provider === "codex"}
+            disabled={isSubmitting || attachments.isReading} error={attachments.error}
+            onAdd={attachments.addImages}
+            onRemove={(index) => attachments.setImages((images) => images.filter((_, current) => current !== index))} />
+
+          <div className="grid grid-cols-3 items-center gap-2">
             <Select value={provider} onValueChange={handleProviderChange}>
               <SelectTrigger className="h-9 min-w-0 rounded-lg border-border/50 bg-background/60 px-2 text-xs font-semibold text-foreground transition-colors hover:bg-background/80 focus:ring-primary focus:ring-offset-0 dark:border-white/10">
                 <SelectValue
@@ -231,8 +242,8 @@ export function CreateJobForm({
 
             <Button
               type="submit"
-              className="h-9 min-w-[8.5rem] justify-self-end rounded-lg px-4 text-sm font-bold shadow-lg shadow-primary/20 transition-all active:scale-95"
-              disabled={isSubmitting || !task.trim()}
+              className="col-span-3 h-9 w-full rounded-lg px-4 text-sm font-bold shadow-lg shadow-primary/20 transition-all active:scale-95"
+              disabled={isSubmitting || attachments.isReading || !task.trim() || (attachments.images.length > 0 && provider !== "codex")}
             >
               {isSubmitting ? "Submitting..." : "Run Task"}
               <span className="ml-2 opacity-70">-&gt;</span>

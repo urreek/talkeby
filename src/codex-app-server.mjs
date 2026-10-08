@@ -640,6 +640,7 @@ export async function runCodexWithRuntimeApprovals({
           text: prompt,
           text_elements: [],
         },
+        ...(codexConfig.imagePaths || []).map((imagePath) => ({ type: "localImage", path: imagePath })),
       ],
       approvalPolicy: codexConfig.interactiveApprovalPolicy || "untrusted",
       model: codexConfig.model || null,

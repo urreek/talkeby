@@ -1,4 +1,5 @@
 import { and, asc, desc, eq, gt, sql } from "drizzle-orm";
+import { insertJobImages, listJobImages } from "./job-images.mjs";
 
 import {
   appSettingsTable,
@@ -113,8 +114,15 @@ export class TalkebyRepository {
       error: job.error || null,
     };
 
-    this.db.insert(jobsTable).values(row).run();
+    this.db.transaction((tx) => {
+      tx.insert(jobsTable).values(row).run();
+      insertJobImages(tx, job.id, job.images || []);
+    });
     return this.getJobById(job.id);
+  }
+
+  listJobImages(jobId, includeData = false) {
+    return listJobImages(this.db, jobId, includeData);
   }
 
   updateJob(jobId, patch) {
@@ -851,4 +859,3 @@ export class TalkebyRepository {
     return pending.length;
   }
 }
-

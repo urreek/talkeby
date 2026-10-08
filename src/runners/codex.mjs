@@ -72,6 +72,7 @@ function buildPrompt(transcript) {
 }
 
 function appendCodexConfigArgs(args, config) {
+  for (const imagePath of config.imagePaths || []) args.push("--image", imagePath);
   // Explicit config works for both exec and resume, including CLIs without --full-auto.
   args.push("-c", "approval_policy=on-request");
   args.push("-c", `sandbox_mode=${parseSandboxMode(config.sandboxMode)}`);
@@ -341,6 +342,7 @@ async function runWithRuntimeApprovals(config) {
       interactiveApprovalPolicy: "untrusted",
       sandboxMode: config.sandboxMode || "workspace-write",
       sessionId: config.sessionId || "",
+      imagePaths: config.imagePaths || [],
       persistExtendedHistory: Boolean(config.persistExtendedHistory),
     },
     signal: config.signal,
