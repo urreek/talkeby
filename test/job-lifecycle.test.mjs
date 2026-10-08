@@ -119,6 +119,25 @@ test("resumeJobFromError queues a continuation task instead of replaying the ori
   assert.equal(created.job.resumedFromJobId, "failed-1");
 });
 
+for (const mode of ["auto", "interactive"]) {
+  test(`resume source is persisted before ${mode === "auto" ? "enqueue" : "approval"}`, () => {
+    const { jobs, state, eventBus, jobRunner } = createHarness();
+    state.getExecutionMode = () => mode;
+    jobs.set("failed-source", { id: "failed-source", status: "failed", request: "Fix the app", projectName: "demo", threadId: "thread-1" });
+    let enqueued = false;
+    jobRunner.enqueue = (job) => {
+      enqueued = true;
+      assert.equal(job.resumedFromJobId, "failed-source");
+      assert.equal(jobs.get(job.id).resumedFromJobId, "failed-source");
+    };
+    state.patchJob = () => { throw new Error("Resume must be inserted atomically"); };
+    const created = resumeJobFromError({ state, eventBus, jobRunner, config: {}, jobId: "failed-source" });
+    assert.equal(created.job.resumedFromJobId, "failed-source");
+    assert.equal(created.job.status, mode === "auto" ? "queued" : "pending_approval");
+    assert.equal(enqueued, mode === "auto");
+  });
+}
+
 test("createJobFromTask persists the active provider on the created job", () => {
   const { state, eventBus, jobRunner, threadPatches } = createHarness();
 

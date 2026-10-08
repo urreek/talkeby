@@ -11,6 +11,7 @@ import {
 } from "./codex-native-continuity.mjs";
 import { appendJobOutput, clearJobOutput } from "./job-output.mjs";
 import { validateCodexSession } from "./codex-sessions.mjs";
+import { isGeneratedResumeTask, resolveResumeSourceTask } from "./resume-request.mjs";
 import {
   buildProviderNativeContinuityError,
   countPriorProviderContinuityTurns,
@@ -613,8 +614,17 @@ export class JobRunner {
           const effectiveResumeContext = managedContextDisabled ? "" : resumeContext;
           const effectiveThreadContext = managedContextDisabled ? "" : threadContext;
           const budgetEnabled = threadTokenBudget > 0 && !managedContextDisabled;
+          if (!sessionId && activeJob.resumedFromJobId && isGeneratedResumeTask(activeJob.request)) {
+            taskText = resolveResumeSourceTask({
+              job: activeJob,
+              getJobById: (jobId) => this.repository.getJobById(jobId),
+            });
+            if (!taskText) {
+              throw new Error("Cannot resume: the original user task is unavailable. Submit the task again.");
+            }
+          }
           const prepared = buildBudgetAwarePrompt({
-            userTask: activeJob.request,
+            userTask: taskText,
             bootstrapPrompt,
             resumeContext: effectiveResumeContext,
             threadContext: effectiveThreadContext,

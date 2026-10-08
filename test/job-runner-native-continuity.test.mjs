@@ -10,6 +10,7 @@ import { setCodexSpawnCompatForTests } from "../src/runners/codex.mjs";
 import { EventBus } from "../src/services/event-bus.mjs";
 import { JobRunner } from "../src/services/job-runner.mjs";
 import { RuntimeState } from "../src/services/runtime-state.mjs";
+import { resumeJobFromError } from "../src/services/job-lifecycle.mjs";
 import {
   createFakeCodexBinary,
   createMockCodexSpawn,
@@ -173,6 +174,55 @@ function createThread(repository) {
     title: "Native memory thread",
     tokenBudget: 10000,
     autoTrimContext: true,
+  });
+}
+
+for (const recovery of ["no-session", "saved-session", "active-writer"]) {
+  test(`resume from error recovers the task and persists continuity (${recovery})`, async () => {
+    const tempDir = await fs.mkdtemp(path.join(os.tmpdir(), "talkeby-resume-recovery-"));
+    const logPath = path.join(tempDir, "args.json");
+    const sessionId = "12345678-1111-4222-8333-123456789abc";
+    const forkId = "aaaaaaaa-1111-4222-8333-bbbbbbbbbbbb";
+    await withTemporaryHome(tempDir, async () => {
+      const harness = await createHarness({ tempDir, workdir: tempDir, binary: "codex" });
+      const { repository, state, jobRunner } = harness;
+      const thread = createThread(repository);
+      const task = "Implement the requested feature";
+      const failed = createFailedJob({ state, threadId: thread.id, request: task, workdir: tempDir, offsetMs: -1000 });
+      if (recovery !== "no-session") {
+        repository.updateThread(thread.id, { cliSessionId: sessionId });
+        await createTalkebySessionFile({ homeDir: tempDir, sessionId, workdir: tempDir, taskMessages: [task] });
+      }
+      const spawn = createMockCodexSpawn();
+      setCodexSpawnCompatForTests((binary, args, options) => {
+        if (args.includes("fork")) {
+          process.env.FAKE_CODEX_EXIT_CODE = "0";
+          process.env.FAKE_CODEX_STDERR = "";
+          process.env.FAKE_CODEX_SESSION_ID = forkId;
+        }
+        return spawn(binary, args, options);
+      });
+      try {
+        await withFakeCodexEnv({
+          FAKE_CODEX_LOG: logPath,
+          FAKE_CODEX_SESSION_ID: recovery === "active-writer" ? "" : sessionId,
+          FAKE_CODEX_EXIT_CODE: recovery === "active-writer" ? "1" : "0",
+          FAKE_CODEX_STDERR: recovery === "active-writer" ? `thread/resume failed: thread ${sessionId} already has an active writer` : "",
+        }, async () => {
+          const created = resumeJobFromError({ state, eventBus: jobRunner.eventBus, jobRunner, config: harness.config, jobId: failed.id });
+          await jobRunner.queue;
+          assert.equal(repository.getJobById(created.job.id).status, "completed");
+          assert.equal(repository.getJobById(created.job.id).resumedFromJobId, failed.id);
+          const logged = JSON.parse(await fs.readFile(logPath, "utf8"));
+          assert.equal(logged.prompt, `${recovery === "no-session" ? task : created.job.request}\n`);
+          assert.equal(repository.getThreadProviderSession(thread.id, "codex").sessionId, recovery === "active-writer" ? forkId : sessionId);
+        });
+      } finally {
+        setCodexSpawnCompatForTests();
+        harness.sqlite.close();
+      }
+    });
+    await fs.rm(tempDir, { recursive: true, force: true });
   });
 }
 

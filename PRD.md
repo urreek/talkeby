@@ -56,6 +56,8 @@ Developers want to code while away from their computer (travel, outdoors, commut
 
 - Create job from mobile UI.
 - Include task text, selected project, mode, metadata.
+- Resume from error persists its source job link on creation, continues saved sessions, and recovers the original task when no native session was created.
+- Codex session continuation resumes the saved thread. If another client owns its active writer, continue from a native fork of saved history, persist the fork id, and report the branch in live output. Never replace history with a fresh session on other failures.
 
 2. Execution modes:
 

@@ -5,6 +5,7 @@ import path from "node:path";
 import { runCodexWithRuntimeApprovals } from "../codex-app-server.mjs";
 import { spawnCompat } from "../lib/spawn-compat.mjs";
 import { parseSandboxMode } from "../services/sandbox-policy.mjs";
+import { resumeCodexSession } from "../services/codex-session-resume.mjs";
 import {
   extractCodexSessionIdFromText,
   findNewTalkebySession,
@@ -289,8 +290,8 @@ function runCodexSpawn({ binary, args, workdir, timeoutMs, outputPath, onLine, s
   });
 }
 
-function buildResumeArgs({ config, outputPath, sessionId }) {
-  const args = ["exec", "--output-last-message", outputPath, "resume"];
+function buildResumeArgs({ config, outputPath, sessionId, command = "resume" }) {
+  const args = ["exec", "--output-last-message", outputPath, command];
 
   appendCodexConfigArgs(args, config);
 
@@ -439,21 +440,21 @@ export async function run(config) {
     }
 
     if (config.sessionId) {
-      const args = buildResumeArgs({ config, outputPath, sessionId: config.sessionId });
-      const result = await runCodexSpawn({
-        binary: config.binary,
-        args,
-        workdir: config.workdir,
-        timeoutMs: config.timeoutMs,
+      return await resumeCodexSession({
+        config,
         outputPath,
-        onLine,
-        signal: config.signal,
-        stdinText: prompt,
+        buildArgs: (command) => buildResumeArgs({ config, outputPath, sessionId: config.sessionId, command }),
+        execute: (args) => runCodexSpawn({
+          binary: config.binary,
+          args,
+          workdir: config.workdir,
+          timeoutMs: config.timeoutMs,
+          outputPath,
+          onLine,
+          signal: config.signal,
+          stdinText: prompt,
+        }),
       });
-      if (!result.nativeSessionId) {
-        result.newSessionId = String(config.sessionId || "").trim();
-      }
-      return result;
     }
 
     const args = buildFreshArgs({ config, outputPath });

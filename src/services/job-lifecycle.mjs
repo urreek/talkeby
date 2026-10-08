@@ -52,6 +52,7 @@ export function createJobFromTask({
   task,
   projectName = "",
   threadId,
+  resumedFromJobId = null,
 }) {
   const normalizedTask = String(task || "").trim();
   if (!normalizedTask) {
@@ -107,6 +108,7 @@ export function createJobFromTask({
     projectName: activeProject.name,
     workdir: activeProject.workdir,
     provider,
+    resumedFromJobId,
     status: executionMode === "interactive" ? "pending_approval" : "queued",
     pendingApprovalAt: executionMode === "interactive" ? now : "",
     queuedAt: executionMode === "interactive" ? "" : now,
@@ -311,16 +313,11 @@ export function resumeJobFromError({
     task: RESUME_FROM_ERROR_TASK,
     projectName: original.projectName,
     threadId: original.threadId || undefined,
+    resumedFromJobId: original.id,
   });
   if (created.error) {
     return created;
   }
 
-  const patched = state.patchJob(created.job.id, {
-    resumedFromJobId: original.id,
-  });
-  if (patched) {
-    created.job = patched;
-  }
   return created;
 }

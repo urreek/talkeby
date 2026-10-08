@@ -101,7 +101,53 @@ test("resumed native Codex runs use codex exec resume <sessionId>", async () => 
         assert.equal(logged.args.at(-1), "-");
         assert.equal(logged.prompt, "continue this native session\n");
         assert.equal(result.message, "runner resume ok");
+        assert.equal(result.newSessionId, sessionId);
       });
+    } finally {
+      setCodexSpawnCompatForTests();
+    }
+  });
+});
+
+test("native resume recovers an active desktop writer through exec fork with the same safety config", async () => {
+  const sessionId = "11111111-2222-4333-8444-555555555555";
+  const forkId = "aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeeeee";
+  const calls = [];
+  const mockSpawn = createMockCodexSpawn();
+  await withFakeCodexEnv({
+    FAKE_CODEX_EXIT_CODE: "1",
+    FAKE_CODEX_STDERR: `Error: thread/resume: thread/resume failed: thread ${sessionId} already has an active writer (code -32600)`,
+    FAKE_CODEX_SESSION_ID: "",
+  }, async () => {
+    setCodexSpawnCompatForTests((binary, args, options) => {
+      calls.push({ args, options });
+      if (args.includes("fork")) {
+        process.env.FAKE_CODEX_EXIT_CODE = "0";
+        process.env.FAKE_CODEX_STDERR = "";
+        process.env.FAKE_CODEX_SESSION_ID = forkId;
+      }
+      return mockSpawn(binary, args, options);
+    });
+    try {
+      const result = await run({
+        binary: "codex",
+        sessionId,
+        task: "continue from desktop",
+        workdir: process.cwd(),
+        timeoutMs: 5000,
+        sandboxMode: "read-only",
+        model: "configured-model",
+        reasoningEffort: "medium",
+        nativeCodexThreadMode: true,
+      });
+      assert.equal(result.newSessionId, forkId);
+      assert.equal(calls.length, 2);
+      assert.equal(calls[0].args[3], "resume");
+      assert.equal(calls[1].args[3], "fork");
+      assert.deepEqual(calls[0].args.slice(4), calls[1].args.slice(4));
+      assert.ok(calls[1].args.includes("sandbox_mode=read-only"));
+      assert.equal(calls[1].options.cwd, process.cwd());
+      assert.equal(calls[1].args.at(-1), "-");
     } finally {
       setCodexSpawnCompatForTests();
     }
