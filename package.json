@@ -25,7 +25,7 @@
     "launchd:install:all": "npm run launchd:install && npm run launchd:web:install",
     "launchd:uninstall:all": "npm run launchd:web:uninstall && npm run launchd:uninstall",
     "tunnel:cloudflare": "bash ./scripts/cloudflare-tunnel.sh",
-    "test": "node --test --test-isolation=none \"test/*.test.mjs\""
+    "test": "node --test --test-isolation=none --test-concurrency=1 \"test/*.test.mjs\""
   },
   "engines": {
     "node": ">=20.19.0"

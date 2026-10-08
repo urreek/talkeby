@@ -10,6 +10,22 @@ function safeTimestamp(value) {
   return value ? String(value) : "";
 }
 
+function ensureWorkspaceConfig(config) {
+  const workspace = config?.workspace || {};
+  const legacyProjects = config?.codex?.projects instanceof Map
+    ? config.codex.projects
+    : new Map();
+  const legacyDefaultProject = textValue(config?.codex?.defaultProjectName || "");
+
+  if (!(workspace.projects instanceof Map)) {
+    workspace.projects = legacyProjects;
+  }
+  if (!workspace.defaultProjectName) {
+    workspace.defaultProjectName = legacyDefaultProject;
+  }
+  return workspace;
+}
+
 function isValidProjectName(name) {
   return /^[a-zA-Z0-9][a-zA-Z0-9._-]{0,63}$/.test(name);
 }
@@ -30,7 +46,8 @@ function resolveModelForProvider(providerName, modelName) {
 
 export class RuntimeState {
   constructor({ config, repository }) {
-    this.config = config;
+    this.config = config || {};
+    this.config.workspace = ensureWorkspaceConfig(this.config);
     this.repository = repository;
     this.ownerId = OWNER_SUBJECT_ID;
 
@@ -38,9 +55,9 @@ export class RuntimeState {
     this.latestJobId = "";
     this.latestPendingJobId = "";
     this.activeProjectName = "";
-    this.executionMode = config.app?.defaultExecutionMode || "auto";
-    this.provider = config.runner?.provider || "codex";
-    this.model = resolveModelForProvider(this.provider, config.runner?.model || "");
+    this.executionMode = this.config.app?.defaultExecutionMode || "auto";
+    this.provider = this.config.runner?.provider || "codex";
+    this.model = resolveModelForProvider(this.provider, this.config.runner?.model || "");
     this.reasoningEffort = "medium";
     this.planMode = false;
     this.runtimeApprovalWaiters = new Map();

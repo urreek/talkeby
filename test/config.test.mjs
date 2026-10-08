@@ -8,21 +8,27 @@ import { loadConfig } from "../src/config.mjs";
 
 function withEnv(overrides, fn) {
   const original = { ...process.env };
-  const next = { ...original };
+  const keys = new Set([...Object.keys(process.env), ...Object.keys(overrides || {})]);
 
   for (const [key, value] of Object.entries(overrides || {})) {
     if (value === undefined) {
-      delete next[key];
+      delete process.env[key];
     } else {
-      next[key] = value;
+      process.env[key] = value;
     }
   }
 
-  process.env = next;
   try {
     return fn();
   } finally {
-    process.env = original;
+    for (const key of keys) {
+      const value = original[key];
+      if (value === undefined) {
+        delete process.env[key];
+      } else {
+        process.env[key] = value;
+      }
+    }
   }
 }
 

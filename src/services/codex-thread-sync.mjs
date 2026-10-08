@@ -55,6 +55,16 @@ function buildFallbackSandboxPolicy(workdir) {
   });
 }
 
+function getProjectMap(config) {
+  if (config?.workspace?.projects instanceof Map) {
+    return config.workspace.projects;
+  }
+  if (config?.codex?.projects instanceof Map) {
+    return config.codex.projects;
+  }
+  return new Map();
+}
+
 function resolveProjectNameForWorkdir(config, workdir) {
   const normalizedWorkdir = normalizePath(workdir);
   if (!normalizedWorkdir) {
@@ -63,7 +73,7 @@ function resolveProjectNameForWorkdir(config, workdir) {
 
   let bestProjectName = "";
   let bestLength = -1;
-  for (const [projectName, projectPath] of config.workspace.projects.entries()) {
+  for (const [projectName, projectPath] of getProjectMap(config).entries()) {
     const normalizedProjectPath = normalizePath(projectPath);
     if (!normalizedProjectPath) {
       continue;
@@ -90,7 +100,7 @@ function parseGitMeta(meta = {}) {
 
 function talkebyThreadWorkdir(config, thread) {
   const projectName = textValue(thread?.projectName);
-  return projectName ? textValue(config.workspace.projects.get(projectName)) : "";
+  return projectName ? textValue(getProjectMap(config).get(projectName)) : "";
 }
 
 function getFirstTalkebyUserMessage(repository, threadId, fallback = "") {

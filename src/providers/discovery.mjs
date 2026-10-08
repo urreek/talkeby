@@ -383,7 +383,7 @@ function collectTextParts(value, output = []) {
     return output;
   }
 
-  for (const key of ["message", "text", "content", "response", "delta", "body", "value"]) {
+  for (const key of ["message", "text", "content", "response", "delta", "body", "value", "data"]) {
     if (key in value) {
       collectTextParts(value[key], output);
     }
@@ -416,7 +416,7 @@ function extractCopilotModelTokens(text) {
   }
 
   const matches = normalized.match(
-    /\b(?:gpt-[a-z0-9.-]+|claude-[a-z0-9.-]+|gemini-[a-z0-9.-]+|grok-[a-z0-9.-]+|raptor-[a-z0-9.-]+|o[0-9]+(?:-[a-z0-9.-]+)?)\b/gi,
+    /(?<![/\\])\b(?:gpt-[a-z0-9.-]+|claude-[a-z0-9.-]+|gemini-[a-z0-9.-]+|grok-[a-z0-9.-]+|raptor-[a-z0-9.-]+|o[0-9]+(?:-[a-z0-9.-]+)?)\b/gi,
   ) || [];
   return dedupeModelEntries(
     matches

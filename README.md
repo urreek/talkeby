@@ -41,6 +41,8 @@ That memory includes:
 Open the same thread URL on another device and you land on the same backend thread memory.
 Different devices can browse different threads independently.
 Talkeby also imports native Codex app threads that belong to configured projects, and exports Talkeby threads with a persisted native Codex session id back into the Codex app registry so they are visible in both clients.
+
+Runtime services accept legacy Codex project configuration during migration; explicit workspace configuration takes precedence. Copilot model discovery reads structured JSONL payloads and skips provider-prefixed model identifiers that its CLI cannot use.
 A brand-new Talkeby thread appears in the Codex app after its first native Codex run creates that session id.
 Imported Codex threads show their native conversation history in Talkeby as read-only transcript turns until newer Talkeby-run jobs are appended.
 Deleting a thread from Talkeby archives it from the active lists instead of permanently deleting the native Codex session.
