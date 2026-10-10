@@ -2,6 +2,8 @@
 
 ## Runtime Topology
 
+Setup runs on built-in Node modules before dependencies exist. `scripts/setup.mjs` composes focused environment, provider, and process modules. Root `npm ci` runs frontend `npm ci` through postinstall; provider installation is separate from locked application dependencies. npm subprocesses use the npm JavaScript entry point when available, avoiding Windows command-shim failures. Existing configuration is preserved, placeholder paths/keys are repaired, and native SQLite is verified by opening an in-memory database. Quickstart launches the existing development supervisor only after setup succeeds.
+
 Subscription usage is read-only and separate from job token accounting. `providers/codex-subscription.mjs` reads ChatGPT quota windows through the local Codex RPC transport, with a bounded timeout and subprocess cleanup. `services/subscription-usage.mjs` normalizes an allowlisted response, deduplicates concurrent reads, and caches for 30 seconds (manual refresh has a five-second throttle). `http/subscription-routes.mjs` validates provider input and returns only compact quota fields behind the existing owner authentication hooks. No credentials or raw provider payloads reach the frontend or persistence. The workspace UI polls only the selected provider and links Claude users to their documented usage dashboard.
 
 - `src/server.mjs`: composition root (config, DB, services, HTTP)

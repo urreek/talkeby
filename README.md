@@ -58,52 +58,41 @@ If a parity-mode thread loses its native Codex session, start a new thread.
 
 ## Prerequisites
 
-- Node.js `>=20.19` (Node 22 LTS recommended)
-- Codex CLI installed and authenticated on the machine that runs Talkeby
+- Git and Node.js `>=20.19` with npm (development is tested with Node 24)
+- A Codex account; setup installs the CLI if needed and guides sign-in
 - GitHub Copilot CLI installed and authenticated if using the `copilot` provider
 - Aider CLI installed if using Groq/OpenRouter providers
 
-Authenticate Codex once on the host machine:
-
-```bash
-codex login
-```
-
 ## Quickstart
 
-1. Clone the repo.
+Clone the repo, then run one command:
 
 ```bash
-git clone <your-repo-url>
+git clone https://github.com/urreek/talkeby.git
 cd talkeby
+npm run quickstart
 ```
 
-2. Bootstrap dependencies and create `.env` if missing.
+Setup installs backend and frontend dependencies from their lockfiles, creates `.env` with local paths and a unique login key, installs Codex if absent, checks sign-in and SQLite, then starts both servers. It works in Windows PowerShell, macOS, and Linux. Follow Codex's sign-in prompt when needed.
 
-```bash
-npm run setup:auto
-```
+Open `http://localhost:5173` and log in with `APP_ACCESS_KEY` from your local `.env`. Setup never prints that key. The initial project is the Talkeby folder; add other folders in Settings. New installs use `interactive` execution, native Codex continuity, and the configured sandbox. Existing settings and login keys are preserved; incompatible existing settings receive an actionable error.
 
-3. Run guided setup to confirm access key and workspace path.
-
-```bash
-npm run setup
-```
-
-4. Start backend and web app.
+On later runs, start directly without reinstalling:
 
 ```bash
 npm run dev:all
 ```
 
-Or run them separately:
+For setup without starting, use `npm run setup` (`setup:auto` is an alias). Run `npm run setup:guided` for manual workspace/key configuration, or `npm run doctor` for diagnostics. A noninteractive terminal with no Codex authentication receives instructions to run `codex login`; it does not wait for browser sign-in.
+
+Or run the servers separately:
 
 ```bash
 npm start
 npm run web:dev
 ```
 
-5. Open the web app.
+Access addresses:
 
 - Local machine: `http://localhost:5173`
 - The web server always uses the same configured port on restart: `TALKEBY_WEB_PORT`, then `WEB_PORT`, then `5173`. Set it in the root `.env` or process environment. Dev and preview fail if that port is occupied instead of switching to another port; stop the previous instance before restarting. The backend uses `PORT` (default `3000`).
@@ -122,6 +111,8 @@ Minimum useful setup:
 - `CODEX_BINARY=codex`
 
 See [`.env.example`](/Users/urimkrasniqi/Desktop/dev/talkeby/.env.example) for the full list.
+
+Setup defaults: `DATA_DIR=./data`, `DATABASE_FILE=./data/talkeby.db`, `WORKSPACE_DIR=.`, `PORT=3000`, `WEB_PORT=5173`, `DEFAULT_EXECUTION_MODE=interactive`, and `RUNTIME_POLICY_ENABLED=false` for native Codex continuity. The generated access key remains in your ignored `.env`; each developer uses their own configuration and provider authentication.
 
 Important variables:
 

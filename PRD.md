@@ -109,6 +109,7 @@ Developers want to code while away from their computer (travel, outdoors, commut
 10. Setup:
 
 - Simple install/start instructions.
+- After cloning, `npm run quickstart` installs locked backend/frontend dependencies, creates local configuration with a generated access key and interactive execution, installs Codex when missing, checks sign-in and SQLite, and starts both servers. Repeated setup preserves configured values; missing prerequisites and incompatible settings return actionable errors on Windows, macOS, and Linux.
 - Background service support (`launchd` first).
 
 ## Non-Functional Requirements

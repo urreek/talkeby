@@ -8,6 +8,7 @@ import path from "node:path";
 import readline from "node:readline/promises";
 import { stdin as input, stdout as output } from "node:process";
 import { fileURLToPath } from "node:url";
+import { findBinary, runCommand as executeCommand } from "./setup/process.mjs";
 
 const ROOT_DIR = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const ENV_PATH = path.join(ROOT_DIR, ".env");
@@ -97,32 +98,11 @@ function removeEnvKeys(filePath, keys) {
 }
 
 function which(binary) {
-  const candidate = String(binary || "").trim();
-  if (!candidate) {
-    return "";
-  }
-
-  if (path.isAbsolute(candidate) || candidate.includes("/") || candidate.includes("\\")) {
-    return fs.existsSync(candidate) ? candidate : "";
-  }
-
-  const locator = process.platform === "win32" ? "where" : "which";
-  const result = spawnSync(locator, [candidate], {
-    cwd: ROOT_DIR,
-    encoding: "utf8",
-  });
-  if (result.status !== 0) {
-    return "";
-  }
-  const first = String(result.stdout || "")
-    .split(/\r?\n/)
-    .map((line) => line.trim())
-    .find(Boolean);
-  return first || "";
+  return findBinary(String(binary || "").trim(), ROOT_DIR);
 }
 
 function runCommand(command, args) {
-  const result = spawnSync(command, args, {
+  const result = executeCommand(command, args, {
     cwd: ROOT_DIR,
     stdio: "inherit",
     env: process.env,
@@ -281,7 +261,7 @@ async function runInstall() {
 
   if (installDepsAnswer.startsWith("y")) {
     printHeader("Installing Dependencies");
-    if (!runCommand("npm", ["install"])) {
+    if (!runCommand("npm", ["ci"])) {
       process.exitCode = 1;
       return;
     }

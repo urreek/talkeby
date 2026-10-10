@@ -1,5 +1,5 @@
-import { spawnSync } from "node:child_process";
 import { createRequire } from "node:module";
+import { requireCommand } from "./setup/process.mjs";
 
 const require = createRequire(import.meta.url);
 
@@ -16,22 +16,17 @@ function shouldRebuild(error) {
 }
 
 function runRebuild() {
-  const result = spawnSync(
-    process.platform === "win32" ? "npm.cmd" : "npm",
-    ["rebuild", "better-sqlite3"],
-    {
-      stdio: "inherit",
-      env: process.env,
-    },
-  );
+  requireCommand("npm", ["rebuild", "better-sqlite3"]);
+}
 
-  if (result.status !== 0) {
-    process.exit(result.status || 1);
-  }
+function verifyDatabase() {
+  const Database = require("better-sqlite3");
+  const database = new Database(":memory:");
+  database.close();
 }
 
 try {
-  require("better-sqlite3");
+  verifyDatabase();
 } catch (error) {
   if (!shouldRebuild(error)) {
     throw error;
@@ -42,6 +37,6 @@ try {
   runRebuild();
 
   // Validate that rebuild succeeded for this runtime.
-  require("better-sqlite3");
+  verifyDatabase();
 }
 
