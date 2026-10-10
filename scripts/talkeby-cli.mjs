@@ -9,27 +9,16 @@ import readline from "node:readline/promises";
 import { stdin as input, stdout as output } from "node:process";
 import { fileURLToPath } from "node:url";
 import { findBinary, runCommand as executeCommand } from "./setup/process.mjs";
+import { environmentMap, environmentBoolean as parseBoolean, environmentPort } from "./setup/env-values.mjs";
+import { remoteSettings } from "../shared/remote-access.mjs";
+import { providerBinary, providerInfo } from "./remote/providers.mjs";
 
 const ROOT_DIR = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const ENV_PATH = path.join(ROOT_DIR, ".env");
 const ENV_EXAMPLE_PATH = path.join(ROOT_DIR, ".env.example");
 
 function parseEnv(text) {
-  const map = new Map();
-  for (const rawLine of String(text || "").split(/\r?\n/)) {
-    const line = rawLine.trim();
-    if (!line || line.startsWith("#")) {
-      continue;
-    }
-    const idx = line.indexOf("=");
-    if (idx <= 0) {
-      continue;
-    }
-    const key = line.slice(0, idx).trim();
-    const value = line.slice(idx + 1).trim();
-    map.set(key, value);
-  }
-  return map;
+  return environmentMap(String(text || ""));
 }
 
 function readEnvFile() {
@@ -127,11 +116,6 @@ function nodeVersionOk() {
 function isPlaceholderPath(value) {
   const normalized = String(value || "").toLowerCase();
   return normalized.includes("your-user") || normalized.includes("path/to/repo");
-}
-
-function parseInteger(value, fallback) {
-  const parsed = Number.parseInt(String(value ?? ""), 10);
-  return Number.isFinite(parsed) ? parsed : fallback;
 }
 
 function ensureWritableDirectory(dirPath) {
@@ -360,7 +344,7 @@ async function runDoctor() {
   if (!envExists) {
     addFailure(`Missing ${ENV_PATH}.`, "npm run setup:guided");
   }
-  const env = envExists ? readEnvFile() : new Map();
+  const env = new Map([...(envExists ? readEnvFile() : []), ...Object.entries(process.env)]);
 
   if (!nodeVersionOk()) {
     addFailure(
@@ -386,8 +370,12 @@ async function runDoctor() {
   const dataDir = String(env.get("DATA_DIR") || path.join(ROOT_DIR, "data")).trim();
   const databaseFile = String(env.get("DATABASE_FILE") || "").trim() || path.join(dataDir, "talkeby.db");
   const appAccessKey = String(env.get("APP_ACCESS_KEY") || "").trim();
-  const port = parseInteger(env.get("PORT") || "3000", 3000);
-  const webPort = parseInteger(env.get("WEB_PORT") || "5173", 5173);
+  let port;
+  let webPort;
+  try { port = environmentPort(env, "backend"); }
+  catch (error) { addFailure(error.message, "Set PORT to a valid integer in .env."); }
+  try { webPort = environmentPort(env, "web"); }
+  catch (error) { addFailure(error.message, "Set WEB_PORT or TALKEBY_WEB_PORT to a valid integer in .env."); }
 
   const providerRequirements = [
     { id: "codex", binary: binaries.codex, binaryEnv: "CODEX_BINARY", apiEnv: "", builtInAuth: true },
@@ -505,28 +493,24 @@ async function runDoctor() {
     );
   }
 
-  const cloudflaredBinary = which("cloudflared");
-  const cloudflareToken = String(env.get("CLOUDFLARE_TUNNEL_TOKEN") || process.env.CLOUDFLARE_TUNNEL_TOKEN || "").trim();
+  const remoteEnv = Object.fromEntries(env);
+  if (remoteEnv.TALKEBY_REMOTE_PROVIDER) {
+    try {
+      const settings = remoteSettings(remoteEnv);
+      if (!providerBinary(settings.provider, remoteEnv, ROOT_DIR)) {
+        addFailure(`${providerInfo[settings.provider].command} is missing.`, "npm run remote:setup");
+      } else {
+        addInfo(`Remote configuration: ${settings.provider}; connector installed. Account routing/access still requires an end-to-end check.`);
+      }
+    } catch (error) { addFailure(error.message, "npm run remote:setup"); }
+  } else {
+    addInfo("Remote access has not been configured. Run npm run remote:setup when needed.");
+  }
   const codexParityMode = parseBoolean(env.get("CODEX_PARITY_MODE") ?? process.env.CODEX_PARITY_MODE, true);
   const codexSessionResumeEnabled = !parseBoolean(
     env.get("CODEX_DISABLE_SESSION_RESUME") ?? process.env.CODEX_DISABLE_SESSION_RESUME,
     !codexParityMode,
   );
-  if (!cloudflaredBinary) {
-    addWarning(
-      "cloudflared binary not found (internet tunnel helper unavailable).",
-      commandForPlatform({
-        darwin: "brew install cloudflared",
-        linux: "Install cloudflared from https://developers.cloudflare.com/cloudflare-one/connections/connect-networks/downloads/",
-        win32: "winget install Cloudflare.cloudflared",
-        default: "Install cloudflared and rerun doctor.",
-      }),
-    );
-  } else if (!cloudflareToken) {
-    addInfo(
-      "CLOUDFLARE_TUNNEL_TOKEN not set for Talkeby's built-in tunnel helper. Existing Cloudflare tunnel/service setups still work.",
-    );
-  }
   if (codexParityMode) {
     addInfo("CODEX_PARITY_MODE enabled. Talkeby will avoid injecting managed thread context into Codex prompts.");
   } else {

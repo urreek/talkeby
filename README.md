@@ -250,8 +250,10 @@ Doctor checks:
 - writable data and database directories
 - backend and web ports
 - access key presence
-- cloudflared availability and tunnel token state
+- selected remote provider, HTTPS configuration, and connector availability
 - macOS launchd service state
+
+Doctor reads quoted `.env` values with Node's dotenv parser and honors process environment overrides, including `TALKEBY_WEB_PORT`. It validates the selected remote configuration without printing credentials. A successful local check does not verify Cloudflare routing/Access policies or Tailscale device access; complete remote setup and test the printed URL from your phone.
 
 Run repository checks:
 
