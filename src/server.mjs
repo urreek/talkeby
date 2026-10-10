@@ -87,7 +87,7 @@ async function start() {
 
   await app.listen({
     port: config.port,
-    host: "0.0.0.0",
+    host: process.env.TALKEBY_BIND_HOST || "0.0.0.0",
   });
 
   app.log.info(`Default execution mode: ${config.app.defaultExecutionMode}`);

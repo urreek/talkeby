@@ -1,4 +1,3 @@
-import fs from "node:fs";
 import type { IncomingMessage, ServerResponse } from "node:http";
 import net from "node:net";
 import path from "node:path";
@@ -8,26 +7,16 @@ import { VitePWA } from "vite-plugin-pwa";
 import { defineConfig, loadEnv, type Plugin } from "vite";
 import { webPortOptions } from "./config/web-port";
 import { shouldCacheApi } from "./config/api-cache";
+import { remoteAllowedHosts, remotePort } from "../shared/remote-access.mjs";
 
-function resolveBackendTarget() {
-  const explicitTarget = process.env.TALKEBY_API_ORIGIN?.trim();
+function resolveBackendTarget(env: Record<string, string>) {
+  const explicitTarget = env.TALKEBY_API_ORIGIN?.trim();
   if (explicitTarget) {
     return explicitTarget;
   }
 
-  const rootEnvPath = path.resolve(__dirname, "../.env");
-  if (fs.existsSync(rootEnvPath)) {
-    const raw = fs.readFileSync(rootEnvPath, "utf8");
-    const portMatch = raw.match(/^PORT=(\d{2,5})$/m);
-    if (portMatch) {
-      return `http://127.0.0.1:${portMatch[1]}`;
-    }
-  }
-
-  return "http://127.0.0.1:3000";
+  return `http://127.0.0.1:${remotePort(env.PORT, 3000, "PORT")}`;
 }
-
-const backendTarget = resolveBackendTarget();
 
 type NextFunction = (error?: unknown) => void;
 
@@ -147,7 +136,12 @@ function createApiBackendGuard(target: string): Plugin {
 }
 
 export default defineConfig(({ mode }) => {
-  const webPort = webPortOptions(loadEnv(mode, path.resolve(__dirname, ".."), ""));
+  const env = loadEnv(mode, path.resolve(__dirname, ".."), "");
+  const webPort = webPortOptions(env);
+  const backendTarget = resolveBackendTarget(env);
+  const host = env.TALKEBY_BIND_HOST || true;
+  const allowedHosts = ["nkdev.urimkrasniqi.com", "talkeby.urimkrasniqi.com", ...remoteAllowedHosts(env.TALKEBY_PUBLIC_URL)];
+  const proxy = { "/api": { target: backendTarget, changeOrigin: true } };
 
   return {
   plugins: [
@@ -202,19 +196,11 @@ export default defineConfig(({ mode }) => {
     }
   },
   server: {
-    host: true,
-    allowedHosts: [
-      "nkdev.urimkrasniqi.com",
-      "talkeby.urimkrasniqi.com"
-    ],
+    host,
+    allowedHosts,
     ...webPort,
-    proxy: {
-      "/api": {
-        target: backendTarget,
-        changeOrigin: true
-      }
-    }
+    proxy,
   },
-  preview: { ...webPort, host: true },
+  preview: { ...webPort, host, allowedHosts, proxy },
   };
 });

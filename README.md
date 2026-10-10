@@ -263,13 +263,23 @@ npm run web:check
 
 ## Internet Access
 
-If you want secure remote access from outside your local network, use a tunnel in front of the web app and keep `APP_ACCESS_KEY` enabled.
-
-Start the Cloudflare helper:
+Choose either provider in the guided setup, then start with one command:
 
 ```bash
-npm run tunnel:cloudflare
+npm run remote:setup
+npm run remote:start
 ```
+
+Setup includes normal application onboarding, offers to install the selected connector with winget on Windows, and saves your choice and HTTPS address in the ignored `.env`. Later starts reuse that configuration. To choose directly or switch providers, use `npm run remote:setup -- tailscale` or `npm run remote:setup -- cloudflare`. Stop a running instance before switching.
+
+- **Tailscale:** sign in on the host and phone using the same tailnet. Setup discovers the machine's stable `.ts.net` address and checks for existing Serve services. On first start, follow Tailscale's HTTPS enablement link if shown. Access stays private to your tailnet; Talkeby uses Serve. The default HTTPS port is 443; setup allows another port when 443 already serves another app.
+- **Cloudflare:** create a named tunnel, route your hostname to `HTTP http://127.0.0.1:5173` (or the web port printed by setup), and protect the hostname with a Cloudflare Access application and an Allow policy for your email. Setup walks through these account steps, asks for the hostname, and accepts a hidden token. Enter only the token from Cloudflare's installation command. A Cloudflare-managed domain is required. [Cloudflare's account setup guide](https://developers.cloudflare.com/cloudflare-one/setup/secure-private-apps/private-web-app/) explains the dashboard steps. Temporary Quick Tunnels are unsupported because [they do not support SSE](https://developers.cloudflare.com/tunnel/get-started/quick-tunnels/).
+
+`remote:start` builds the frontend, runs the backend and web preview on loopback with fixed ports, then starts the chosen HTTPS connector. Open the printed URL after the connector reports ready. Log in with `APP_ACCESS_KEY` from your local `.env`; Cloudflare Access is an additional login. Ctrl+C stops the app and connector. A child-process failure stops the other processes too. Existing Tailscale Serve services are never overwritten. If the host's Tailscale address changes, rerun setup; if the Cloudflare web port changes, update the dashboard route as well.
+
+macOS/Linux users install the selected connector from [Tailscale](https://tailscale.com/download) or [Cloudflare](https://developers.cloudflare.com/tunnel/downloads/) if missing; setup prints the appropriate link. No router port forwarding is needed. HTTPS also enables phone microphone access. Local `npm run dev:all` still works independently of the saved remote choice. `npm run tunnel:cloudflare` is a compatibility alias for starting the configured Cloudflare app and tunnel.
+
+Remote variables are documented in `.env.example`: `TALKEBY_REMOTE_PROVIDER` (unset by default), `TALKEBY_PUBLIC_URL` (exact HTTPS origin), `TALKEBY_TAILSCALE_PORT` (443), `CLOUDFLARE_TUNNEL_TOKEN` (required only for Cloudflare), and optional connector binary overrides. `TALKEBY_BIND_HOST` defaults to `0.0.0.0` for ordinary starts; remote start overrides it to `127.0.0.1`. `TALKEBY_API_ORIGIN` normally derives from `PORT`, and remote start overrides it to the local backend. Tunnel tokens stay in `.env`, are passed through environment variables, and are never printed or included in command arguments. Never commit or share `.env`.
 
 ## Git-First Workflow
 

@@ -20,6 +20,14 @@ function writeValues(source, updates) {
   return `${lines.join("\n").trimEnd()}\n`;
 }
 
+export function updateEnvironment(rootDir, values) {
+  const envPath = path.join(rootDir, ".env");
+  const source = fs.readFileSync(envPath, "utf8");
+  const text = writeValues(source, new Map(Object.entries(values)));
+  fs.writeFileSync(envPath, text, { mode: 0o600 });
+  return parseEnv(text);
+}
+
 export function prepareEnvironment(rootDir) {
   const envPath = path.join(rootDir, ".env");
   const fresh = !fs.existsSync(envPath);

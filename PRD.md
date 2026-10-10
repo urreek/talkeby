@@ -25,6 +25,7 @@ Developers want to code while away from their computer (travel, outdoors, commut
 4. Stream live job progress and status updates with low latency.
 5. Keep sensitive data local-first by default.
 6. Make setup easy for other developers on their own machine.
+   Guided remote setup supports private Tailscale HTTPS access or a named Cloudflare Tunnel with Access protection. The selected provider/address persists locally; one startup command launches the app and connector on fixed ports, and stopping it closes both. Cloudflare domain/policy setup remains an explicit account step. Existing Tailscale Serve services must be preserved.
 
 ## Non-Goals
 
