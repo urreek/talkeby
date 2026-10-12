@@ -24,6 +24,8 @@ Subscription usage is read-only and separate from job token accounting. `provide
 
 ## State Model
 
+Native thread imports use `db/thread-import.mjs` inside an immediate SQLite transaction. The importer rechecks session ownership under the writer lock and checks raw thread IDs, including archived or merged records. An occupied ID receives a new UUID; normal thread creation still rejects duplicates and unrelated database failures propagate. This preserves conversation identity after native session forks and prevents overlapping importers from creating the same row.
+
 - Source of truth: SQLite (`jobs`, `chat_settings`, `job_events`).
 - `RuntimeState` keeps an in-memory index for fast chat-local lookups and is hydrated from DB on boot.
 - Event stream replay is supported via `afterEventId` to handle reconnects.

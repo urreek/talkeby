@@ -1,5 +1,6 @@
 import { and, asc, desc, eq, gt, sql } from "drizzle-orm";
 import { insertJobImages, listJobImages } from "./job-images.mjs";
+import { createImportedThread } from "./thread-import.mjs";
 
 import {
   appSettingsTable,
@@ -412,6 +413,10 @@ export class TalkebyRepository {
       .where(eq(threadsTable.cliSessionId, String(cliSessionId)))
       .limit(1)
       .get();
+  }
+
+  createImportedThread(input) {
+    return createImportedThread(this, input);
   }
 
   createThread({

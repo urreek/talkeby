@@ -31,6 +31,8 @@ It runs on one primary machine, keeps Codex-style thread memory on that machine,
 
 Each thread owns its own memory.
 
+Codex imports are atomic and repeatable. If a native session ID is already used as a Talkeby thread ID whose session has changed, the importer assigns the native conversation a separate ID. Existing messages, titles, settings, and archived records are preserved; a database reset is not needed.
+
 That memory includes:
 
 - persisted Talkeby job history for the thread

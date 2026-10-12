@@ -209,7 +209,7 @@ export class CodexThreadSync {
 
       const title = textValue(appThread.title || appThread.first_user_message || "Conversation");
       if (!existing) {
-        this.repository.createThread({
+        this.repository.createImportedThread({
           id: appThread.id,
           projectName,
           title,
