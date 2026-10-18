@@ -1,5 +1,12 @@
 # PRD: Talkeby Mobile Copilot
 
+Generated output media: save referenced project-local images and videos in each
+project's Git-ignored `talkeby-previews/<job-hash>/` directory at job completion.
+Copies must remain viewable/downloadable for one week by default, survive source
+deletion and server restarts, and support video byte-range seeking. Expiry must
+be enforced on reads as well as by periodic cleanup, without early capacity-based
+eviction or deletion of original project files.
+
 ## Document Control
 
 - Version: 1.0

@@ -1,5 +1,17 @@
 # Talkeby Architecture Notes
 
+Output media is validated against job Markdown references and the configured
+project before being copied into `talkeby-previews/<SHA-256 job ID>/` with hashed
+reference filenames. The worker captures media before publishing completion;
+native/older history captures on first access. Writes use private temporary files
+and atomic rename, with per-reference serialization. Saved copies retain the job
+completion timestamp as mtime, so reads and cleanup share a fixed seven-day expiry
+that survives restarts and cannot be extended by viewing. Both media endpoints use
+the saved copy; video streaming retains byte-range support. Cleanup only removes
+expired managed files, never evicts unexpired captures for capacity, and rejects
+redirected storage directories. Save failures emit a redacted job event without
+failing otherwise successful code execution.
+
 ## Runtime Topology
 
 Remote access is composed by `scripts/remote.mjs` from separate setup, provider, prompt, and supervisor modules. Shared remote configuration validates HTTPS origins and fixed ports; Vite allows only the selected exact hostname alongside legacy hosts and proxies `/api` in both dev and preview. Remote start binds origins to loopback, waits for readiness, then runs foreground Tailscale Serve or a token-authenticated named Cloudflare Tunnel. The supervisor stops owned process trees on cancellation or failure. Existing Serve configurations are checked before launch and never reset. Cloudflare credentials are environment-only in connector arguments; its account hostname/Access policy remain dashboard-managed. Quick Tunnels are excluded because they do not support SSE. Auth, CSRF, and event replay stay in the existing backend services.

@@ -1,5 +1,17 @@
 # Talkeby
 
+Generated images and videos linked in job output are saved under each project's
+`talkeby-previews/<job-hash>/` folder when the job completes. They remain viewable
+and downloadable from chat even if the original files are removed or replaced.
+The default expiry is **one week (168 hours)** after job completion; opening a
+preview does not extend it. Cleanup runs at startup and every minute, deleting
+only managed copies. Original project files are left intact. Older/native chat
+media is copied on first view while its source is available and within retention.
+Set `MEDIA_RETENTION_HOURS` (1–168, default 168) to shorten retention and
+`MEDIA_MAX_VIDEO_MB` (1–24, default 24) to limit video size. Images are limited to
+5 MiB and 8,294,400 pixels. Storage pressure does not delete unexpired previews;
+allow enough disk space for a week's captures. The preview folder is ignored by Git.
+
 Talkeby is a local-first remote cockpit for AI coding agents.
 It runs on one primary machine, keeps Codex-style thread memory on that machine, and lets you continue the same thread from any authenticated device through the web app.
 

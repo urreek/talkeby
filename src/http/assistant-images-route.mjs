@@ -1,4 +1,5 @@
-import { readAssistantImage } from "../services/assistant-images.mjs";
+import { openAssistantMedia } from "../services/assistant-media.mjs";
+import { mediaKind } from "../../shared/assistant-media.mjs";
 import { resolveAssistantImageJob } from "../services/assistant-image-job.mjs";
 
 export function registerAssistantImagesRoute({ app, state, config, repository }) {
@@ -14,14 +15,16 @@ export function registerAssistantImagesRoute({ app, state, config, repository })
     const job = await resolveAssistantImageJob({
       jobId: request.params.id, state, repository, projects: config.workspace.projects,
     });
-    const image = await readAssistantImage({
+    if (mediaKind(request.query.path) !== "image") return reply.code(404).send({ error: "Image not found or unavailable." });
+    const image = await openAssistantMedia({
       job, reference: request.query.path,
       projectRoot: config.workspace.projects.get(job?.projectName),
+      retentionHours: config.media?.retentionHours,
     });
     if (!image) return reply.code(404).send({ error: "Image not found or unavailable." });
     return reply.header("Cache-Control", "no-store")
       .header("X-Content-Type-Options", "nosniff")
       .header("Content-Security-Policy", "default-src 'none'; sandbox")
-      .type(image.mimeType).send(image.data);
+      .type(image.mimeType).send(image.stream());
   });
 }

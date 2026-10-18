@@ -26,6 +26,7 @@ import {
 import { buildProviderCatalogWithDiscovery } from "../providers/discovery.mjs";
 import { registerEventRoute } from "./events-route.mjs";
 import { registerJobRoutes } from "./jobs-routes.mjs";
+import { registerAssistantMediaRoute } from "./assistant-media-route.mjs";
 import { registerAssistantImagesRoute } from "./assistant-images-route.mjs";
 import { registerTerminalRoutes } from "./terminal-routes.mjs";
 import { registerSubscriptionRoutes } from "./subscription-routes.mjs";
@@ -1158,6 +1159,7 @@ export function registerRoutes({
   });
 
   registerAssistantImagesRoute({ app, state, config, repository });
+  registerAssistantMediaRoute({ app, state, config, repository });
   registerEventRoute(app, eventBus);
   registerTerminalRoutes(app, terminalManager);
   registerSubscriptionRoutes(app, config);

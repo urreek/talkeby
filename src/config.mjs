@@ -325,6 +325,11 @@ export function loadConfig() {
     discoverModels: parseBoolean(process.env.PROVIDER_MODEL_DISCOVERY, true),
   };
 
+  const media = {
+    retentionHours: Math.max(1, Math.min(168, parseInteger(process.env.MEDIA_RETENTION_HOURS, 168))),
+    maxVideoBytes: Math.max(1, Math.min(24, parseInteger(process.env.MEDIA_MAX_VIDEO_MB, 24))) * 1024 * 1024,
+  };
+
   const security = {
     rateLimitPerMinute: Math.max(
       30,
@@ -368,6 +373,7 @@ export function loadConfig() {
     threads,
     runner,
     providers,
+    media,
     security,
     runtimePolicy,
     debug,

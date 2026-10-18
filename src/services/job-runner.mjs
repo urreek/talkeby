@@ -1,5 +1,6 @@
 import crypto from "node:crypto";
 import { materializeJobImages } from "./job-images.mjs";
+import { persistAssistantMedia } from "./assistant-media.mjs";
 
 import { getRunner } from "../runners/index.mjs";
 import { getProviderMeta, isFreeModelAllowed } from "../providers/catalog.mjs";
@@ -752,6 +753,16 @@ export class JobRunner {
           }
 
           const completedAt = new Date().toISOString();
+          await persistAssistantMedia({
+            job: { ...activeJob, summary: result.message, completedAt },
+            projectRoot: this.config.workspace?.projects?.get(activeJob.projectName),
+            ...this.config.media,
+            onError: (error) => this.eventBus.publish({
+              jobId: activeJob.id, chatId: activeJob.chatId, eventType: "media_save_failed",
+              message: "Could not save an output preview. Check project folder permissions and free disk space.",
+              payload: { code: String(error.code || "MEDIA_SAVE_FAILED") },
+            }),
+          });
           const exactTotal = Number.parseInt(String(result?.usage?.totalTokens || 0), 10);
           const exactInput = Number.parseInt(String(result?.usage?.inputTokens || 0), 10);
           const exactOutput = Number.parseInt(String(result?.usage?.outputTokens || 0), 10);
