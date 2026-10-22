@@ -7,6 +7,11 @@ deletion and server restarts, and support video byte-range seeking. Expiry must
 be enforced on reads as well as by periodic cleanup, without early capacity-based
 eviction or deletion of original project files.
 
+Preview reliability: normalize Windows drive links with a leading slash, accept
+generated screenshots up to 16 MiB and 33,177,600 pixels, and distinguish expiry
+from missing files, safety limits, decoding failures, and network errors. Keep
+retry and download controls available when playback fails.
+
 ## Document Control
 
 - Version: 1.0

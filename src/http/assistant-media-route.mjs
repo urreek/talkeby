@@ -1,4 +1,4 @@
-import { openAssistantMedia } from "../services/assistant-media.mjs";
+import { openMediaForReply } from "./media-response.mjs";
 import { resolveAssistantImageJob } from "../services/assistant-image-job.mjs";
 import { parseMediaRange } from "../services/media-range.mjs";
 import { PreviewRetention } from "../services/preview-retention.mjs";
@@ -20,12 +20,12 @@ export function registerAssistantMediaRoute({ app, state, config, repository }) 
     },
   }, async (request, reply) => {
     const job = await resolveAssistantImageJob({ jobId: request.params.id, state, repository, projects: config.workspace.projects });
-    const media = await openAssistantMedia({
+    const media = await openMediaForReply({
       job, reference: request.query.path, projectRoot: config.workspace.projects.get(job?.projectName),
       maxVideoBytes: config.media?.maxVideoBytes,
       retentionHours: config.media?.retentionHours,
-    });
-    if (!media) return reply.code(404).send({ error: "Preview expired, too large, or unavailable." });
+    }, reply);
+    if (!media) return reply;
     reply.header("Cache-Control", "no-store").header("X-Content-Type-Options", "nosniff")
       .header("Content-Security-Policy", "default-src 'none'; sandbox")
       .header("Accept-Ranges", "bytes").type(media.mimeType);

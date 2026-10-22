@@ -9,8 +9,14 @@ only managed copies. Original project files are left intact. Older/native chat
 media is copied on first view while its source is available and within retention.
 Set `MEDIA_RETENTION_HOURS` (1–168, default 168) to shorten retention and
 `MEDIA_MAX_VIDEO_MB` (1–24, default 24) to limit video size. Images are limited to
-5 MiB and 8,294,400 pixels. Storage pressure does not delete unexpired previews;
+16 MiB and 33,177,600 pixels (up to 8K). Storage pressure does not delete unexpired previews;
 allow enough disk space for a week's captures. The preview folder is ignored by Git.
+
+Windows links such as `/C:/project/capture.png` and `sandbox:/C:/project/capture.png`
+are normalized before project validation and storage. Preview failures identify
+actual retention expiry separately from missing files, size limits, unsupported
+formats, browser playback problems, and connection errors. Use **Retry preview**
+for a temporary failure, or download a video if the browser cannot play its codec.
 
 Talkeby is a local-first remote cockpit for AI coding agents.
 It runs on one primary machine, keeps Codex-style thread memory on that machine, and lets you continue the same thread from any authenticated device through the web app.

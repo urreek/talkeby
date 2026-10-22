@@ -12,6 +12,13 @@ expired managed files, never evicts unexpired captures for capacity, and rejects
 redirected storage directories. Save failures emit a redacted job event without
 failing otherwise successful code execution.
 
+Media references normalize `/C:/...` and `sandbox:/C:/...` to the same Windows
+drive path before authorization, hashing, and filesystem resolution. Size and
+pixel limits are centralized in `shared/assistant-media.mjs`. Both preview routes
+return typed media failure codes; true retention expiry uses HTTP 410. After a
+browser media error, the viewer probes one byte to distinguish an API failure
+from a decoding failure and offers retry/download without fetching an entire video.
+
 ## Runtime Topology
 
 Remote access is composed by `scripts/remote.mjs` from separate setup, provider, prompt, and supervisor modules. Shared remote configuration validates HTTPS origins and fixed ports; Vite allows only the selected exact hostname alongside legacy hosts and proxies `/api` in both dev and preview. Remote start binds origins to loopback, waits for readiness, then runs foreground Tailscale Serve or a token-authenticated named Cloudflare Tunnel. The supervisor stops owned process trees on cancellation or failure. Existing Serve configurations are checked before launch and never reset. Cloudflare credentials are environment-only in connector arguments; its account hostname/Access policy remain dashboard-managed. Quick Tunnels are excluded because they do not support SSE. Auth, CSRF, and event replay stay in the existing backend services.

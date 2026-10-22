@@ -1,7 +1,8 @@
 import { useEffect, useRef, useState } from "react";
 import Markdown, { defaultUrlTransform } from "react-markdown";
+import { MediaPreviewProvider } from "./media-preview-context";
 import { AssistantImage } from "./assistant-image";
-import { localImagePath } from "../../../../shared/assistant-images.mjs";
+import { localMediaPath } from "../../../../shared/assistant-media.mjs";
 
 import { Button } from "@/components/ui/button";
 import { getJobDisplayRequest } from "@/lib/job-display";
@@ -340,6 +341,7 @@ export function JobChatFeed({
     .slice(-30);
 
   return (
+    <MediaPreviewProvider>
     <section
       ref={scrollRef}
       className={cn(
@@ -434,10 +436,10 @@ export function JobChatFeed({
                 ) : (
                   <div className="prose prose-sm mt-1.5 max-w-none text-sm leading-relaxed text-foreground/90 prose-headings:my-2 prose-li:my-0 prose-ol:my-1 prose-p:my-1 prose-pre:my-2 prose-pre:rounded-lg prose-pre:border prose-pre:border-border/50 prose-pre:bg-muted/55 prose-code:text-xs prose-code:text-primary prose-a:text-primary prose-a:no-underline prose-ul:my-1 hover:prose-a:underline dark:prose-invert dark:prose-pre:border-white/5 dark:prose-pre:bg-black/30 dark:prose-code:text-violet-300">
                     <Markdown
-                      urlTransform={(url, key) => key === "src" || localImagePath(url) ? url : defaultUrlTransform(url)}
+                      urlTransform={(url, key) => key === "src" || localMediaPath(url) ? url : defaultUrlTransform(url)}
                       components={{
                         img: ({ src, alt }) => <AssistantImage jobId={job.id} source={typeof src === "string" ? src : undefined} alt={alt} />,
-                        a: ({ href, children }) => localImagePath(href)
+                        a: ({ href, children }) => localMediaPath(href)
                           ? <AssistantImage jobId={job.id} source={href} alt={typeof children === "string" ? children : "Session image"} />
                           : <a href={defaultUrlTransform(href || "")}>{children}</a>,
                         pre: ({ children }) => (
@@ -540,5 +542,6 @@ export function JobChatFeed({
         );
       })}
     </section>
+    </MediaPreviewProvider>
   );
 }

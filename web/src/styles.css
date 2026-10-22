@@ -2,6 +2,34 @@
 @tailwind components;
 @tailwind utilities;
 
+@keyframes media-viewer-enter {
+  from { opacity: 0; transform: scale(0.97); }
+  to { opacity: 1; transform: scale(1); }
+}
+@keyframes media-viewer-exit {
+  from { opacity: 1; transform: scale(1); }
+  to { opacity: 0; transform: scale(0.97); }
+}
+.media-viewer {
+  position: fixed;
+  inset: 0;
+  width: 100vw;
+  height: 100dvh;
+  max-width: none;
+  max-height: none;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  overflow: hidden;
+  background: rgb(9 9 11 / 0.92);
+  animation: media-viewer-enter 160ms ease-out both;
+}
+.media-viewer::backdrop { background: transparent; }
+.media-viewer[data-closing="true"] { animation: media-viewer-exit 160ms ease-in both; }
+@media (prefers-reduced-motion: reduce) {
+  .media-viewer, .media-viewer[data-closing="true"] { animation: none; }
+}
+
 @layer base {
   :root {
     --background: 210 40% 98%;

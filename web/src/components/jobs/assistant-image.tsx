@@ -1,17 +1,10 @@
-import { useState } from "react";
-import { assistantImageUrl } from "../../../../shared/assistant-images.mjs";
+import { assistantMediaUrl, mediaKind } from "../../../../shared/assistant-media.mjs";
+import { MediaPreviewCard } from "./media-preview-card";
 
 export function AssistantImage({ jobId, source, alt }: { jobId: string; source?: string; alt?: string }) {
-  const [failedSource, setFailedSource] = useState<string | null>(null);
-  const url = assistantImageUrl(jobId, source);
-  const label = alt || "Session image";
-  if (!url || failedSource === url) {
-    return <span className="text-sm text-muted-foreground">{label} (image unavailable)</span>;
-  }
-  return (
-    <a href={url} target="_blank" rel="noreferrer" className="inline-block max-w-full">
-      <img src={url} alt={label} loading="lazy" onError={() => setFailedSource(url)}
-        className="my-2 max-h-96 max-w-full rounded-lg border border-border object-contain" />
-    </a>
-  );
+  const url = assistantMediaUrl(jobId, source);
+  const kind = mediaKind(source);
+  const label = alt || (kind === "video" ? "Video preview" : "Screenshot");
+  return url && kind ? <MediaPreviewCard url={url} kind={kind} label={label} />
+    : <span className="text-sm text-muted-foreground">{label} (preview unavailable)</span>;
 }

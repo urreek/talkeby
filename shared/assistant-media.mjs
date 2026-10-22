@@ -1,4 +1,5 @@
-export const MAX_PREVIEW_IMAGE_BYTES = 5 * 1024 * 1024;
+export const MAX_PREVIEW_IMAGE_BYTES = 16 * 1024 * 1024;
+export const MAX_PREVIEW_IMAGE_PIXELS = 33_177_600;
 export const MAX_PREVIEW_VIDEO_BYTES = 24 * 1024 * 1024;
 export const PREVIEW_DIRECTORY = "talkeby-previews";
 
@@ -12,7 +13,7 @@ export function localMediaPath(reference) {
   if (typeof reference !== "string" || reference.length > 2048) return null;
   let value;
   try { value = decodeURIComponent(reference); } catch { return null; }
-  value = value.replace(/^sandbox:/, "").replaceAll("\\", "/");
+  value = value.replace(/^sandbox:/, "").replaceAll("\\", "/").replace(/^\/([a-z]:\/)/i, "$1");
   if (/^[a-z][a-z\d+.-]*:/i.test(value) && !/^[a-z]:\//i.test(value)) return null;
   if (value.startsWith("//") || /[\x00-\x1f\x7f?#]/.test(value)) return null;
   if (value.split("/").some((part) => part.startsWith(".") && part !== "." && part !== "..")) return null;
